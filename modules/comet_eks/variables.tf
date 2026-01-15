@@ -3,6 +3,11 @@ variable "environment" {
   type        = string
 }
 
+variable "region" {
+  description = "AWS region for resources"
+  type        = string
+}
+
 variable "vpc_id" {
   description = "ID of the VPC that the EKS cluster will be launched in"
   type        = string
@@ -204,6 +209,12 @@ variable "enable_mpm_infra" {
   default     = false
 }
 
+variable "enable_external_secrets" {
+  description = "Enable External Secrets IRSA role and Helm chart for accessing AWS Secrets Manager"
+  type        = bool
+  default     = true
+}
+
 # Druid Node Group Variables
 variable "eks_druid_name" {
   description = "Name for the druid node group"
@@ -344,4 +355,11 @@ variable "additional_s3_bucket_arns" {
   description = "Additional S3 bucket ARNs to grant access to (for buckets created outside this module)"
   type        = list(string)
   default     = []
+}
+
+# External Secrets
+variable "external_secrets_chart_version" {
+  description = "Version of the external-secrets Helm chart to deploy"
+  type        = string
+  default     = "0.9.11"
 }

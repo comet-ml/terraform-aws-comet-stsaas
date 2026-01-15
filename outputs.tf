@@ -45,3 +45,43 @@ output "comet_eks_token" {
   value       = var.enable_eks ? data.aws_eks_cluster_auth.this[0].token : null
   sensitive   = true
 }
+
+output "comet_config_secret_arn" {
+  description = "ARN of the Comet config Secrets Manager secret"
+  value       = var.enable_secretsmanager ? module.comet_secretsmanager[0].config_secret_arn : null
+}
+
+output "comet_config_secret_name" {
+  description = "Name of the Comet config Secrets Manager secret"
+  value       = var.enable_secretsmanager ? module.comet_secretsmanager[0].config_secret_name : null
+}
+
+output "comet_monitoring_secret_arn" {
+  description = "ARN of the Comet monitoring Secrets Manager secret"
+  value       = var.enable_secretsmanager ? module.comet_secretsmanager[0].monitoring_secret_arn : null
+}
+
+output "comet_monitoring_secret_name" {
+  description = "Name of the Comet monitoring Secrets Manager secret"
+  value       = var.enable_secretsmanager ? module.comet_secretsmanager[0].monitoring_secret_name : null
+}
+
+output "comet_clickhouse_secret_arn" {
+  description = "ARN of the Comet ClickHouse Secrets Manager secret"
+  value       = var.enable_secretsmanager ? module.comet_secretsmanager[0].clickhouse_secret_arn : null
+}
+
+output "comet_clickhouse_secret_name" {
+  description = "Name of the Comet ClickHouse Secrets Manager secret"
+  value       = var.enable_secretsmanager ? module.comet_secretsmanager[0].clickhouse_secret_name : null
+}
+
+output "external_secrets_irsa_role_arn" {
+  description = "ARN of the External Secrets IRSA role for accessing AWS Secrets Manager"
+  value       = var.enable_eks && var.eks_enable_external_secrets ? module.comet_eks[0].external_secrets_irsa_role_arn : null
+}
+
+output "external_secrets_irsa_role_name" {
+  description = "Name of the External Secrets IRSA role"
+  value       = var.enable_eks && var.eks_enable_external_secrets ? module.comet_eks[0].external_secrets_irsa_role_name : null
+}

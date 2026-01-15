@@ -14,6 +14,18 @@ locals {
   )
 }
 
+# Validation: enable_secretsmanager requires enable_rds and enable_elasticache
+resource "terraform_data" "secretsmanager_validation" {
+  count = var.enable_secretsmanager ? 1 : 0
+
+  lifecycle {
+    precondition {
+      condition     = var.enable_rds && var.enable_elasticache
+      error_message = "enable_secretsmanager requires both enable_rds and enable_elasticache to be true."
+    }
+  }
+}
+
 module "comet_vpc" {
   source      = "./modules/comet_vpc"
   count       = var.enable_vpc ? 1 : 0
@@ -64,6 +76,7 @@ module "comet_eks" {
   source      = "./modules/comet_eks"
   count       = var.enable_eks ? 1 : 0
   environment = var.environment
+  region      = var.region
   common_tags = local.all_tags
 
   vpc_id                              = var.enable_vpc ? module.comet_vpc[0].vpc_id : var.comet_vpc_id
@@ -141,6 +154,10 @@ module "comet_eks" {
 
   # Additional S3 bucket access
   additional_s3_bucket_arns = var.eks_additional_s3_bucket_arns
+
+  # External Secrets IRSA and Helm chart
+  enable_external_secrets        = var.eks_enable_external_secrets
+  external_secrets_chart_version = var.eks_external_secrets_chart_version
 }
 
 module "comet_elasticache" {
@@ -199,4 +216,52 @@ module "comet_s3" {
   s3_force_destroy = var.s3_force_destroy
 
   enable_mpm_infra = var.enable_mpm_infra
+}
+
+module "comet_secretsmanager" {
+  source = "./modules/comet_secretsmanager"
+  count  = var.enable_secretsmanager ? 1 : 0
+
+  environment = var.environment
+  common_tags = local.all_tags
+
+  # Secret toggles
+  enable_config_secret     = var.enable_config_secret
+  enable_monitoring_secret = var.enable_monitoring_secret
+  enable_clickhouse_secret = var.enable_clickhouse_secret
+
+  # Database password (from RDS)
+  mysql_password = var.rds_master_password
+
+  # Redis configuration (from ElastiCache)
+  redis_endpoint           = module.comet_elasticache[0].redis_endpoint
+  redis_port               = module.comet_elasticache[0].redis_port
+  redis_transit_encryption = module.comet_elasticache[0].transit_encryption_enabled
+  redis_token              = var.redis_token
+
+  # Secret seed (optional - will be auto-generated if not provided)
+  secret_seed = var.secret_seed
+
+  # SendGrid
+  sendgrid_api_key = var.sendgrid_api_key
+
+  # S3 configuration (defaults to IAM-ROLE)
+  s3_key            = var.s3_key
+  s3_secret         = var.s3_secret
+  s3_private_key    = var.s3_private_key
+  s3_private_secret = var.s3_private_secret
+  s3_public_key     = var.s3_public_key
+  s3_public_secret  = var.s3_public_secret
+
+  # Monitoring secret configuration
+  grafana_admin_user     = var.grafana_admin_user
+  grafana_admin_password = var.grafana_admin_password
+
+  # ClickHouse secret configuration
+  clickhouse_monitoring_password = var.clickhouse_monitoring_password
+
+  depends_on = [
+    module.comet_elasticache,
+    module.comet_rds
+  ]
 }

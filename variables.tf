@@ -42,6 +42,29 @@ variable "enable_mpm_infra" {
   default     = false
 }
 
+variable "enable_secretsmanager" {
+  description = "Toggles the comet_secretsmanager module for provisioning Comet Secrets Manager secrets. Requires enable_rds and enable_elasticache to be true."
+  type        = bool
+}
+
+variable "enable_config_secret" {
+  description = "Enable creation of the config secret (cometml/{environment}/config)"
+  type        = bool
+  default     = true
+}
+
+variable "enable_monitoring_secret" {
+  description = "Enable creation of the monitoring-secrets secret (cometml/{environment}/monitoring-secrets)"
+  type        = bool
+  default     = false
+}
+
+variable "enable_clickhouse_secret" {
+  description = "Enable creation of the clickhouse secret (cometml/{environment}/clickhouse)"
+  type        = bool
+  default     = false
+}
+
 ################
 #### Global ####
 ################
@@ -465,6 +488,18 @@ variable "eks_additional_s3_bucket_arns" {
   default     = []
 }
 
+variable "eks_enable_external_secrets" {
+  description = "Enable External Secrets IRSA role and Helm chart for accessing AWS Secrets Manager from EKS"
+  type        = bool
+  default     = true
+}
+
+variable "eks_external_secrets_chart_version" {
+  description = "Version of the external-secrets Helm chart to deploy"
+  type        = string
+  default     = "0.9.11"
+}
+
 #### comet_elasticache ####
 variable "elasticache_allow_from_sg" {
   description = "Security group from which to allow connections to ElastiCache, to use when provisioning with existing compute"
@@ -505,7 +540,7 @@ variable "elasticache_num_cache_nodes" {
 variable "elasticache_transit_encryption" {
   description = "Enable transit encryption for ElastiCache"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "elasticache_auth_token" {
@@ -620,4 +655,87 @@ variable "environment_tag" {
   description = "Deployment identifier"
   type        = string
   default     = ""
+}
+
+#### comet_secretsmanager ####
+variable "sendgrid_api_key" {
+  description = "Base64 encoded SendGrid API key (required when enable_secretsmanager is true)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "secret_seed" {
+  description = "Secret seed value for Comet. If not provided, a random value will be generated."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "s3_key" {
+  description = "S3 key configuration for Secrets Manager"
+  type        = string
+  default     = "IAM-ROLE"
+}
+
+variable "s3_secret" {
+  description = "S3 secret configuration for Secrets Manager"
+  type        = string
+  default     = "IAM-ROLE"
+  sensitive   = true
+}
+
+variable "s3_private_key" {
+  description = "S3 private key configuration for Secrets Manager"
+  type        = string
+  default     = "IAM-ROLE"
+}
+
+variable "s3_private_secret" {
+  description = "S3 private secret configuration for Secrets Manager"
+  type        = string
+  default     = "IAM-ROLE"
+  sensitive   = true
+}
+
+variable "s3_public_key" {
+  description = "S3 public key configuration for Secrets Manager"
+  type        = string
+  default     = "IAM-ROLE"
+}
+
+variable "s3_public_secret" {
+  description = "S3 public secret configuration for Secrets Manager"
+  type        = string
+  default     = "IAM-ROLE"
+  sensitive   = true
+}
+
+variable "redis_token" {
+  description = "Redis auth token for Secrets Manager"
+  type        = string
+  default     = "NA"
+  sensitive   = true
+}
+
+#### comet_secretsmanager - monitoring secret ####
+variable "grafana_admin_user" {
+  description = "Grafana admin username for monitoring secret"
+  type        = string
+  default     = "admin"
+}
+
+variable "grafana_admin_password" {
+  description = "Grafana admin password for monitoring secret. Required when enable_monitoring_secret is true."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+#### comet_secretsmanager - clickhouse secret ####
+variable "clickhouse_monitoring_password" {
+  description = "ClickHouse monitoring password for clickhouse secret. Required when enable_clickhouse_secret is true."
+  type        = string
+  default     = null
+  sensitive   = true
 }

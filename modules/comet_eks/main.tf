@@ -274,9 +274,26 @@ module "eks_blueprints_addons" {
   external_dns_route53_zone_arns      = var.eks_external_dns_r53_zones
 }
 
+locals {
+  # Build tag specifications for EBS CSI driver
+  # Each tag needs to be a separate tagSpecification_N parameter with format "key=value"
+  common_tags_list = [for k, v in var.common_tags : "${k}=${v}"]
+
+  # Base tags for gp3 storage class
+  gp3_base_tags = ["Terraform=true", "StorageClass=gp3"]
+  gp3_all_tags  = concat(local.gp3_base_tags, local.common_tags_list)
+  gp3_tag_params = { for idx, tag in local.gp3_all_tags : "tagSpecification_${idx + 1}" => tag }
+
+  # Base tags for comet-generic storage class
+  comet_generic_base_tags = ["Terraform=true", "StorageClass=comet-generic"]
+  comet_generic_all_tags  = concat(local.comet_generic_base_tags, local.common_tags_list)
+  comet_generic_tag_params = { for idx, tag in local.comet_generic_all_tags : "tagSpecification_${idx + 1}" => tag }
+}
+
 resource "kubernetes_storage_class" "gp3" {
   metadata {
-    name = "gp3"
+    name   = "gp3"
+    labels = var.common_tags
     annotations = {
       "storageclass.kubernetes.io/is-default-class" = "true"
     }
@@ -284,14 +301,150 @@ resource "kubernetes_storage_class" "gp3" {
 
   storage_provisioner = "ebs.csi.aws.com"
 
-  parameters = {
-    type = "gp3"
-    # Optionally, set iops and throughput:
-    # iops       = "3000"
-    # throughput = "125"
-  }
+  parameters = merge(
+    {
+      type = "gp3"
+      # Optionally, set iops and throughput:
+      # iops       = "3000"
+      # throughput = "125"
+    },
+    local.gp3_tag_params
+  )
 
   reclaim_policy         = "Delete"
   volume_binding_mode    = "WaitForFirstConsumer"
   allow_volume_expansion = true
+}
+
+resource "kubernetes_storage_class" "comet_generic" {
+  metadata {
+    name   = "comet-generic"
+    labels = var.common_tags
+  }
+
+  storage_provisioner = "ebs.csi.aws.com"
+
+  parameters = merge(
+    { type = "gp3" },
+    local.comet_generic_tag_params
+  )
+
+  reclaim_policy         = "Delete"
+  volume_binding_mode    = "WaitForFirstConsumer"
+  allow_volume_expansion = true
+}
+
+#########################################
+#### External Secrets IRSA Role ####
+#########################################
+# This role allows the external-secrets service account to access AWS Secrets Manager
+module "external_secrets_irsa_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.39"
+
+  count = var.enable_external_secrets ? 1 : 0
+
+  # Role name matches the expected format: {environment}-external-secrets
+  role_name = "${var.environment}-external-secrets"
+
+  # Attach the external secrets policy that allows Secrets Manager access
+  attach_external_secrets_policy = true
+
+  # Limit access to secrets matching the environment's path pattern
+  external_secrets_secrets_manager_arns = [
+    "arn:aws:secretsmanager:*:*:secret:cometml/${var.environment}/*"
+  ]
+
+  # Configure OIDC provider for IRSA
+  # This allows the Kubernetes service account to assume this IAM role
+  oidc_providers = {
+    ex = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["external-secrets:external-secrets"]
+    }
+  }
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name        = "${var.environment}-external-secrets"
+      Description = "IRSA role for External Secrets Operator to access AWS Secrets Manager"
+    }
+  )
+}
+
+#########################################
+#### External Secrets Helm Release ####
+#########################################
+resource "helm_release" "external_secrets" {
+  count = var.enable_external_secrets ? 1 : 0
+
+  name             = "external-secrets"
+  repository       = "https://charts.external-secrets.io"
+  chart            = "external-secrets"
+  version          = var.external_secrets_chart_version
+  namespace        = "external-secrets"
+  create_namespace = true
+
+  # Wait for the release to be deployed
+  wait    = true
+  timeout = 300
+
+  # Service account configuration with IRSA role annotation
+  set {
+    name  = "serviceAccount.name"
+    value = "external-secrets"
+  }
+
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = module.external_secrets_irsa_role[0].iam_role_arn
+  }
+
+  # Install CRDs
+  set {
+    name  = "installCRDs"
+    value = "true"
+  }
+
+  depends_on = [
+    module.eks,
+    module.eks_blueprints_addons,
+    module.external_secrets_irsa_role
+  ]
+}
+
+#########################################
+#### ClusterSecretStore Resource ####
+#########################################
+resource "kubernetes_manifest" "cluster_secret_store" {
+  count = var.enable_external_secrets ? 1 : 0
+
+  manifest = {
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ClusterSecretStore"
+    metadata = {
+      name = "cluster-secret-store"
+    }
+    spec = {
+      provider = {
+        aws = {
+          service = "SecretsManager"
+          region  = var.region
+          auth = {
+            jwt = {
+              serviceAccountRef = {
+                name      = "external-secrets"
+                namespace = "external-secrets"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.external_secrets
+  ]
 }
