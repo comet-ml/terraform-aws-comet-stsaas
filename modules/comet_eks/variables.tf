@@ -410,9 +410,3 @@ variable "additional_s3_bucket_arns" {
   default     = []
 }
 
-# External Secrets
-variable "external_secrets_chart_version" {
-  description = "Version of the external-secrets Helm chart to deploy"
-  type        = string
-  default     = "0.9.11"
-}

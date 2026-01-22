@@ -528,12 +528,6 @@ variable "eks_enable_external_secrets" {
   default     = true
 }
 
-variable "eks_external_secrets_chart_version" {
-  description = "Version of the external-secrets Helm chart to deploy"
-  type        = string
-  default     = "0.9.11"
-}
-
 #### comet_elasticache ####
 variable "elasticache_allow_from_sg" {
   description = "Security group from which to allow connections to ElastiCache, to use when provisioning with existing compute"
