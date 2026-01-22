@@ -42,6 +42,24 @@ variable "enable_mpm_infra" {
   default     = false
 }
 
+variable "enable_loki_bucket" {
+  description = "Enable creation of S3 bucket for Loki logs (used by comet_s3 module)"
+  type        = bool
+  default     = false
+}
+
+variable "enable_monitoring_setup" {
+  description = "Enable monitoring namespace and Grafana credentials secret in EKS (used by comet_eks module)"
+  type        = bool
+  default     = false
+}
+
+variable "monitoring_namespace" {
+  description = "Kubernetes namespace for monitoring resources"
+  type        = string
+  default     = "monitoring"
+}
+
 variable "enable_secretsmanager" {
   description = "Toggles the comet_secretsmanager module for provisioning Comet Secrets Manager secrets. Requires enable_rds and enable_elasticache to be true."
   type        = bool

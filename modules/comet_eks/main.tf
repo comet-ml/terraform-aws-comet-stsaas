@@ -472,3 +472,106 @@ resource "kubernetes_manifest" "cluster_secret_store" {
     helm_release.external_secrets
   ]
 }
+
+#########################################
+#### Loki IRSA Role and IAM Policy ####
+#########################################
+data "aws_iam_policy_document" "loki" {
+  count = var.enable_loki ? 1 : 0
+
+  statement {
+    actions = [
+      "s3:ListBucket",
+      "s3:PutObject",
+      "s3:GetObject",
+      "s3:DeleteObject",
+    ]
+    resources = [
+      var.loki_s3_bucket_arn,
+      "${var.loki_s3_bucket_arn}/*"
+    ]
+  }
+}
+
+resource "aws_iam_policy" "loki" {
+  count = var.enable_loki ? 1 : 0
+
+  name_prefix = "${var.environment}-loki-"
+  description = "Provides permissions for Loki on ${var.environment} cluster"
+  policy      = data.aws_iam_policy_document.loki[0].json
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.environment}-loki"
+    }
+  )
+}
+
+module "loki_irsa_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.39"
+
+  count = var.enable_loki ? 1 : 0
+
+  role_name = "${var.environment}-loki"
+
+  role_policy_arns = {
+    loki = aws_iam_policy.loki[0].arn
+  }
+
+  oidc_providers = {
+    ex = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["monitoring:monitoring-loki"]
+    }
+  }
+
+  depends_on = [
+    module.eks,
+    aws_iam_policy.loki
+  ]
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name        = "${var.environment}-loki"
+      Description = "IRSA role for Loki to access S3 bucket for log storage"
+    }
+  )
+}
+
+#########################################
+#### Monitoring Namespace and Secrets ####
+#########################################
+resource "kubernetes_namespace" "monitoring" {
+  count = var.enable_monitoring_setup ? 1 : 0
+
+  metadata {
+    name = var.monitoring_namespace
+  }
+
+  depends_on = [
+    module.eks,
+    module.eks_blueprints_addons
+  ]
+}
+
+resource "kubernetes_secret" "monitoring" {
+  count = var.enable_monitoring_setup ? 1 : 0
+
+  metadata {
+    name      = "monitoring"
+    namespace = kubernetes_namespace.monitoring[0].metadata[0].name
+  }
+
+  data = {
+    grafana-admin-user     = var.grafana_admin_user
+    grafana-admin-password = var.grafana_admin_password
+  }
+
+  type      = "Opaque"
+  immutable = false
+
+  depends_on = [kubernetes_namespace.monitoring]
+}

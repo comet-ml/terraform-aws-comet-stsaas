@@ -18,6 +18,12 @@ variable "enable_mpm_infra" {
   type        = bool
 }
 
+variable "enable_loki_bucket" {
+  description = "Enable creation of S3 bucket for Loki logs"
+  type        = bool
+  default     = false
+}
+
 variable "common_tags" {
   type        = map(string)
   description = "A map of common tags"

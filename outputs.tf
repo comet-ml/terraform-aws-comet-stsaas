@@ -85,3 +85,23 @@ output "external_secrets_irsa_role_name" {
   description = "Name of the External Secrets IRSA role"
   value       = var.enable_eks && var.eks_enable_external_secrets ? module.comet_eks[0].external_secrets_irsa_role_name : null
 }
+
+output "comet_loki_bucket_name" {
+  description = "Name of the Loki S3 bucket"
+  value       = var.enable_s3 && var.enable_loki_bucket ? module.comet_s3[0].comet_loki_bucket_name : null
+}
+
+output "comet_loki_bucket_arn" {
+  description = "ARN of the Loki S3 bucket"
+  value       = var.enable_s3 && var.enable_loki_bucket ? module.comet_s3[0].comet_loki_bucket_arn : null
+}
+
+output "loki_irsa_role_arn" {
+  description = "ARN of the Loki IRSA role for S3 access"
+  value       = var.enable_eks && var.enable_loki_bucket ? module.comet_eks[0].loki_irsa_role_arn : null
+}
+
+output "loki_irsa_role_name" {
+  description = "Name of the Loki IRSA role"
+  value       = var.enable_eks && var.enable_loki_bucket ? module.comet_eks[0].loki_irsa_role_name : null
+}

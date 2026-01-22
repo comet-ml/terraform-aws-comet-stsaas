@@ -45,6 +45,21 @@ resource "aws_s3_bucket" "comet_airflow_bucket" {
   )
 }
 
+resource "aws_s3_bucket" "comet_loki_bucket" {
+  count = var.enable_loki_bucket ? 1 : 0
+
+  bucket = "comet-loki-${local.suffix}"
+
+  force_destroy = var.s3_force_destroy
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "comet-loki-${local.suffix}"
+    }
+  )
+}
+
 resource "aws_iam_policy" "comet_s3_iam_policy" {
   name        = "comet-s3-access-policy-${local.suffix}"
   description = "Policy for access to comet S3 buckets"
@@ -65,6 +80,10 @@ resource "aws_iam_policy" "comet_s3_iam_policy" {
             "${aws_s3_bucket.comet_druid_bucket[0].arn}/*",
             aws_s3_bucket.comet_airflow_bucket[0].arn,
             "${aws_s3_bucket.comet_airflow_bucket[0].arn}/*"
+          ] : [],
+          var.enable_loki_bucket ? [
+            aws_s3_bucket.comet_loki_bucket[0].arn,
+            "${aws_s3_bucket.comet_loki_bucket[0].arn}/*"
           ] : []
         )
       }

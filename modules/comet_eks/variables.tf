@@ -221,6 +221,43 @@ variable "enable_external_secrets" {
   default     = true
 }
 
+variable "enable_loki" {
+  description = "Enable Loki IRSA role for accessing S3 bucket for log storage"
+  type        = bool
+  default     = false
+}
+
+variable "loki_s3_bucket_arn" {
+  description = "ARN of the S3 bucket for Loki log storage"
+  type        = string
+  default     = null
+}
+
+variable "enable_monitoring_setup" {
+  description = "Enable monitoring namespace and Grafana credentials secret"
+  type        = bool
+  default     = false
+}
+
+variable "monitoring_namespace" {
+  description = "Kubernetes namespace for monitoring resources"
+  type        = string
+  default     = "monitoring"
+}
+
+variable "grafana_admin_user" {
+  description = "Grafana admin username"
+  type        = string
+  default     = "admin"
+}
+
+variable "grafana_admin_password" {
+  description = "Grafana admin password"
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
 # Druid Node Group Variables
 variable "eks_druid_name" {
   description = "Name for the druid node group"

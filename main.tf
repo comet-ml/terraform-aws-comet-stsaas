@@ -160,6 +160,16 @@ module "comet_eks" {
   # External Secrets IRSA and Helm chart
   enable_external_secrets        = var.eks_enable_external_secrets
   external_secrets_chart_version = var.eks_external_secrets_chart_version
+
+  # Loki IRSA for S3 access
+  enable_loki        = var.enable_loki_bucket
+  loki_s3_bucket_arn = var.enable_s3 && var.enable_loki_bucket ? module.comet_s3[0].comet_loki_bucket_arn : null
+
+  # Monitoring namespace and Grafana credentials
+  enable_monitoring_setup = var.enable_monitoring_setup
+  monitoring_namespace    = var.monitoring_namespace
+  grafana_admin_user     = var.grafana_admin_user
+  grafana_admin_password = var.grafana_admin_password
 }
 
 module "comet_elasticache" {
@@ -218,7 +228,8 @@ module "comet_s3" {
   comet_s3_bucket  = var.s3_bucket_name
   s3_force_destroy = var.s3_force_destroy
 
-  enable_mpm_infra = var.enable_mpm_infra
+  enable_mpm_infra   = var.enable_mpm_infra
+  enable_loki_bucket = var.enable_loki_bucket
 }
 
 module "comet_secretsmanager" {

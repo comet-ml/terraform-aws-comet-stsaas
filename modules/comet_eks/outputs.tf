@@ -32,3 +32,13 @@ output "oidc_provider_arn" {
   description = "ARN of the OIDC provider for the EKS cluster"
   value       = module.eks.oidc_provider_arn
 }
+
+output "loki_irsa_role_arn" {
+  description = "ARN of the Loki IRSA role for S3 access"
+  value       = var.enable_loki ? module.loki_irsa_role[0].iam_role_arn : null
+}
+
+output "loki_irsa_role_name" {
+  description = "Name of the Loki IRSA role"
+  value       = var.enable_loki ? module.loki_irsa_role[0].iam_role_name : null
+}
