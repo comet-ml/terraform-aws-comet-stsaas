@@ -106,10 +106,13 @@ module "eks" {
   vpc_id     = var.vpc_id
   subnet_ids = var.eks_private_subnets
 
-  eks_managed_node_group_defaults = {
-    ami_type = var.eks_mng_ami_type
-    tags     = var.common_tags
-    }
+  eks_managed_node_group_defaults = merge(
+    {
+      ami_type = var.eks_mng_ami_type
+      tags     = var.common_tags
+    },
+    var.eks_mng_ami_id != null ? { ami_id = var.eks_mng_ami_id } : {}
+  )
 
   eks_managed_node_groups = merge(
     # Admin Node Group

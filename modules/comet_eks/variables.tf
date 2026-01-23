@@ -114,8 +114,14 @@ variable "eks_comet_name" {
 }
 
 variable "eks_mng_ami_type" {
-  description = "AMI family to use for the EKS nodes"
+  description = "AMI family to use for the EKS nodes (e.g., AL2023_x86_64_STANDARD). Ignored if eks_mng_ami_id is set."
   type        = string
+}
+
+variable "eks_mng_ami_id" {
+  description = "Specific AMI ID to use for all EKS node groups (e.g., ami-0123456789abcdef0). If set, overrides eks_mng_ami_type."
+  type        = string
+  default     = null
 }
 
 variable "eks_comet_instance_types" {
