@@ -108,13 +108,14 @@ module "eks" {
 
   eks_managed_node_group_defaults = merge(
     {
-      ami_type = var.eks_mng_ami_type
-      tags     = var.common_tags
+      ami_type                   = var.eks_mng_ami_type
+      enable_bootstrap_user_data = true
+      # Set platform based on AMI type - AL2023 uses nodeadm, AL2 uses bootstrap.sh
+      platform                   = startswith(var.eks_mng_ami_type, "AL2023") ? "al2023" : "linux"
+      tags                       = var.common_tags
     },
     var.eks_mng_ami_id != null ? {
-      ami_id                     = var.eks_mng_ami_id
-      enable_bootstrap_user_data = true
-      platform                   = "linux"
+      ami_id = var.eks_mng_ami_id
     } : {}
   )
 
