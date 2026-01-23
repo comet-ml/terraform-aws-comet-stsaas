@@ -227,7 +227,7 @@ variable "eks_authentication_mode" {
   description = "Authentication mode for the EKS cluster. Valid values: CONFIG_MAP, API, API_AND_CONFIG_MAP"
   type        = string
   default     = "API_AND_CONFIG_MAP"
-  
+
   validation {
     condition     = contains(["CONFIG_MAP", "API", "API_AND_CONFIG_MAP"], var.eks_authentication_mode)
     error_message = "Authentication mode must be CONFIG_MAP, API, API_AND_CONFIG_MAP."
@@ -665,6 +665,30 @@ variable "rds_kms_key_id" {
   description = "ARN of the KMS key to use for encryption. Required when restoring from a KMS-encrypted shared snapshot. If not specified, the default RDS KMS key will be used."
   type        = string
   default     = null
+}
+
+variable "rds_performance_insights_enabled" {
+  description = "Enable Performance Insights for RDS instances"
+  type        = bool
+  default     = true
+}
+
+variable "rds_performance_insights_retention_period" {
+  description = "Retention period for Performance Insights data in days. Valid values are 7, 31, 62, 93, 124, 155, 186, 217, 248, 279, 310, 341, 372, 403, 434, 465, 496, 527, 558, 589, 620, 651, 682, 713, or 731."
+  type        = number
+  default     = 7
+}
+
+variable "rds_performance_insights_kms_key_id" {
+  description = "ARN of KMS key to encrypt Performance Insights data. If not specified, the default RDS KMS key will be used."
+  type        = string
+  default     = null
+}
+
+variable "rds_enhanced_monitoring_interval" {
+  description = "Interval in seconds for Enhanced Monitoring metrics collection. Valid values are 0, 1, 5, 10, 15, 30, 60. Set to 0 to disable Enhanced Monitoring."
+  type        = number
+  default     = 60
 }
 
 #### comet_s3 ####

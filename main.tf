@@ -79,10 +79,10 @@ module "comet_eks" {
   region      = var.region
   common_tags = local.all_tags
 
-  vpc_id                              = var.enable_vpc ? module.comet_vpc[0].vpc_id : var.comet_vpc_id
-  eks_private_subnets                 = var.enable_vpc ? module.comet_vpc[0].private_subnets : var.comet_private_subnets
-  eks_cluster_name                    = var.eks_cluster_name
-  eks_cluster_version                 = var.eks_cluster_version
+  vpc_id                                       = var.enable_vpc ? module.comet_vpc[0].vpc_id : var.comet_vpc_id
+  eks_private_subnets                          = var.enable_vpc ? module.comet_vpc[0].private_subnets : var.comet_private_subnets
+  eks_cluster_name                             = var.eks_cluster_name
+  eks_cluster_version                          = var.eks_cluster_version
   eks_cluster_endpoint_public_access           = var.eks_cluster_endpoint_public_access
   eks_cluster_endpoint_private_access          = var.eks_cluster_endpoint_private_access
   eks_cluster_security_group_additional_rules  = var.eks_cluster_security_group_additional_rules
@@ -93,11 +93,11 @@ module "comet_eks" {
   eks_mng_ami_type                             = var.eks_mng_ami_type
   eks_mng_ami_id                               = var.eks_mng_ami_id
   eks_mng_disk_size                            = var.eks_mng_disk_size
-  eks_aws_load_balancer_controller    = var.eks_aws_load_balancer_controller
-  eks_cert_manager                    = var.eks_cert_manager
-  eks_aws_cloudwatch_metrics          = var.eks_aws_cloudwatch_metrics
-  eks_external_dns                    = var.eks_external_dns
-  eks_external_dns_r53_zones          = var.eks_external_dns_r53_zones
+  eks_aws_load_balancer_controller             = var.eks_aws_load_balancer_controller
+  eks_cert_manager                             = var.eks_cert_manager
+  eks_aws_cloudwatch_metrics                   = var.eks_aws_cloudwatch_metrics
+  eks_external_dns                             = var.eks_external_dns
+  eks_external_dns_r53_zones                   = var.eks_external_dns_r53_zones
 
   s3_enabled              = var.enable_s3
   comet_ec2_s3_iam_policy = var.enable_s3 ? module.comet_s3[0].comet_s3_iam_policy_arn : null
@@ -168,8 +168,8 @@ module "comet_eks" {
   # Monitoring namespace and Grafana credentials
   enable_monitoring_setup = var.enable_monitoring_setup
   monitoring_namespace    = var.monitoring_namespace
-  grafana_admin_user     = var.grafana_admin_user
-  grafana_admin_password = var.grafana_admin_password
+  grafana_admin_user      = var.grafana_admin_user
+  grafana_admin_password  = var.grafana_admin_password
 }
 
 module "comet_elasticache" {
@@ -217,6 +217,12 @@ module "comet_rds" {
   rds_master_password         = var.rds_master_password
   rds_snapshot_identifier     = var.rds_snapshot_identifier
   rds_kms_key_id              = var.rds_kms_key_id
+
+  # Performance Insights and Enhanced Monitoring
+  rds_performance_insights_enabled          = var.rds_performance_insights_enabled
+  rds_performance_insights_retention_period = var.rds_performance_insights_retention_period
+  rds_performance_insights_kms_key_id       = var.rds_performance_insights_kms_key_id
+  rds_enhanced_monitoring_interval          = var.rds_enhanced_monitoring_interval
 }
 
 module "comet_s3" {

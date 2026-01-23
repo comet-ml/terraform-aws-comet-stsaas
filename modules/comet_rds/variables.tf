@@ -71,7 +71,7 @@ variable "rds_database_name" {
 variable "rds_master_username" {
   description = "Master username for RDS database"
   type        = string
-	default     = "admin"
+  default     = "admin"
 }
 
 variable "rds_master_password" {
@@ -95,4 +95,28 @@ variable "rds_kms_key_id" {
   description = "ARN of the KMS key to use for encryption. Required when restoring from a KMS-encrypted shared snapshot. If not specified, the default RDS KMS key will be used."
   type        = string
   default     = null
+}
+
+variable "rds_performance_insights_enabled" {
+  description = "Enable Performance Insights for RDS instances"
+  type        = bool
+  default     = true
+}
+
+variable "rds_performance_insights_retention_period" {
+  description = "Retention period for Performance Insights data in days. Valid values are 7, 31, 62, 93, 124, 155, 186, 217, 248, 279, 310, 341, 372, 403, 434, 465, 496, 527, 558, 589, 620, 651, 682, 713, or 731."
+  type        = number
+  default     = 7
+}
+
+variable "rds_performance_insights_kms_key_id" {
+  description = "ARN of KMS key to encrypt Performance Insights data. If not specified, the default RDS KMS key will be used."
+  type        = string
+  default     = null
+}
+
+variable "rds_enhanced_monitoring_interval" {
+  description = "Interval in seconds for Enhanced Monitoring metrics collection. Valid values are 0, 1, 5, 10, 15, 30, 60. Set to 0 to disable Enhanced Monitoring."
+  type        = number
+  default     = 60
 }

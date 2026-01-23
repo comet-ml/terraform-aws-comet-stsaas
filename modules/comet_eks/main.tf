@@ -98,8 +98,8 @@ module "eks" {
 
   cluster_security_group_additional_rules = local.cluster_security_group_rules
 
-  authentication_mode                         = var.eks_authentication_mode
-  enable_cluster_creator_admin_permissions    = var.eks_enable_cluster_creator_admin_permissions
+  authentication_mode                      = var.eks_authentication_mode
+  enable_cluster_creator_admin_permissions = var.eks_enable_cluster_creator_admin_permissions
 
   access_entries = local.admin_access_entries
 
@@ -111,8 +111,8 @@ module "eks" {
       ami_type                   = var.eks_mng_ami_type
       enable_bootstrap_user_data = true
       # Set platform based on AMI type - AL2023 uses nodeadm, AL2 uses bootstrap.sh
-      platform                   = startswith(var.eks_mng_ami_type, "AL2023") ? "al2023" : "linux"
-      tags                       = var.common_tags
+      platform = startswith(var.eks_mng_ami_type, "AL2023") ? "al2023" : "linux"
+      tags     = var.common_tags
     },
     var.eks_mng_ami_id != null ? {
       ami_id = var.eks_mng_ami_id
@@ -312,13 +312,13 @@ locals {
   common_tags_list = [for k, v in var.common_tags : "${k}=${v}"]
 
   # Base tags for gp3 storage class
-  gp3_base_tags = ["Terraform=true", "StorageClass=gp3"]
-  gp3_all_tags  = concat(local.gp3_base_tags, local.common_tags_list)
+  gp3_base_tags  = ["Terraform=true", "StorageClass=gp3"]
+  gp3_all_tags   = concat(local.gp3_base_tags, local.common_tags_list)
   gp3_tag_params = { for idx, tag in local.gp3_all_tags : "tagSpecification_${idx + 1}" => tag }
 
   # Base tags for comet-generic storage class
-  comet_generic_base_tags = ["Terraform=true", "StorageClass=comet-generic"]
-  comet_generic_all_tags  = concat(local.comet_generic_base_tags, local.common_tags_list)
+  comet_generic_base_tags  = ["Terraform=true", "StorageClass=comet-generic"]
+  comet_generic_all_tags   = concat(local.comet_generic_base_tags, local.common_tags_list)
   comet_generic_tag_params = { for idx, tag in local.comet_generic_all_tags : "tagSpecification_${idx + 1}" => tag }
 }
 
