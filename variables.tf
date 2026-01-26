@@ -74,13 +74,13 @@ variable "enable_config_secret" {
 variable "enable_monitoring_secret" {
   description = "Enable creation of the monitoring-secrets secret (cometml/{environment}/monitoring-secrets)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_clickhouse_secret" {
   description = "Enable creation of the clickhouse secret (cometml/{environment}/clickhouse)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 ################
@@ -532,6 +532,12 @@ variable "eks_enable_external_secrets" {
   description = "Enable External Secrets IRSA role and Helm chart for accessing AWS Secrets Manager from EKS"
   type        = bool
   default     = true
+}
+
+variable "eks_external_secrets_chart_version" {
+  description = "Helm chart version for external-secrets"
+  type        = string
+  default     = "0.9.3"
 }
 
 #### comet_elasticache ####

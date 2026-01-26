@@ -227,6 +227,12 @@ variable "enable_external_secrets" {
   default     = true
 }
 
+variable "external_secrets_chart_version" {
+  description = "Helm chart version for external-secrets"
+  type        = string
+  default     = "0.9.3"
+}
+
 variable "enable_loki" {
   description = "Enable Loki IRSA role for accessing S3 bucket for log storage"
   type        = bool

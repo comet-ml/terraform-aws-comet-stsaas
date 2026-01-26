@@ -405,6 +405,177 @@ module "external_secrets_irsa_role" {
   )
 }
 
+# Deploy External Secrets - Two-phase installation
+# This replicates the comet-ml/comet-devops/charts/external-secrets umbrella chart behavior
+# with the CRD installation workaround from the README:
+#
+# Phase 1: Install CRDs first (workaround for CRD installation bug in umbrella chart)
+# Phase 2: Install the full external-secrets operator
+# Phase 3: Create ClusterSecretStore after webhook is ready
+
+# Phase 1: Install external-secrets CRDs first
+# This follows the workaround from comet-devops README:
+# "helm install external-secrets external-secrets/external-secrets --set installCRDs=true"
+resource "helm_release" "external_secrets_crds" {
+  count = var.enable_external_secrets ? 1 : 0
+
+  name             = "external-secrets-crds"
+  repository       = "https://charts.external-secrets.io"
+  chart            = "external-secrets"
+  version          = var.external_secrets_chart_version
+  namespace        = "external-secrets"
+  create_namespace = true
+
+  # Only install CRDs, disable everything else
+  set {
+    name  = "installCRDs"
+    value = "true"
+  }
+
+  set {
+    name  = "webhook.create"
+    value = "false"
+  }
+
+  set {
+    name  = "certController.create"
+    value = "false"
+  }
+
+  set {
+    name  = "createOperator"
+    value = "false"
+  }
+
+  wait    = true
+  timeout = 300
+
+  depends_on = [
+    module.eks,
+    module.eks_blueprints_addons
+  ]
+}
+
+# Phase 2: Install the full external-secrets operator
+resource "helm_release" "external_secrets" {
+  count = var.enable_external_secrets ? 1 : 0
+
+  name             = "external-secrets"
+  repository       = "https://charts.external-secrets.io"
+  chart            = "external-secrets"
+  version          = var.external_secrets_chart_version
+  namespace        = "external-secrets"
+  create_namespace = false # Already created by CRDs release
+
+  # Wait for the release to be fully deployed before marking as complete
+  wait          = true
+  wait_for_jobs = true
+  timeout       = 600 # 10 minutes to allow webhook to become ready
+
+  # CRDs already installed, skip to avoid conflicts
+  set {
+    name  = "installCRDs"
+    value = "false"
+  }
+
+  # Match values from comet-devops values.yaml
+  set {
+    name  = "replicaCount"
+    value = "1"
+  }
+
+  set {
+    name  = "serviceAccount.create"
+    value = "true"
+  }
+
+  set {
+    name  = "serviceAccount.automount"
+    value = "true"
+  }
+
+  # IRSA annotation from values-dply.yaml pattern
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = module.external_secrets_irsa_role[0].iam_role_arn
+  }
+
+  # Webhook configuration from values.yaml
+  set {
+    name  = "webhook.create"
+    value = "true"
+  }
+
+  set {
+    name  = "webhook.replicaCount"
+    value = "1"
+  }
+
+  # CertController configuration from values.yaml
+  set {
+    name  = "certController.create"
+    value = "true"
+  }
+
+  set {
+    name  = "certController.replicaCount"
+    value = "1"
+  }
+
+  depends_on = [
+    module.eks,
+    module.eks_blueprints_addons,
+    module.external_secrets_irsa_role,
+    helm_release.external_secrets_crds
+  ]
+}
+
+# Phase 3: ClusterSecretStore for AWS Secrets Manager
+# This matches the template from comet-devops/charts/external-secrets/templates/cluster-secret-store.yml
+# Using a time_sleep to ensure the webhook is ready before creating the ClusterSecretStore
+resource "time_sleep" "wait_for_external_secrets_webhook" {
+  count = var.enable_external_secrets ? 1 : 0
+
+  depends_on = [helm_release.external_secrets]
+
+  # Wait for webhook endpoints to be fully registered
+  # The comet-devops README notes timing issues with the webhook on first install
+  create_duration = "60s"
+}
+
+resource "kubernetes_manifest" "cluster_secret_store" {
+  count = var.enable_external_secrets ? 1 : 0
+
+  manifest = {
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ClusterSecretStore"
+    metadata = {
+      name = "cluster-secret-store"
+    }
+    spec = {
+      provider = {
+        aws = {
+          service = "SecretsManager"
+          region  = var.region
+          auth = {
+            jwt = {
+              serviceAccountRef = {
+                name      = "external-secrets"
+                namespace = "external-secrets"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.external_secrets,
+    time_sleep.wait_for_external_secrets_webhook
+  ]
+}
+
 #########################################
 #### Loki IRSA Role and IAM Policy ####
 #########################################

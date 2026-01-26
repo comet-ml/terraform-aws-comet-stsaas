@@ -21,13 +21,13 @@ variable "enable_config_secret" {
 variable "enable_monitoring_secret" {
   description = "Enable creation of the monitoring-secrets secret"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_clickhouse_secret" {
   description = "Enable creation of the clickhouse secret"
   type        = bool
-  default     = false
+  default     = true
 }
 
 # Database passwords

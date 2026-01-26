@@ -158,8 +158,9 @@ module "comet_eks" {
   # Additional S3 bucket access
   additional_s3_bucket_arns = var.eks_additional_s3_bucket_arns
 
-  # External Secrets IRSA role
-  enable_external_secrets = var.eks_enable_external_secrets
+  # External Secrets IRSA role and Helm chart
+  enable_external_secrets        = var.eks_enable_external_secrets
+  external_secrets_chart_version = var.eks_external_secrets_chart_version
 
   # Loki IRSA for S3 access
   enable_loki        = var.enable_loki_bucket
