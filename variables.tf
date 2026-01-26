@@ -9,6 +9,7 @@ variable "enable_vpc" {
 variable "enable_ec2" {
   description = "Toggles the comet_ec2 module, to provision EC2 resources for running Comet"
   type        = bool
+  default     = false
 }
 
 variable "enable_ec2_alb" {
@@ -45,13 +46,13 @@ variable "enable_mpm_infra" {
 variable "enable_loki_bucket" {
   description = "Enable creation of S3 bucket for Loki logs (used by comet_s3 module)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_monitoring_setup" {
   description = "Enable monitoring namespace and Grafana credentials secret in EKS (used by comet_eks module)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "monitoring_namespace" {
@@ -63,6 +64,7 @@ variable "monitoring_namespace" {
 variable "enable_secretsmanager" {
   description = "Toggles the comet_secretsmanager module for provisioning Comet Secrets Manager secrets. Requires enable_rds and enable_elasticache to be true."
   type        = bool
+  default     = true
 }
 
 variable "enable_config_secret" {
@@ -286,7 +288,7 @@ variable "eks_enable_airflow_node_group" {
 variable "eks_enable_clickhouse_node_group" {
   description = "Enable dedicated ClickHouse node group"
   type        = bool
-  default     = false
+  default     = true
 }
 
 # Admin Node Group Variables
