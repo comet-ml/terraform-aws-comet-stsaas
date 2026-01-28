@@ -94,6 +94,12 @@ variable "environment" {
   default     = "dev"
 }
 
+variable "secretsmanager_environment" {
+  description = "Environment name used for Secrets Manager secret paths (e.g., cometml/{secretsmanager_environment}/config). Defaults to 'environment' if not set. Useful for multi-region deployments where infrastructure names include region but secrets should be region-agnostic."
+  type        = string
+  default     = null
+}
+
 variable "region" {
   description = "AWS region to provision resources in"
   type        = string

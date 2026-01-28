@@ -238,7 +238,7 @@ module "comet_secretsmanager" {
   source = "./modules/comet_secretsmanager"
   count  = var.enable_secretsmanager ? 1 : 0
 
-  environment = var.environment
+  environment = coalesce(var.secretsmanager_environment, var.environment)
   common_tags = local.all_tags
 
   # Secret toggles
