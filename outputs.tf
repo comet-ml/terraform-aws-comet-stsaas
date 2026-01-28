@@ -43,21 +43,33 @@ output "configure_kubectl" {
   value       = var.enable_eks ? "aws eks update-kubeconfig --region ${var.region} --name ${module.comet_eks[0].cluster_name}" : null
 }
 
-output "comet_eks_cert" {
-  description = "EKS cluster cert"
-  value       = var.enable_eks ? base64decode(module.comet_eks[0].cluster_certificate_authority_data) : null
+output "eks_cluster_name" {
+  description = "Name of the EKS cluster"
+  value       = try(module.comet_eks[0].cluster_name, null)
+}
+
+output "eks_cluster_endpoint" {
+  description = "EKS cluster API endpoint"
+  value       = try(module.comet_eks[0].cluster_endpoint, null)
+}
+
+output "eks_cluster_certificate_authority_data" {
+  description = "Base64 encoded certificate data for the EKS cluster"
+  value       = try(module.comet_eks[0].cluster_certificate_authority_data, null)
   sensitive   = true
 }
 
+# Deprecated: Use eks_cluster_endpoint instead
 output "comet_eks_endpoint" {
-  description = "EKS cluster endpoint"
+  description = "EKS cluster endpoint (deprecated: use eks_cluster_endpoint)"
   value       = var.enable_eks ? module.comet_eks[0].cluster_endpoint : null
   sensitive   = true
 }
 
-output "comet_eks_token" {
-  description = "EKS cluster endpoint"
-  value       = var.enable_eks ? data.aws_eks_cluster_auth.this[0].token : null
+# Deprecated: Use eks_cluster_certificate_authority_data instead
+output "comet_eks_cert" {
+  description = "EKS cluster cert (deprecated: use eks_cluster_certificate_authority_data)"
+  value       = var.enable_eks ? base64decode(module.comet_eks[0].cluster_certificate_authority_data) : null
   sensitive   = true
 }
 
