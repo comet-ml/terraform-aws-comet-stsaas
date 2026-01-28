@@ -19,8 +19,23 @@ output "comet_alb_dns_name" {
 }
 
 output "mysql_host" {
-  description = "Endpoint for the RDS instance"
+  description = "MySQL cluster (writer) endpoint for the RDS instance"
   value       = var.enable_rds ? module.comet_rds[0].mysql_host : null
+}
+
+output "mysql_reader_host" {
+  description = "MySQL cluster reader endpoint for the RDS instance"
+  value       = var.enable_rds ? module.comet_rds[0].mysql_reader_host : null
+}
+
+output "mysql_port" {
+  description = "MySQL port"
+  value       = var.enable_rds ? module.comet_rds[0].mysql_port : null
+}
+
+output "mysql_database_name" {
+  description = "MySQL database name"
+  value       = var.enable_rds ? module.comet_rds[0].mysql_database_name : null
 }
 
 output "configure_kubectl" {
