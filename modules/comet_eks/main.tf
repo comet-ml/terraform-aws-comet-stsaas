@@ -543,10 +543,12 @@ resource "time_sleep" "wait_for_external_secrets_webhook" {
   create_duration = "60s"
 }
 
-resource "kubernetes_manifest" "cluster_secret_store" {
+# Using kubectl_manifest instead of kubernetes_manifest to avoid the chicken-and-egg problem
+# where kubernetes_manifest tries to connect to the cluster during plan before it exists
+resource "kubectl_manifest" "cluster_secret_store" {
   count = var.enable_external_secrets ? 1 : 0
 
-  manifest = {
+  yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
     kind       = "ClusterSecretStore"
     metadata = {
@@ -568,7 +570,7 @@ resource "kubernetes_manifest" "cluster_secret_store" {
         }
       }
     }
-  }
+  })
 
   depends_on = [
     helm_release.external_secrets,
