@@ -383,8 +383,11 @@ module "external_secrets_irsa_role" {
   attach_external_secrets_policy = true
 
   # Limit access to secrets matching the environment's path pattern
+  # Uses coalesce() to match how secrets are created in the comet_secretsmanager module:
+  # - If secretsmanager_environment is set, use it (e.g., "mercedesamgf1")
+  # - Otherwise, fall back to environment (e.g., "mercedesamgf1-euw2")
   external_secrets_secrets_manager_arns = [
-    "arn:aws:secretsmanager:*:*:secret:cometml/${var.environment}/*"
+    "arn:aws:secretsmanager:*:*:secret:cometml/${coalesce(var.secretsmanager_environment, var.environment)}/*"
   ]
 
   # Configure OIDC provider for IRSA

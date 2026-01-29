@@ -227,6 +227,12 @@ variable "enable_external_secrets" {
   default     = true
 }
 
+variable "secretsmanager_environment" {
+  description = "Environment name used for Secrets Manager secret paths (e.g., cometml/{secretsmanager_environment}/config). If different from 'environment', both patterns will be allowed in the IAM policy."
+  type        = string
+  default     = null
+}
+
 variable "external_secrets_chart_version" {
   description = "Helm chart version for external-secrets"
   type        = string
