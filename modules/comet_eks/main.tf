@@ -310,6 +310,16 @@ module "eks_blueprints_addons" {
   external_dns_route53_zone_arns      = var.eks_external_dns_r53_zones
 }
 
+# Wait for AWS Load Balancer Controller webhook to be ready before creating Services
+# This prevents race conditions where cert-manager or other addons try to create Services
+# before the ALB mutating webhook has registered its endpoints
+resource "time_sleep" "wait_for_alb_webhook" {
+  count = var.eks_aws_load_balancer_controller ? 1 : 0
+
+  depends_on      = [module.eks_blueprints_addons]
+  create_duration = "60s"
+}
+
 locals {
   # Build tag specifications for EBS CSI driver
   # Each tag needs to be a separate tagSpecification_N parameter with format "key=value"
@@ -459,7 +469,8 @@ resource "helm_release" "external_secrets_crds" {
 
   depends_on = [
     module.eks,
-    module.eks_blueprints_addons
+    module.eks_blueprints_addons,
+    time_sleep.wait_for_alb_webhook
   ]
 }
 
@@ -533,7 +544,8 @@ resource "helm_release" "external_secrets" {
     module.eks,
     module.eks_blueprints_addons,
     module.external_secrets_irsa_role,
-    helm_release.external_secrets_crds
+    helm_release.external_secrets_crds,
+    time_sleep.wait_for_alb_webhook
   ]
 }
 
@@ -665,7 +677,8 @@ resource "kubernetes_namespace" "monitoring" {
 
   depends_on = [
     module.eks,
-    module.eks_blueprints_addons
+    module.eks_blueprints_addons,
+    time_sleep.wait_for_alb_webhook
   ]
 }
 
