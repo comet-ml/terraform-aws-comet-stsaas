@@ -343,7 +343,7 @@ resource "kubernetes_storage_class" "gp3" {
     local.gp3_tag_params
   )
 
-  reclaim_policy         = "Delete"
+  reclaim_policy         = var.storage_class_reclaim_policy
   volume_binding_mode    = "WaitForFirstConsumer"
   allow_volume_expansion = true
 }
@@ -361,7 +361,7 @@ resource "kubernetes_storage_class" "comet_generic" {
     local.comet_generic_tag_params
   )
 
-  reclaim_policy         = "Delete"
+  reclaim_policy         = var.storage_class_reclaim_policy
   volume_binding_mode    = "WaitForFirstConsumer"
   allow_volume_expansion = true
 }

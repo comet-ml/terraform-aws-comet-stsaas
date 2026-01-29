@@ -428,3 +428,14 @@ variable "additional_s3_bucket_arns" {
   default     = []
 }
 
+variable "storage_class_reclaim_policy" {
+  description = "Reclaim policy for the gp3 and comet-generic StorageClasses. Use 'Retain' to preserve volumes after PVC deletion (recommended for production), or 'Delete' to automatically delete volumes."
+  type        = string
+  default     = "Retain"
+
+  validation {
+    condition     = contains(["Retain", "Delete"], var.storage_class_reclaim_policy)
+    error_message = "Must be 'Retain' or 'Delete'."
+  }
+}
+

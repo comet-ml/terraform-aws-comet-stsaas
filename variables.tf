@@ -548,6 +548,17 @@ variable "eks_external_secrets_chart_version" {
   default     = "0.9.3"
 }
 
+variable "eks_storage_class_reclaim_policy" {
+  description = "Reclaim policy for the gp3 and comet-generic StorageClasses. Use 'Retain' to preserve volumes after PVC deletion (recommended for production), or 'Delete' to automatically delete volumes. Note: StorageClass reclaimPolicy is immutable; existing deployments require StorageClass deletion and recreation."
+  type        = string
+  default     = "Retain"
+
+  validation {
+    condition     = contains(["Retain", "Delete"], var.eks_storage_class_reclaim_policy)
+    error_message = "Must be 'Retain' or 'Delete'."
+  }
+}
+
 #### comet_elasticache ####
 variable "elasticache_allow_from_sg" {
   description = "Security group from which to allow connections to ElastiCache, to use when provisioning with existing compute"

@@ -158,6 +158,9 @@ module "comet_eks" {
   external_secrets_chart_version = var.eks_external_secrets_chart_version
   secretsmanager_environment     = var.secretsmanager_environment
 
+  # Storage class configuration
+  storage_class_reclaim_policy = var.eks_storage_class_reclaim_policy
+
   # Loki IRSA for S3 access
   enable_loki        = var.enable_loki_bucket
   loki_s3_bucket_arn = var.enable_s3 && var.enable_loki_bucket ? module.comet_s3[0].comet_loki_bucket_arn : null
