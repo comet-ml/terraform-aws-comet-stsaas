@@ -155,6 +155,8 @@ module "comet_eks" {
   eks_authentication_mode                      = var.eks_authentication_mode
   eks_enable_cluster_creator_admin_permissions = var.eks_enable_cluster_creator_admin_permissions
   eks_admin_role_arns                          = var.eks_admin_role_arns
+  kms_key_administrators                       = var.eks_kms_key_administrators
+  kms_key_users                                = var.eks_kms_key_users
   eks_mng_ami_type                             = var.eks_mng_ami_type
   eks_mng_ami_id                               = var.eks_mng_ami_id
   eks_mng_disk_size                            = var.eks_mng_disk_size

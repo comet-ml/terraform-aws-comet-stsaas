@@ -103,6 +103,10 @@ module "eks" {
 
   access_entries = local.admin_access_entries
 
+  # KMS key access control for cluster encryption
+  kms_key_administrators = var.kms_key_administrators
+  kms_key_users          = var.kms_key_users
+
   vpc_id     = var.vpc_id
   subnet_ids = var.eks_private_subnets
 

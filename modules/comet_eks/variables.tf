@@ -75,6 +75,18 @@ variable "eks_admin_role_arns" {
   default     = []
 }
 
+variable "kms_key_administrators" {
+  description = "List of IAM ARNs (users/roles) that should have administrator access to the EKS KMS key. These principals can manage the key."
+  type        = list(string)
+  default     = []
+}
+
+variable "kms_key_users" {
+  description = "List of IAM ARNs (users/roles) that should have usage access to the EKS KMS key. These principals can use the key for encryption/decryption."
+  type        = list(string)
+  default     = []
+}
+
 # Admin Node Group Variables
 variable "eks_admin_name" {
   description = "Name for the admin node group"

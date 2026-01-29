@@ -285,6 +285,20 @@ variable "eks_admin_role_arns" {
   default     = []
 }
 
+variable "eks_kms_key_administrators" {
+  description = "List of IAM ARNs (users/roles) that should have administrator access to the EKS KMS key. These principals can manage the key (update, delete, etc.)."
+  type        = list(string)
+  default = [
+    "arn:aws:iam::947208553405:role/admin-dply-terraform"
+  ]
+}
+
+variable "eks_kms_key_users" {
+  description = "List of IAM ARNs (users/roles) that should have usage access to the EKS KMS key. These principals can use the key for encryption/decryption operations."
+  type        = list(string)
+  default     = []
+}
+
 variable "eks_mng_ami_type" {
   description = "AMI family to use for the EKS nodes (e.g., AL2023_x86_64_STANDARD). Ignored if eks_mng_ami_id is set."
   type        = string
