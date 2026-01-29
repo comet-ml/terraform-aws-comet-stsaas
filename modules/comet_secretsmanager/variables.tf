@@ -32,7 +32,7 @@ variable "enable_clickhouse_secret" {
 
 # Database passwords
 variable "mysql_password" {
-  description = "MySQL password (used for MYSQL_PASSWORD, mysql-root-password, mysql-replication-password, mysql-password, STATE_DB_PASS, MYSQL_ADMIN_PASSWORD)"
+  description = "MySQL password (used for MYSQL_PASSWORD, MYSQL_PASSWORD_RO, MYSQL_PASSWORD_RW, mysql-root-password, mysql-replication-password, mysql-password, STATE_DB_PASS, MYSQL_ADMIN_PASSWORD)"
   type        = string
   sensitive   = true
 }

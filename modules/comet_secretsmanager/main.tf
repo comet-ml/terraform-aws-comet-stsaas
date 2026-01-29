@@ -10,6 +10,8 @@ locals {
 
   config_secret_value = var.enable_config_secret ? jsonencode({
     MYSQL_PASSWORD             = var.mysql_password
+    MYSQL_PASSWORD_RO          = var.mysql_password
+    MYSQL_PASSWORD_RW          = var.mysql_password
     REDIS_TOKEN                = var.redis_token
     S3_KEY                     = var.s3_key
     S3_PRIVATE_KEY             = var.s3_private_key
