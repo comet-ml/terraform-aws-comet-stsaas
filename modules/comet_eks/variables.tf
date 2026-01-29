@@ -413,7 +413,13 @@ variable "eks_clickhouse_taints" {
     value  = string
     effect = string
   }))
-  default = []
+  default = [
+    {
+      key    = "clickhouse"
+      value  = "true"
+      effect = "NO_SCHEDULE"
+    }
+  ]
 }
 
 variable "additional_node_groups" {
