@@ -100,6 +100,12 @@ variable "secretsmanager_environment" {
   default     = null
 }
 
+variable "comet_hostname" {
+  description = "Hostname prefix for the Comet deployment (e.g., 'mercedesamgf1' results in 'mercedesamgf1.comet-hosted.com'). Defaults to 'environment' if not set. Useful for multi-region deployments where infrastructure names include region but hostnames should be region-agnostic."
+  type        = string
+  default     = null
+}
+
 variable "region" {
   description = "AWS region to provision resources in"
   type        = string
@@ -187,9 +193,34 @@ variable "comet_ec2_key" {
   default     = null
 }
 
+#### ACM Certificate ####
+variable "enable_acm_certificate" {
+  description = "Enable creation of an ACM certificate for {environment}.comet-hosted.com and *.{environment}.comet-hosted.com"
+  type        = bool
+  default     = false
+}
+
+variable "acm_domain_name" {
+  description = "Base domain name for the ACM certificate. Defaults to '{comet_hostname}.comet-hosted.com'"
+  type        = string
+  default     = null
+}
+
+variable "acm_route53_zone_id" {
+  description = "Route 53 hosted zone ID for DNS validation. Required when enable_acm_certificate is true."
+  type        = string
+  default     = null
+}
+
+variable "acm_wait_for_validation" {
+  description = "Whether to wait for the certificate to be validated before completing"
+  type        = bool
+  default     = true
+}
+
 #### comet_ec2_alb ####
 variable "ssl_certificate_arn" {
-  description = "ARN of the ACM certificate to use for the ALB"
+  description = "ARN of the ACM certificate to use for the ALB. If enable_acm_certificate is true and this is not set, the created certificate will be used."
   type        = string
   default     = null
 }

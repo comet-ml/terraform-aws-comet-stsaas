@@ -18,6 +18,21 @@ output "comet_alb_dns_name" {
   value       = var.enable_ec2_alb ? module.comet_ec2_alb[0].alb_dns_name : null
 }
 
+output "acm_certificate_arn" {
+  description = "ARN of the ACM certificate created for the environment"
+  value       = var.enable_acm_certificate ? aws_acm_certificate.main[0].arn : null
+}
+
+output "acm_certificate_domain_name" {
+  description = "Domain name of the ACM certificate"
+  value       = var.enable_acm_certificate ? aws_acm_certificate.main[0].domain_name : null
+}
+
+output "acm_certificate_status" {
+  description = "Status of the ACM certificate"
+  value       = var.enable_acm_certificate ? aws_acm_certificate.main[0].status : null
+}
+
 output "mysql_host" {
   description = "MySQL cluster (writer) endpoint for the RDS instance"
   value       = var.enable_rds ? module.comet_rds[0].mysql_host : null

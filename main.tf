@@ -7,9 +7,75 @@ locals {
     var.environment_tag != "" ? { Environment = var.environment_tag } : {},
     var.common_tags
   )
+
+  # Hostname for the Comet deployment (region-agnostic)
+  comet_hostname = coalesce(var.comet_hostname, var.environment)
+
+  # ACM certificate domain configuration
+  # Uses comet_hostname (not environment) to ensure region-agnostic domain names
+  acm_domain_name = var.enable_acm_certificate ? coalesce(var.acm_domain_name, "${local.comet_hostname}.comet-hosted.com") : null
 }
 
-# Validation: enable_secretsmanager requires enable_rds and enable_elasticache
+#######################
+#### ACM Certificate ####
+#######################
+# Creates an ACM certificate for {environment}.comet-hosted.com with wildcard SAN
+resource "aws_acm_certificate" "main" {
+  count = var.enable_acm_certificate ? 1 : 0
+
+  domain_name               = local.acm_domain_name
+  subject_alternative_names = ["*.${local.acm_domain_name}"]
+  validation_method         = "DNS"
+
+  tags = merge(
+    local.all_tags,
+    {
+      Name = local.acm_domain_name
+    }
+  )
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# DNS validation records in Route 53
+resource "aws_route53_record" "acm_validation" {
+  for_each = var.enable_acm_certificate ? {
+    for dvo in aws_acm_certificate.main[0].domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  } : {}
+
+  allow_overwrite = true
+  name            = each.value.name
+  records         = [each.value.record]
+  ttl             = 60
+  type            = each.value.type
+  zone_id         = var.acm_route53_zone_id
+}
+
+# Wait for certificate validation to complete
+resource "aws_acm_certificate_validation" "main" {
+  count = var.enable_acm_certificate && var.acm_wait_for_validation ? 1 : 0
+
+  certificate_arn         = aws_acm_certificate.main[0].arn
+  validation_record_fqdns = [for record in aws_route53_record.acm_validation : record.fqdn]
+}
+
+# Validation: acm_route53_zone_id is required when enable_acm_certificate is true
+resource "terraform_data" "acm_validation" {
+  count = var.enable_acm_certificate ? 1 : 0
+
+  lifecycle {
+    precondition {
+      condition     = var.acm_route53_zone_id != null
+      error_message = "acm_route53_zone_id is required when enable_acm_certificate is true."
+    }
+  }
+}
 resource "terraform_data" "secretsmanager_validation" {
   count = var.enable_secretsmanager ? 1 : 0
 
@@ -62,9 +128,13 @@ module "comet_ec2_alb" {
   environment = var.environment
   common_tags = local.all_tags
 
-  vpc_id              = var.enable_vpc ? module.comet_vpc[0].vpc_id : var.comet_vpc_id
-  public_subnets      = var.enable_vpc ? module.comet_vpc[0].public_subnets : var.comet_public_subnets
-  ssl_certificate_arn = var.enable_ec2_alb ? var.ssl_certificate_arn : null
+  vpc_id         = var.enable_vpc ? module.comet_vpc[0].vpc_id : var.comet_vpc_id
+  public_subnets = var.enable_vpc ? module.comet_vpc[0].public_subnets : var.comet_public_subnets
+  # Use provided certificate ARN, or the created ACM certificate if enabled
+  ssl_certificate_arn = coalesce(
+    var.ssl_certificate_arn,
+    var.enable_acm_certificate ? aws_acm_certificate.main[0].arn : null
+  )
 }
 
 module "comet_eks" {
