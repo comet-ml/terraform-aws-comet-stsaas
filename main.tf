@@ -14,6 +14,30 @@ locals {
   # ACM certificate domain configuration
   # Uses comet_hostname (not environment) to ensure region-agnostic domain names
   acm_domain_name = var.enable_acm_certificate ? coalesce(var.acm_domain_name, "${local.comet_hostname}.comet-hosted.com") : null
+
+  # RDS master password - use provided value or generated one
+  # This ensures both RDS and Secrets Manager modules use the same password
+  rds_master_password = var.rds_master_password != null ? var.rds_master_password : (
+    var.enable_rds ? random_password.rds_master[0].result : null
+  )
+}
+
+#############################
+#### RDS Password Generation ####
+#############################
+# Generate random password for RDS if not provided
+# Only created when enable_rds is true AND no password is provided
+resource "random_password" "rds_master" {
+  count = var.enable_rds && var.rds_master_password == null ? 1 : 0
+
+  length  = 20
+  special = true
+  # RDS-compatible special characters (excludes /, @, ", and space)
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+  min_lowercase    = 2
+  min_uppercase    = 2
+  min_numeric      = 2
+  min_special      = 1
 }
 
 #######################
@@ -286,7 +310,7 @@ module "comet_rds" {
   rds_preferred_backup_window = var.rds_preferred_backup_window
   rds_database_name           = var.rds_database_name
   rds_master_username         = var.rds_master_username
-  rds_master_password         = var.rds_master_password
+  rds_master_password         = local.rds_master_password
   rds_snapshot_identifier     = var.rds_snapshot_identifier
   rds_kms_key_id              = var.rds_kms_key_id
 
@@ -322,8 +346,8 @@ module "comet_secretsmanager" {
   enable_monitoring_secret = var.enable_monitoring_secret
   enable_clickhouse_secret = var.enable_clickhouse_secret
 
-  # Database password (from RDS)
-  mysql_password = var.rds_master_password
+  # Database password (from RDS - uses provided or auto-generated password)
+  mysql_password = local.rds_master_password
 
   # Redis configuration (from ElastiCache)
   redis_endpoint           = module.comet_elasticache[0].redis_endpoint

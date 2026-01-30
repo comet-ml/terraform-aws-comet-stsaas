@@ -725,8 +725,10 @@ variable "rds_master_username" {
 }
 
 variable "rds_master_password" {
-  description = "Master password for RDS database"
+  description = "Master password for RDS database. If not provided, a random password will be generated and stored in Secrets Manager."
   type        = string
+  default     = null
+  sensitive   = true
 }
 
 variable "rds_snapshot_identifier" {

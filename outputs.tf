@@ -53,6 +53,11 @@ output "mysql_database_name" {
   value       = var.enable_rds ? module.comet_rds[0].mysql_database_name : null
 }
 
+output "rds_password_auto_generated" {
+  description = "Whether the RDS master password was auto-generated (true) or provided explicitly (false)"
+  value       = var.enable_rds ? var.rds_master_password == null : null
+}
+
 output "configure_kubectl" {
   description = "Configure kubectl: run the following command to update your kubeconfig with the newly provisioned cluster."
   value       = var.enable_eks ? "aws eks update-kubeconfig --region ${var.region} --name ${module.comet_eks[0].cluster_name}" : null
