@@ -30,14 +30,9 @@ locals {
 resource "random_password" "rds_master" {
   count = var.enable_rds && var.rds_master_password == null ? 1 : 0
 
-  length  = 20
-  special = true
-  # RDS-compatible special characters (excludes /, @, ", and space)
+  length           = 20
+  special          = true
   override_special = "!#$%&*()-_=+[]{}<>:?"
-  min_lowercase    = 2
-  min_uppercase    = 2
-  min_numeric      = 2
-  min_special      = 1
 }
 
 #######################
