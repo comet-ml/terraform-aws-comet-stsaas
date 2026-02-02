@@ -120,3 +120,9 @@ variable "rds_enhanced_monitoring_interval" {
   type        = number
   default     = 60
 }
+
+variable "rds_deletion_protection" {
+  description = "Enable deletion protection for RDS cluster"
+  type        = bool
+  default     = true
+}

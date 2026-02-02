@@ -319,6 +319,9 @@ module "comet_rds" {
   rds_performance_insights_retention_period = var.rds_performance_insights_retention_period
   rds_performance_insights_kms_key_id       = var.rds_performance_insights_kms_key_id
   rds_enhanced_monitoring_interval          = var.rds_enhanced_monitoring_interval
+
+  # Deletion protection
+  rds_deletion_protection = var.rds_deletion_protection
 }
 
 module "comet_s3" {

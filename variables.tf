@@ -701,15 +701,21 @@ variable "rds_iam_db_auth" {
 }
 
 variable "rds_backup_retention_period" {
-  description = "Days specified for RDS snapshotretention period"
+  description = "Days specified for RDS snapshot retention period"
   type        = number
-  default     = 7
+  default     = 14
 }
 
 variable "rds_preferred_backup_window" {
-  description = "Backup window for RDS"
+  description = "Backup window for RDS (UTC)"
   type        = string
-  default     = "07:00-09:00"
+  default     = "02:00-04:00"
+}
+
+variable "rds_deletion_protection" {
+  description = "Enable deletion protection for RDS cluster"
+  type        = bool
+  default     = true
 }
 
 variable "rds_database_name" {
