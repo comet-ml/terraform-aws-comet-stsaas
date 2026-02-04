@@ -18,14 +18,14 @@ resource "aws_s3_bucket" "comet_s3_bucket" {
 resource "aws_s3_bucket" "comet_druid_bucket" {
   count = var.enable_mpm_infra ? 1 : 0
 
-  bucket = "comet-druid-${local.suffix}"
+  bucket = "comet-druid-${var.environment}-${local.suffix}"
 
   force_destroy = var.s3_force_destroy
 
   tags = merge(
     var.common_tags,
     {
-      Name = "comet-druid-${local.suffix}"
+      Name = "comet-druid-${var.environment}-${local.suffix}"
     }
   )
 }
@@ -33,14 +33,14 @@ resource "aws_s3_bucket" "comet_druid_bucket" {
 resource "aws_s3_bucket" "comet_airflow_bucket" {
   count = var.enable_mpm_infra ? 1 : 0
 
-  bucket = "comet-airflow-${local.suffix}"
+  bucket = "comet-airflow-${var.environment}-${local.suffix}"
 
   force_destroy = var.s3_force_destroy
 
   tags = merge(
     var.common_tags,
     {
-      Name = "comet-airflow-${local.suffix}"
+      Name = "comet-airflow-${var.environment}-${local.suffix}"
     }
   )
 }
@@ -89,4 +89,11 @@ resource "aws_iam_policy" "comet_s3_iam_policy" {
       }
     ]
   })
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "comet-s3-access-policy-${local.suffix}"
+    }
+  )
 }

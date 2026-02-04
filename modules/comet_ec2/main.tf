@@ -164,11 +164,25 @@ resource "aws_eip" "comet_ec2_eip" {
   count    = var.alb_enabled ? 0 : 1
   instance = aws_instance.comet_ec2[0].id
   domain   = "vpc"
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.environment}-comet-eip"
+    }
+  )
 }
 resource "aws_security_group" "comet_ec2_sg" {
   name        = "comet_${var.environment}_ec2_sg"
   description = "Comet EC2 instance security group"
   vpc_id      = var.vpc_id
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "comet_${var.environment}_ec2_sg"
+    }
+  )
 }
 
 resource "aws_vpc_security_group_ingress_rule" "comet_ec2_ingress_ssh" {
@@ -229,11 +243,25 @@ resource "aws_iam_role" "comet-ec2-s3-access-role" {
       }
     ]
   })
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "comet-ml-s3-role"
+    }
+  )
 }
 
 resource "aws_iam_instance_profile" "comet-ec2-instance-profile" {
   name = "${var.environment}-comet-ec2-instance-profile"
   role = aws_iam_role.comet-ec2-s3-access-role.name
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.environment}-comet-ec2-instance-profile"
+    }
+  )
 }
 
 resource "aws_iam_role_policy_attachment" "comet-ml-s3-access-attachment" {

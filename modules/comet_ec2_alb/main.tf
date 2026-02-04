@@ -9,6 +9,13 @@ resource "aws_security_group" "comet_alb_sg" {
   name        = "comet_${var.environment}_alb_sg"
   description = "Comet ALB security group"
   vpc_id      = var.vpc_id
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "comet_${var.environment}_alb_sg"
+    }
+  )
 }
 
 resource "aws_vpc_security_group_ingress_rule" "comet_ec2_alb_http" {
