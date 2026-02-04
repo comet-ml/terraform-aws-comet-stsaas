@@ -330,15 +330,16 @@ resource "time_sleep" "wait_for_alb_webhook" {
 locals {
   # Build tag specifications for EBS CSI driver
   # Each tag needs to be a separate tagSpecification_N parameter with format "key=value"
+  # Note: common_tags passed from root module already includes Terraform=true and Environment tags
   common_tags_list = [for k, v in var.common_tags : "${k}=${v}"]
 
-  # Base tags for gp3 storage class
-  gp3_base_tags  = ["Terraform=true", "StorageClass=gp3"]
+  # Base tags for gp3 storage class (only StorageClass identifier, other tags come from common_tags)
+  gp3_base_tags  = ["StorageClass=gp3"]
   gp3_all_tags   = concat(local.gp3_base_tags, local.common_tags_list)
   gp3_tag_params = { for idx, tag in local.gp3_all_tags : "tagSpecification_${idx + 1}" => tag }
 
-  # Base tags for comet-generic storage class
-  comet_generic_base_tags  = ["Terraform=true", "StorageClass=comet-generic"]
+  # Base tags for comet-generic storage class (only StorageClass identifier, other tags come from common_tags)
+  comet_generic_base_tags  = ["StorageClass=comet-generic"]
   comet_generic_all_tags   = concat(local.comet_generic_base_tags, local.common_tags_list)
   comet_generic_tag_params = { for idx, tag in local.comet_generic_all_tags : "tagSpecification_${idx + 1}" => tag }
 }
