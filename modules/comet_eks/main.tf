@@ -85,13 +85,6 @@ resource "aws_iam_policy" "additional_s3_bucket_policy" {
       }
     ]
   })
-
-  tags = merge(
-    var.common_tags,
-    {
-      Name = "additional-s3-access-policy-${var.eks_cluster_name}"
-    }
-  )
 }
 
 module "eks" {
