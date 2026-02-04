@@ -16,17 +16,38 @@ resource "aws_elasticache_replication_group" "comet-ml-ec-redis" {
   subnet_group_name          = aws_elasticache_subnet_group.comet-ml-ec-subnet-group.name
   security_group_ids         = [aws_security_group.redis_inbound_sg.id]
   description                = "Redis for CometML"
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "cometml-ec-redis-${var.environment}"
+    }
+  )
 }
 
 resource "aws_elasticache_subnet_group" "comet-ml-ec-subnet-group" {
   name       = "cometml-ec-sng-${var.environment}"
   subnet_ids = var.elasticache_private_subnets
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "cometml-ec-sng-${var.environment}"
+    }
+  )
 }
 
 resource "aws_security_group" "redis_inbound_sg" {
   name        = "cometml_redis_in_sg_${var.environment}"
   description = "Redis Security Group"
   vpc_id      = var.vpc_id
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "cometml_redis_in_sg_${var.environment}"
+    }
+  )
 }
 
 resource "aws_vpc_security_group_ingress_rule" "redis_port_inbound_rule" {

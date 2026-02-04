@@ -57,6 +57,13 @@ resource "aws_rds_cluster_instance" "comet-ml-rds-mysql" {
   # Enhanced Monitoring
   monitoring_interval = var.rds_enhanced_monitoring_interval
   monitoring_role_arn = local.enhanced_monitoring_enabled ? aws_iam_role.rds_enhanced_monitoring[0].arn : null
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "cometml-rds-${var.environment}-${count.index}"
+    }
+  )
 }
 
 resource "aws_rds_cluster" "cometml-db-cluster" {
@@ -80,12 +87,26 @@ resource "aws_rds_cluster" "cometml-db-cluster" {
   db_instance_parameter_group_name    = aws_rds_cluster_parameter_group.cometml-cluster-pg.name
   allow_major_version_upgrade         = true
   deletion_protection                 = var.rds_deletion_protection
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "cometml-rds-cluster-${var.environment}"
+    }
+  )
 }
 
 resource "aws_rds_cluster_parameter_group" "cometml-cluster-pg" {
   name        = "cometml-rds-cluster-pg-${var.environment}"
   family      = "aurora-mysql${var.rds_engine_version}"
   description = "CometML RDS cluster parameter group"
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "cometml-rds-cluster-pg-${var.environment}"
+    }
+  )
 
   parameter {
     apply_method = "pending-reboot"
@@ -153,6 +174,13 @@ resource "aws_security_group" "mysql_sg" {
   name        = "${var.environment}_mysql_sg"
   description = "CometML RDS cluster security group"
   vpc_id      = var.vpc_id
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.environment}_mysql_sg"
+    }
+  )
 }
 
 resource "aws_vpc_security_group_ingress_rule" "mysql_port_inbound_ec2" {
