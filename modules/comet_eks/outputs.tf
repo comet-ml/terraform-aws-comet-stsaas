@@ -42,3 +42,28 @@ output "loki_irsa_role_name" {
   description = "Name of the Loki IRSA role"
   value       = var.enable_loki ? module.loki_irsa_role[0].iam_role_name : null
 }
+
+output "karpenter_irsa_role_arn" {
+  description = "ARN of the Karpenter controller IRSA role"
+  value       = var.enable_karpenter ? module.karpenter_irsa[0].iam_role_arn : null
+}
+
+output "karpenter_node_role_arn" {
+  description = "ARN of the IAM role for Karpenter-provisioned nodes"
+  value       = var.enable_karpenter ? aws_iam_role.karpenter_node[0].arn : null
+}
+
+output "karpenter_node_instance_profile_name" {
+  description = "Name of the EC2 instance profile for Karpenter-provisioned nodes (used in EC2NodeClass)"
+  value       = var.enable_karpenter ? aws_iam_instance_profile.karpenter_node[0].name : null
+}
+
+output "karpenter_interruption_queue_name" {
+  description = "Name of the SQS queue for Karpenter spot interruption handling (used in Karpenter Helm values)"
+  value       = var.enable_karpenter ? aws_sqs_queue.karpenter_interruption[0].name : null
+}
+
+output "karpenter_interruption_queue_url" {
+  description = "URL of the SQS queue for Karpenter spot interruption handling"
+  value       = var.enable_karpenter ? aws_sqs_queue.karpenter_interruption[0].url : null
+}

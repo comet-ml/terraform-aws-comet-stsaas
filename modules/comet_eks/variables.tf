@@ -446,6 +446,12 @@ variable "additional_s3_bucket_arns" {
   default     = []
 }
 
+variable "enable_karpenter" {
+  description = "Enable Karpenter prerequisites: discovery tags on subnets and node security group, SQS interruption queue, EventBridge rules, node IAM role/instance profile, and controller IRSA role. Outputs can be consumed by a separate Karpenter Helm release."
+  type        = bool
+  default     = false
+}
+
 variable "storage_class_reclaim_policy" {
   description = "Reclaim policy for the gp3 and comet-generic StorageClasses. Use 'Retain' to preserve volumes after PVC deletion (recommended for production), or 'Delete' to automatically delete volumes."
   type        = string

@@ -261,6 +261,9 @@ module "comet_eks" {
   monitoring_namespace    = var.monitoring_namespace
   grafana_admin_user      = var.grafana_admin_user
   grafana_admin_password  = var.grafana_admin_password
+
+  # Karpenter prerequisites
+  enable_karpenter = var.eks_enable_karpenter
 }
 
 module "comet_elasticache" {

@@ -49,6 +49,12 @@ variable "enable_loki_bucket" {
   default     = true
 }
 
+variable "eks_enable_karpenter" {
+  description = "Enable Karpenter prerequisites in the EKS module: discovery tags, SQS interruption queue, EventBridge rules, node IAM role/instance profile, and controller IRSA role"
+  type        = bool
+  default     = false
+}
+
 variable "enable_monitoring_setup" {
   description = "Enable monitoring namespace and Grafana credentials secret in EKS (used by comet_eks module)"
   type        = bool

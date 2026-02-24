@@ -152,3 +152,23 @@ output "loki_irsa_role_name" {
   description = "Name of the Loki IRSA role"
   value       = var.enable_eks && var.enable_loki_bucket ? module.comet_eks[0].loki_irsa_role_name : null
 }
+
+output "karpenter_irsa_role_arn" {
+  description = "ARN of the Karpenter controller IRSA role — annotate the karpenter ServiceAccount with this"
+  value       = var.enable_eks && var.eks_enable_karpenter ? module.comet_eks[0].karpenter_irsa_role_arn : null
+}
+
+output "karpenter_node_role_arn" {
+  description = "ARN of the IAM role for Karpenter-provisioned nodes"
+  value       = var.enable_eks && var.eks_enable_karpenter ? module.comet_eks[0].karpenter_node_role_arn : null
+}
+
+output "karpenter_node_instance_profile_name" {
+  description = "Name of the EC2 instance profile for Karpenter-provisioned nodes — set in EC2NodeClass .spec.instanceProfile"
+  value       = var.enable_eks && var.eks_enable_karpenter ? module.comet_eks[0].karpenter_node_instance_profile_name : null
+}
+
+output "karpenter_interruption_queue_name" {
+  description = "Name of the SQS queue for Karpenter interruption handling — set in Karpenter Helm values .settings.interruptionQueue"
+  value       = var.enable_eks && var.eks_enable_karpenter ? module.comet_eks[0].karpenter_interruption_queue_name : null
+}
