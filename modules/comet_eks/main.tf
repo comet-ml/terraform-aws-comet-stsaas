@@ -131,8 +131,45 @@ module "eks" {
   )
 
   eks_managed_node_groups = merge(
-    # Admin Node Group
-    var.enable_admin_node_group ? {
+    # Karpenter Node Group — created when Karpenter is enabled.
+    # Dedicated to the Karpenter controller only; tainted so no other pods schedule here.
+    # All other node groups are suppressed when Karpenter is enabled (Karpenter provisions them).
+    var.enable_karpenter ? {
+      karpenter = {
+        name           = "karpenter"
+        instance_types = var.eks_karpenter_node_instance_types
+        min_size       = var.eks_karpenter_node_min_size
+        max_size       = var.eks_karpenter_node_max_size
+        desired_size   = var.eks_karpenter_node_desired_size
+        block_device_mappings = {
+          xvda = {
+            device_name = "/dev/xvda"
+            ebs = {
+              volume_size           = var.eks_karpenter_node_disk_size
+              volume_type           = local.volume_type
+              encrypted             = local.volume_encrypted
+              delete_on_termination = local.volume_delete_on_termination
+            }
+          }
+        }
+        labels = {
+          nodegroup_name = "karpenter"
+        }
+        taints = [
+          {
+            key    = "dedicated"
+            value  = "karpenter"
+            effect = "NO_SCHEDULE"
+          }
+        ]
+        tags                         = var.common_tags
+        tags_propagate_at_launch     = true
+        launch_template_version      = "$Latest"
+        iam_role_additional_policies = local.node_group_iam_policies
+      }
+    } : {},
+    # Admin Node Group — disabled when Karpenter is enabled (Karpenter provisions admin nodes)
+    (var.enable_admin_node_group && !var.enable_karpenter) ? {
       admin = {
         name           = var.eks_admin_name
         instance_types = var.eks_admin_instance_types
@@ -160,8 +197,8 @@ module "eks" {
         iam_role_additional_policies = local.node_group_iam_policies
       }
     } : {},
-    # Comet Node Group
-    var.enable_comet_node_group ? {
+    # Comet Node Group — disabled when Karpenter is enabled (Karpenter provisions comet nodes)
+    (var.enable_comet_node_group && !var.enable_karpenter) ? {
       comet = {
         name           = var.eks_comet_name
         instance_types = var.eks_comet_instance_types
@@ -189,8 +226,8 @@ module "eks" {
         iam_role_additional_policies = local.node_group_iam_policies
       }
     } : {},
-    # Druid Node Group
-    (var.enable_druid_node_group && var.enable_mpm_infra) ? {
+    # Druid Node Group — disabled when Karpenter is enabled
+    (var.enable_druid_node_group && var.enable_mpm_infra && !var.enable_karpenter) ? {
       druid = {
         name           = var.eks_druid_name
         instance_types = var.eks_druid_instance_types
@@ -218,8 +255,8 @@ module "eks" {
         iam_role_additional_policies = local.node_group_iam_policies
       }
     } : {},
-    # Airflow Node Group
-    (var.enable_airflow_node_group && var.enable_mpm_infra) ? {
+    # Airflow Node Group — disabled when Karpenter is enabled
+    (var.enable_airflow_node_group && var.enable_mpm_infra && !var.enable_karpenter) ? {
       airflow = {
         name           = var.eks_airflow_name
         instance_types = var.eks_airflow_instance_types
@@ -247,8 +284,8 @@ module "eks" {
         iam_role_additional_policies = local.node_group_iam_policies
       }
     } : {},
-    # ClickHouse Node Group
-    var.enable_clickhouse_node_group ? {
+    # ClickHouse Node Group — requires explicit opt-in AND Karpenter must be disabled
+    (var.enable_clickhouse_node_group && !var.enable_karpenter) ? {
       clickhouse = {
         name           = var.eks_clickhouse_name
         instance_types = var.eks_clickhouse_instance_types

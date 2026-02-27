@@ -452,6 +452,41 @@ variable "enable_karpenter" {
   default     = false
 }
 
+# Karpenter Node Group Variables
+# Used only when enable_karpenter = true. This dedicated node group hosts the Karpenter
+# controller exclusively (taint: dedicated=karpenter:NoSchedule). All other node groups
+# are disabled when Karpenter is enabled — Karpenter provisions them dynamically.
+
+variable "eks_karpenter_node_instance_types" {
+  description = "Instance types for the Karpenter controller node group. Only needs to fit the Karpenter controller (~1 CPU, 1Gi) plus kube-system daemonsets."
+  type        = list(string)
+  default     = ["t3.medium", "t3a.medium"]
+}
+
+variable "eks_karpenter_node_min_size" {
+  description = "Minimum number of nodes in the Karpenter controller node group"
+  type        = number
+  default     = 1
+}
+
+variable "eks_karpenter_node_max_size" {
+  description = "Maximum number of nodes in the Karpenter controller node group (2 allows rolling updates)"
+  type        = number
+  default     = 2
+}
+
+variable "eks_karpenter_node_desired_size" {
+  description = "Desired number of nodes in the Karpenter controller node group"
+  type        = number
+  default     = 1
+}
+
+variable "eks_karpenter_node_disk_size" {
+  description = "EBS root volume size in GB for Karpenter controller nodes. Smaller than workload nodes since only system pods run here."
+  type        = number
+  default     = 50
+}
+
 variable "storage_class_reclaim_policy" {
   description = "Reclaim policy for the gp3 and comet-generic StorageClasses. Use 'Retain' to preserve volumes after PVC deletion (recommended for production), or 'Delete' to automatically delete volumes."
   type        = string

@@ -579,6 +579,39 @@ variable "eks_clickhouse_taints" {
   ]
 }
 
+# Karpenter Node Group Variables
+# Used only when eks_enable_karpenter = true. See modules/comet_eks/variables.tf for details.
+
+variable "eks_karpenter_node_instance_types" {
+  description = "Instance types for the Karpenter controller node group"
+  type        = list(string)
+  default     = ["t3.medium", "t3a.medium"]
+}
+
+variable "eks_karpenter_node_min_size" {
+  description = "Minimum number of nodes in the Karpenter controller node group"
+  type        = number
+  default     = 1
+}
+
+variable "eks_karpenter_node_max_size" {
+  description = "Maximum number of nodes in the Karpenter controller node group"
+  type        = number
+  default     = 2
+}
+
+variable "eks_karpenter_node_desired_size" {
+  description = "Desired number of nodes in the Karpenter controller node group"
+  type        = number
+  default     = 1
+}
+
+variable "eks_karpenter_node_disk_size" {
+  description = "EBS root volume size in GB for Karpenter controller nodes"
+  type        = number
+  default     = 50
+}
+
 variable "eks_additional_node_groups" {
   description = "Additional EKS managed node groups to create beyond the predefined ones (admin, comet, druid, airflow, clickhouse)"
   type        = any

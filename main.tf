@@ -264,6 +264,13 @@ module "comet_eks" {
 
   # Karpenter prerequisites
   enable_karpenter = var.eks_enable_karpenter
+
+  # Karpenter Node Group (dedicated controller node group, created when enable_karpenter = true)
+  eks_karpenter_node_instance_types = var.eks_karpenter_node_instance_types
+  eks_karpenter_node_min_size       = var.eks_karpenter_node_min_size
+  eks_karpenter_node_max_size       = var.eks_karpenter_node_max_size
+  eks_karpenter_node_desired_size   = var.eks_karpenter_node_desired_size
+  eks_karpenter_node_disk_size      = var.eks_karpenter_node_disk_size
 }
 
 module "comet_elasticache" {
