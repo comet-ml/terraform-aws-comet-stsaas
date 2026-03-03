@@ -271,6 +271,12 @@ module "comet_eks" {
   eks_karpenter_node_max_size       = var.eks_karpenter_node_max_size
   eks_karpenter_node_desired_size   = var.eks_karpenter_node_desired_size
   eks_karpenter_node_disk_size      = var.eks_karpenter_node_disk_size
+
+  # Karpenter Helm chart
+  karpenter_chart_version = var.eks_karpenter_chart_version
+  karpenter_helm_username = var.eks_karpenter_helm_username
+  karpenter_helm_password = var.eks_karpenter_helm_password
+  karpenter_extra_tags    = var.eks_karpenter_extra_tags
 }
 
 module "comet_elasticache" {

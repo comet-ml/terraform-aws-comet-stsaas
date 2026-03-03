@@ -487,6 +487,32 @@ variable "eks_karpenter_node_disk_size" {
   default     = 50
 }
 
+variable "karpenter_chart_version" {
+  description = "Version of the comet-stsaas-karpenter Helm chart to install from helm.comet.com"
+  type        = string
+  default     = "0.1.0"
+}
+
+variable "karpenter_helm_username" {
+  description = "Username for the helm.comet.com Helm repository"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "karpenter_helm_password" {
+  description = "Password for the helm.comet.com Helm repository"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "karpenter_extra_tags" {
+  description = "Extra EC2 instance tags applied to all Karpenter-provisioned nodes (e.g. Environment)"
+  type        = map(string)
+  default     = {}
+}
+
 variable "storage_class_reclaim_policy" {
   description = "Reclaim policy for the gp3 and comet-generic StorageClasses. Use 'Retain' to preserve volumes after PVC deletion (recommended for production), or 'Delete' to automatically delete volumes."
   type        = string

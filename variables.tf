@@ -612,6 +612,32 @@ variable "eks_karpenter_node_disk_size" {
   default     = 50
 }
 
+variable "eks_karpenter_chart_version" {
+  description = "Version of the comet-stsaas-karpenter Helm chart to install from helm.comet.com"
+  type        = string
+  default     = "0.1.0"
+}
+
+variable "eks_karpenter_helm_username" {
+  description = "Username for the helm.comet.com Helm repository"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "eks_karpenter_helm_password" {
+  description = "Password for the helm.comet.com Helm repository"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "eks_karpenter_extra_tags" {
+  description = "Extra EC2 instance tags applied to all Karpenter-provisioned nodes (e.g. Environment)"
+  type        = map(string)
+  default     = {}
+}
+
 variable "eks_additional_node_groups" {
   description = "Additional EKS managed node groups to create beyond the predefined ones (admin, comet, druid, airflow, clickhouse)"
   type        = any

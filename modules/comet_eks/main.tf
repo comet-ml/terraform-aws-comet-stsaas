@@ -1130,3 +1130,71 @@ module "karpenter_irsa" {
     }
   )
 }
+
+#########################################
+#### Karpenter Helm Chart ####
+#########################################
+resource "helm_release" "karpenter_stsaas" {
+  count = var.enable_karpenter ? 1 : 0
+
+  name             = "karpenter"
+  repository       = "https://helm.comet.com/"
+  chart            = "comet-stsaas-karpenter"
+  version          = var.karpenter_chart_version
+  namespace        = "kube-system"
+  create_namespace = false
+
+  repository_username = var.karpenter_helm_username
+  repository_password = var.karpenter_helm_password
+
+  # Cluster identity — also forwarded to the Karpenter subchart
+  set {
+    name  = "clusterName"
+    value = var.eks_cluster_name
+  }
+
+  # EC2 instance profile for all Karpenter-provisioned nodes
+  set {
+    name  = "nodeInstanceProfile"
+    value = aws_iam_instance_profile.karpenter_node[0].name
+  }
+
+  # Karpenter controller IRSA
+  set {
+    name  = "karpenter.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = module.karpenter_irsa[0].iam_role_arn
+  }
+
+  # Karpenter controller settings (passed through to subchart)
+  set {
+    name  = "karpenter.settings.clusterName"
+    value = var.eks_cluster_name
+  }
+
+  set {
+    name  = "karpenter.settings.interruptionQueue"
+    value = aws_sqs_queue.karpenter_interruption[0].name
+  }
+
+  # EC2 instance tags — merge common_tags (Terraform=true, Environment, etc.) with any
+  # extra tags so Karpenter-provisioned nodes are tagged consistently with all other resources
+  values = [
+    yamlencode({
+      tags = merge(var.common_tags, var.karpenter_extra_tags)
+    })
+  ]
+
+  wait    = true
+  timeout = 600
+
+  depends_on = [
+    module.eks,
+    module.eks_blueprints_addons,
+    module.karpenter_irsa,
+    aws_iam_instance_profile.karpenter_node,
+    aws_eks_access_entry.karpenter_node,
+    aws_sqs_queue.karpenter_interruption,
+    aws_ec2_tag.karpenter_subnet,
+    aws_ec2_tag.karpenter_sg,
+  ]
+}
