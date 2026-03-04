@@ -487,6 +487,12 @@ variable "eks_karpenter_node_disk_size" {
   default     = 50
 }
 
+variable "eks_admin_karpenter_instance_types" {
+  description = "Instance types for the admin node group when Karpenter is enabled. These nodes run system workloads only (cert-manager, LBC, etc.) so smaller instances are appropriate."
+  type        = list(string)
+  default     = ["t3.medium", "t3a.medium"]
+}
+
 variable "karpenter_chart_version" {
   description = "Version of the comet-stsaas-karpenter Helm chart to install from helm.comet.com"
   type        = string

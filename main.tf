@@ -270,7 +270,8 @@ module "comet_eks" {
   eks_karpenter_node_min_size       = var.eks_karpenter_node_min_size
   eks_karpenter_node_max_size       = var.eks_karpenter_node_max_size
   eks_karpenter_node_desired_size   = var.eks_karpenter_node_desired_size
-  eks_karpenter_node_disk_size      = var.eks_karpenter_node_disk_size
+  eks_karpenter_node_disk_size          = var.eks_karpenter_node_disk_size
+  eks_admin_karpenter_instance_types    = var.eks_admin_karpenter_instance_types
 
   # Karpenter Helm chart
   karpenter_chart_version = var.eks_karpenter_chart_version

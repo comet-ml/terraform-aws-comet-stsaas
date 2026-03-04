@@ -168,11 +168,13 @@ module "eks" {
         iam_role_additional_policies = local.node_group_iam_policies
       }
     } : {},
-    # Admin Node Group — disabled when Karpenter is enabled (Karpenter provisions admin nodes)
-    (var.enable_admin_node_group && !var.enable_karpenter) ? {
+    # Admin Node Group — always created when enabled. Required for system workloads (cert-manager, LBC,
+    # external-secrets, etc.) before Karpenter bootstraps, and for infra isolation in production.
+    # When Karpenter is enabled, uses smaller instance types since these nodes only run system pods.
+    var.enable_admin_node_group ? {
       admin = {
         name           = var.eks_admin_name
-        instance_types = var.eks_admin_instance_types
+        instance_types = var.enable_karpenter ? var.eks_admin_karpenter_instance_types : var.eks_admin_instance_types
         min_size       = var.eks_admin_min_size
         max_size       = var.eks_admin_max_size
         desired_size   = var.eks_admin_desired_size
