@@ -117,6 +117,12 @@ module "eks" {
   vpc_id     = var.vpc_id
   subnet_ids = var.eks_private_subnets
 
+  # Bake the Karpenter discovery tag directly into the node SG so it is never
+  # dropped when Terraform modifies the security group during subsequent applies.
+  node_security_group_tags = var.enable_karpenter ? {
+    "karpenter.sh/discovery" = var.eks_cluster_name
+  } : {}
+
   eks_managed_node_group_defaults = merge(
     {
       ami_type                   = var.eks_mng_ami_type
