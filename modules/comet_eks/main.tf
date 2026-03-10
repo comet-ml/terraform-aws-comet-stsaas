@@ -910,6 +910,14 @@ resource "aws_iam_role_policy_attachment" "karpenter_node_ssm" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+# Attach the Comet S3 access policy so Karpenter-provisioned nodes can access
+# the Comet S3 bucket via the EC2 instance profile (keyID/secretKey = "IAM-ROLE").
+resource "aws_iam_role_policy_attachment" "karpenter_node_s3" {
+  count      = var.enable_karpenter && var.s3_enabled ? 1 : 0
+  role       = aws_iam_role.karpenter_node[0].name
+  policy_arn = var.comet_ec2_s3_iam_policy
+}
+
 resource "aws_iam_instance_profile" "karpenter_node" {
   count = var.enable_karpenter ? 1 : 0
   name  = "karpenter-node-${var.eks_cluster_name}"
