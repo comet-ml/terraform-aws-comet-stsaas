@@ -55,6 +55,12 @@ variable "eks_enable_karpenter" {
   default     = false
 }
 
+variable "enable_cloudwatch_exporter" {
+  description = "Enable CloudWatch Exporter IRSA role for scraping ElastiCache, RDS, and other AWS managed service metrics (used by comet_eks module)"
+  type        = bool
+  default     = false
+}
+
 variable "enable_monitoring_setup" {
   description = "Enable monitoring namespace and Grafana credentials secret in EKS (used by comet_eks module)"
   type        = bool

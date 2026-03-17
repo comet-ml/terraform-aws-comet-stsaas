@@ -153,6 +153,16 @@ output "loki_irsa_role_name" {
   value       = var.enable_eks && var.enable_loki_bucket ? module.comet_eks[0].loki_irsa_role_name : null
 }
 
+output "cloudwatch_exporter_irsa_role_arn" {
+  description = "ARN of the CloudWatch Exporter IRSA role"
+  value       = var.enable_eks && var.enable_cloudwatch_exporter ? module.comet_eks[0].cloudwatch_exporter_irsa_role_arn : null
+}
+
+output "cloudwatch_exporter_irsa_role_name" {
+  description = "Name of the CloudWatch Exporter IRSA role"
+  value       = var.enable_eks && var.enable_cloudwatch_exporter ? module.comet_eks[0].cloudwatch_exporter_irsa_role_name : null
+}
+
 output "karpenter_irsa_role_arn" {
   description = "ARN of the Karpenter controller IRSA role — annotate the karpenter ServiceAccount with this"
   value       = var.enable_eks && var.eks_enable_karpenter ? module.comet_eks[0].karpenter_irsa_role_arn : null

@@ -256,6 +256,9 @@ module "comet_eks" {
   enable_loki        = var.enable_loki_bucket
   loki_s3_bucket_arn = var.enable_s3 && var.enable_loki_bucket ? module.comet_s3[0].comet_loki_bucket_arn : null
 
+  # CloudWatch Exporter IRSA for scraping AWS managed service metrics
+  enable_cloudwatch_exporter = var.enable_cloudwatch_exporter
+
   # Monitoring namespace and Grafana credentials
   enable_monitoring_setup = var.enable_monitoring_setup
   monitoring_namespace    = var.monitoring_namespace

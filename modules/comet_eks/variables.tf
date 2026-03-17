@@ -257,6 +257,12 @@ variable "enable_loki" {
   default     = false
 }
 
+variable "enable_cloudwatch_exporter" {
+  description = "Enable CloudWatch Exporter IRSA role for scraping ElastiCache, RDS, and other AWS managed service metrics"
+  type        = bool
+  default     = false
+}
+
 variable "loki_s3_bucket_arn" {
   description = "ARN of the S3 bucket for Loki log storage"
   type        = string

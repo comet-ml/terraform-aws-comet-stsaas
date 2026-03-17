@@ -718,6 +718,70 @@ module "loki_irsa_role" {
   )
 }
 
+##################################################
+#### CloudWatch Exporter IRSA Role and Policy ####
+##################################################
+data "aws_iam_policy_document" "cloudwatch_exporter" {
+  count = var.enable_cloudwatch_exporter ? 1 : 0
+
+  statement {
+    actions = [
+      "cloudwatch:Describe*",
+      "cloudwatch:Get*",
+      "cloudwatch:List*",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "cloudwatch_exporter" {
+  count = var.enable_cloudwatch_exporter ? 1 : 0
+
+  name_prefix = "${var.environment}-cloudwatch-exporter-"
+  description = "Provides CloudWatch read access for prometheus-cloudwatch-exporter on ${var.environment} cluster"
+  policy      = data.aws_iam_policy_document.cloudwatch_exporter[0].json
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.environment}-cloudwatch-exporter"
+    }
+  )
+}
+
+module "cloudwatch_exporter_irsa_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.39"
+
+  count = var.enable_cloudwatch_exporter ? 1 : 0
+
+  role_name = "${var.environment}-cloudwatch-exporter"
+
+  role_policy_arns = {
+    cloudwatch_exporter = aws_iam_policy.cloudwatch_exporter[0].arn
+  }
+
+  oidc_providers = {
+    ex = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["monitoring:monitoring-prometheus-cloudwatch-exporter"]
+    }
+  }
+
+  depends_on = [
+    module.eks,
+    aws_iam_policy.cloudwatch_exporter
+  ]
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name        = "${var.environment}-cloudwatch-exporter"
+      Description = "IRSA role for prometheus-cloudwatch-exporter to scrape CloudWatch metrics"
+    }
+  )
+}
+
 #########################################
 #### Monitoring Namespace and Secrets ####
 #########################################
