@@ -337,6 +337,9 @@ module "comet_rds" {
 
   # Deletion protection
   rds_deletion_protection = var.rds_deletion_protection
+
+  # Storage type (aurora-iopt1 for I/O-Optimized)
+  rds_storage_type = var.rds_storage_type
 }
 
 module "comet_s3" {

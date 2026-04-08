@@ -126,3 +126,9 @@ variable "rds_deletion_protection" {
   type        = bool
   default     = true
 }
+
+variable "rds_storage_type" {
+  description = "Aurora storage type. Use 'aurora-iopt1' for I/O-Optimized (eliminates I/O charges, 30% instance surcharge). Default null uses Aurora Standard."
+  type        = string
+  default     = null
+}
