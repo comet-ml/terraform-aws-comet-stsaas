@@ -310,9 +310,27 @@ variable "eks_kms_key_users" {
 }
 
 variable "eks_mng_ami_type" {
-  description = "AMI family to use for the EKS nodes (e.g., AL2023_x86_64_STANDARD). Ignored if eks_mng_ami_id is set."
+  description = "AMI family to use for the EKS nodes (default for all nodegroups). Ignored if eks_mng_ami_id is set."
   type        = string
   default     = "AL2023_x86_64_STANDARD"
+}
+
+variable "eks_admin_ami_type" {
+  description = "AMI type override for admin nodegroup. Null uses the default (eks_mng_ami_type)."
+  type        = string
+  default     = null
+}
+
+variable "eks_comet_ami_type" {
+  description = "AMI type override for comet nodegroup. Set to AL2023_ARM_64_STANDARD for Graviton."
+  type        = string
+  default     = null
+}
+
+variable "eks_clickhouse_ami_type" {
+  description = "AMI type override for ClickHouse nodegroup. Null uses the default (eks_mng_ami_type)."
+  type        = string
+  default     = null
 }
 
 variable "eks_mng_ami_id" {

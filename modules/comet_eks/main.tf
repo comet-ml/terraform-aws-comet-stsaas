@@ -178,7 +178,7 @@ module "eks" {
     # external-secrets, etc.) before Karpenter bootstraps, and for infra isolation in production.
     # When Karpenter is enabled, uses smaller instance types since these nodes only run system pods.
     var.enable_admin_node_group ? {
-      admin = {
+      admin = merge({
         name           = var.eks_admin_name
         instance_types = var.enable_karpenter ? var.eks_admin_karpenter_instance_types : var.eks_admin_instance_types
         min_size       = var.eks_admin_min_size
@@ -203,11 +203,11 @@ module "eks" {
         tags_propagate_at_launch     = true
         launch_template_version      = "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
-      }
+      }, var.eks_admin_ami_type != null ? { ami_type = var.eks_admin_ami_type } : {})
     } : {},
     # Comet Node Group — disabled when Karpenter is enabled (Karpenter provisions comet nodes)
     (var.enable_comet_node_group && !var.enable_karpenter) ? {
-      comet = {
+      comet = merge({
         name           = var.eks_comet_name
         instance_types = var.eks_comet_instance_types
         min_size       = var.eks_comet_min_size
@@ -232,7 +232,7 @@ module "eks" {
         tags_propagate_at_launch     = true
         launch_template_version      = "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
-      }
+      }, var.eks_comet_ami_type != null ? { ami_type = var.eks_comet_ami_type } : {})
     } : {},
     # Druid Node Group — disabled when Karpenter is enabled
     (var.enable_druid_node_group && var.enable_mpm_infra && !var.enable_karpenter) ? {
@@ -294,7 +294,7 @@ module "eks" {
     } : {},
     # ClickHouse Node Group — requires explicit opt-in AND Karpenter must be disabled
     (var.enable_clickhouse_node_group && !var.enable_karpenter) ? {
-      clickhouse = {
+      clickhouse = merge({
         name           = var.eks_clickhouse_name
         instance_types = var.eks_clickhouse_instance_types
         min_size       = var.eks_clickhouse_min_size
@@ -320,7 +320,7 @@ module "eks" {
         tags_propagate_at_launch     = true
         launch_template_version      = "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
-      }
+      }, var.eks_clickhouse_ami_type != null ? { ami_type = var.eks_clickhouse_ami_type } : {})
     } : {},
     # Additional custom node groups
     var.additional_node_groups

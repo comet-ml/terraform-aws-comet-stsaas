@@ -177,6 +177,9 @@ module "comet_eks" {
   kms_key_administrators                       = var.eks_kms_key_administrators
   kms_key_users                                = var.eks_kms_key_users
   eks_mng_ami_type                             = var.eks_mng_ami_type
+  eks_admin_ami_type                           = var.eks_admin_ami_type
+  eks_comet_ami_type                           = var.eks_comet_ami_type
+  eks_clickhouse_ami_type                      = var.eks_clickhouse_ami_type
   eks_mng_ami_id                               = var.eks_mng_ami_id
   eks_mng_disk_size                            = var.eks_mng_disk_size
   eks_aws_load_balancer_controller             = var.eks_aws_load_balancer_controller
