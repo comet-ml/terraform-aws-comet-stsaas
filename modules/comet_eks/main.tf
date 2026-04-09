@@ -196,8 +196,7 @@ module "eks" {
           }
         }
         labels = {
-          nodegroup_name                  = "admin"
-          "node-role.kubernetes.io/admin" = "true"
+          nodegroup_name = "admin"
         }
         tags                         = var.common_tags
         tags_propagate_at_launch     = true
@@ -225,8 +224,7 @@ module "eks" {
           }
         }
         labels = {
-          nodegroup_name                  = "comet"
-          "node-role.kubernetes.io/comet" = "true"
+          nodegroup_name = "comet"
         }
         tags                         = var.common_tags
         tags_propagate_at_launch     = true
@@ -254,8 +252,7 @@ module "eks" {
           }
         }
         labels = {
-          nodegroup_name                  = "druid"
-          "node-role.kubernetes.io/druid" = "true"
+          nodegroup_name = "druid"
         }
         tags                         = var.common_tags
         tags_propagate_at_launch     = true
@@ -283,8 +280,7 @@ module "eks" {
           }
         }
         labels = {
-          nodegroup_name                    = "airflow"
-          "node-role.kubernetes.io/airflow" = "true"
+          nodegroup_name = "airflow"
         }
         tags                         = var.common_tags
         tags_propagate_at_launch     = true
@@ -312,8 +308,7 @@ module "eks" {
           }
         }
         labels = {
-          nodegroup_name                       = "clickhouse"
-          "node-role.kubernetes.io/clickhouse" = "true"
+          nodegroup_name = "clickhouse"
         }
         taints                       = var.eks_clickhouse_taints
         tags                         = var.common_tags
