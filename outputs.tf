@@ -123,6 +123,16 @@ output "comet_clickhouse_secret_name" {
   value       = var.enable_secretsmanager ? module.comet_secretsmanager[0].clickhouse_secret_name : null
 }
 
+output "cluster_autoscaler_irsa_role_arn" {
+  description = "ARN of the Cluster Autoscaler IRSA role (bind to kube-system/cluster-autoscaler service account)"
+  value       = var.enable_eks && var.eks_enable_cluster_autoscaler ? module.comet_eks[0].cluster_autoscaler_irsa_role_arn : null
+}
+
+output "cluster_autoscaler_irsa_role_name" {
+  description = "Name of the Cluster Autoscaler IRSA role"
+  value       = var.enable_eks && var.eks_enable_cluster_autoscaler ? module.comet_eks[0].cluster_autoscaler_irsa_role_name : null
+}
+
 output "external_secrets_irsa_role_arn" {
   description = "ARN of the External Secrets IRSA role for accessing AWS Secrets Manager"
   value       = var.enable_eks && var.eks_enable_external_secrets ? module.comet_eks[0].external_secrets_irsa_role_arn : null

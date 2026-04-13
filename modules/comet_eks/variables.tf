@@ -208,6 +208,24 @@ variable "eks_external_dns_r53_zones" {
   type        = list(string)
 }
 
+variable "eks_enable_metrics_server" {
+  description = "Enables the metrics-server EKS managed addon (required for HPA and `kubectl top`). Also opens node SG port 10251 so the kube-apiserver can reach the metrics-server pod."
+  type        = bool
+  default     = true
+}
+
+variable "eks_metrics_server_addon_version" {
+  description = "Pinned version of the metrics-server EKS managed addon. Set to null to use the AWS default for the cluster's Kubernetes version."
+  type        = string
+  default     = null
+}
+
+variable "eks_enable_cluster_autoscaler" {
+  description = "Enables the Cluster Autoscaler IRSA role and ASG auto-discovery tags. The cluster-autoscaler Helm release itself is deployed out-of-band (ArgoCD AppSet). Toggling this creates the IAM role and tags the EKS-managed ASGs so the autoscaler can discover and scale them."
+  type        = bool
+  default     = false
+}
+
 variable "s3_enabled" {
   description = "Indicates if S3 bucket is being provisioned for Comet"
   type        = bool

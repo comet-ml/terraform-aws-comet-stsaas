@@ -187,6 +187,9 @@ module "comet_eks" {
   eks_aws_cloudwatch_metrics                   = var.eks_aws_cloudwatch_metrics
   eks_external_dns                             = var.eks_external_dns
   eks_external_dns_r53_zones                   = var.eks_external_dns_r53_zones
+  eks_enable_metrics_server                    = var.eks_enable_metrics_server
+  eks_metrics_server_addon_version             = var.eks_metrics_server_addon_version
+  eks_enable_cluster_autoscaler                = var.eks_enable_cluster_autoscaler
 
   s3_enabled              = var.enable_s3
   comet_ec2_s3_iam_policy = var.enable_s3 ? module.comet_s3[0].comet_s3_iam_policy_arn : null
@@ -272,12 +275,12 @@ module "comet_eks" {
   enable_karpenter = var.eks_enable_karpenter
 
   # Karpenter Node Group (dedicated controller node group, created when enable_karpenter = true)
-  eks_karpenter_node_instance_types = var.eks_karpenter_node_instance_types
-  eks_karpenter_node_min_size       = var.eks_karpenter_node_min_size
-  eks_karpenter_node_max_size       = var.eks_karpenter_node_max_size
-  eks_karpenter_node_desired_size   = var.eks_karpenter_node_desired_size
-  eks_karpenter_node_disk_size          = var.eks_karpenter_node_disk_size
-  eks_admin_karpenter_instance_types    = var.eks_admin_karpenter_instance_types
+  eks_karpenter_node_instance_types  = var.eks_karpenter_node_instance_types
+  eks_karpenter_node_min_size        = var.eks_karpenter_node_min_size
+  eks_karpenter_node_max_size        = var.eks_karpenter_node_max_size
+  eks_karpenter_node_desired_size    = var.eks_karpenter_node_desired_size
+  eks_karpenter_node_disk_size       = var.eks_karpenter_node_disk_size
+  eks_admin_karpenter_instance_types = var.eks_admin_karpenter_instance_types
 
   # Karpenter Helm chart
   karpenter_chart_version = var.eks_karpenter_chart_version
