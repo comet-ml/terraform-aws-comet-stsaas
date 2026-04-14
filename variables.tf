@@ -707,7 +707,7 @@ variable "eks_enable_external_secrets" {
 variable "eks_external_secrets_chart_version" {
   description = "Helm chart version for external-secrets"
   type        = string
-  default     = "0.9.3"
+  default     = "2.2.0"
 }
 
 variable "eks_storage_class_reclaim_policy" {
