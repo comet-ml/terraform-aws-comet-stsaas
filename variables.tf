@@ -118,6 +118,12 @@ variable "comet_hostname" {
   default     = null
 }
 
+variable "rds_environment" {
+  description = "Override environment name for RDS resource naming. When null, falls back to var.environment. Use this when the environment was shortened but RDS resources were originally created with a longer name."
+  type        = string
+  default     = null
+}
+
 variable "region" {
   description = "AWS region to provision resources in"
   type        = string
