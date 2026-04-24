@@ -43,7 +43,7 @@ resource "aws_db_subnet_group" "comet-ml-rds-subnet" {
 
 resource "aws_rds_cluster_instance" "comet-ml-rds-mysql" {
   count              = var.rds_instance_count
-  identifier         = "cometml-rds-${var.environment}-${count.index}"
+  identifier         = "${coalesce(var.rds_instance_identifier_prefix, "cometml-rds-${var.environment}")}-${count.index}"
   cluster_identifier = aws_rds_cluster.cometml-db-cluster.id
   instance_class     = var.rds_instance_type
   engine             = var.rds_engine
@@ -67,7 +67,7 @@ resource "aws_rds_cluster_instance" "comet-ml-rds-mysql" {
 }
 
 resource "aws_rds_cluster" "cometml-db-cluster" {
-  cluster_identifier                  = "cometml-rds-cluster-${var.environment}"
+  cluster_identifier                  = coalesce(var.rds_cluster_identifier, "cometml-rds-cluster-${var.environment}")
   db_subnet_group_name                = aws_db_subnet_group.comet-ml-rds-subnet.name
   availability_zones                  = var.availability_zones
   database_name                       = var.rds_snapshot_identifier == null ? var.rds_database_name : null
@@ -168,6 +168,15 @@ resource "aws_rds_cluster_parameter_group" "cometml-cluster-pg" {
     apply_method = "pending-reboot"
     name         = "log_bin_trust_function_creators"
     value        = "1"
+  }
+
+  dynamic "parameter" {
+    for_each = var.rds_cluster_parameters
+    content {
+      apply_method = parameter.value.apply_method
+      name         = parameter.value.name
+      value        = parameter.value.value
+    }
   }
 }
 

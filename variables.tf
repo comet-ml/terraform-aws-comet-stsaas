@@ -118,6 +118,24 @@ variable "comet_hostname" {
   default     = null
 }
 
+variable "rds_environment" {
+  description = "Override environment name for RDS resource naming. When null, falls back to var.environment. Use this when the environment was shortened but RDS resources were originally created with a longer name."
+  type        = string
+  default     = null
+}
+
+variable "rds_cluster_identifier" {
+  description = "Override for the RDS cluster identifier. When null, uses the default pattern. Use this when the cluster was created with a different naming convention than the current module version."
+  type        = string
+  default     = null
+}
+
+variable "rds_instance_identifier_prefix" {
+  description = "Override prefix for RDS instance identifiers. When null, uses the default pattern. Instance index is appended automatically."
+  type        = string
+  default     = null
+}
+
 variable "region" {
   description = "AWS region to provision resources in"
   type        = string
@@ -770,6 +788,18 @@ variable "elasticache_auth_token" {
   default     = null
 }
 
+variable "elasticache_automatic_failover_enabled" {
+  description = "Enable automatic failover for the ElastiCache replication group. Requires at least one replica (elasticache_num_cache_nodes >= 2)."
+  type        = bool
+  default     = false
+}
+
+variable "elasticache_multi_az_enabled" {
+  description = "Enable Multi-AZ for the ElastiCache replication group. Requires automatic_failover to also be enabled and at least one replica in a different AZ."
+  type        = bool
+  default     = false
+}
+
 #### comet_rds ####
 variable "rds_allow_from_sg" {
   description = "Security group from which to allow connections to RDS, to use when provisioning with existing compute"
@@ -1003,4 +1033,22 @@ variable "clickhouse_monitoring_password" {
   type        = string
   default     = null
   sensitive   = true
+}
+
+variable "rds_cluster_parameters" {
+  description = "Additional MySQL parameters applied to the cluster parameter group on top of the module's baseline character-set/collation/innodb defaults. Defaults include operational tunings (wait_timeout, max_execution_time, innodb purge settings, aurora_read_replica_read_committed) used across Comet STSAAS deployments. Pass [] to disable, or override with a custom list."
+  type = list(object({
+    name         = string
+    value        = string
+    apply_method = string
+  }))
+  default = [
+    { name = "aurora_read_replica_read_committed", value = "ON", apply_method = "immediate" },
+    { name = "innodb_max_purge_lag", value = "1000000", apply_method = "immediate" },
+    { name = "innodb_max_purge_lag_delay", value = "300000", apply_method = "immediate" },
+    { name = "innodb_purge_batch_size", value = "5000", apply_method = "immediate" },
+    { name = "innodb_purge_threads", value = "16", apply_method = "pending-reboot" },
+    { name = "max_execution_time", value = "60000", apply_method = "immediate" },
+    { name = "wait_timeout", value = "1800", apply_method = "immediate" },
+  ]
 }

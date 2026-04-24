@@ -300,20 +300,24 @@ module "comet_elasticache" {
   elasticache_allow_from_sg = var.enable_ec2 ? module.comet_ec2[0].comet_ec2_sg_id : (
     var.enable_eks ? module.comet_eks[0].nodegroup_sg_id : (
   var.elasticache_allow_from_sg))
-  elasticache_engine             = var.elasticache_engine
-  elasticache_engine_version     = var.elasticache_engine_version
-  elasticache_instance_type      = var.elasticache_instance_type
-  elasticache_param_group_name   = var.elasticache_param_group_name
-  elasticache_num_cache_nodes    = var.elasticache_num_cache_nodes
-  elasticache_transit_encryption = var.elasticache_transit_encryption
-  elasticache_auth_token         = var.elasticache_auth_token
+  elasticache_engine                     = var.elasticache_engine
+  elasticache_engine_version             = var.elasticache_engine_version
+  elasticache_instance_type              = var.elasticache_instance_type
+  elasticache_param_group_name           = var.elasticache_param_group_name
+  elasticache_num_cache_nodes            = var.elasticache_num_cache_nodes
+  elasticache_transit_encryption         = var.elasticache_transit_encryption
+  elasticache_auth_token                 = var.elasticache_auth_token
+  elasticache_automatic_failover_enabled = var.elasticache_automatic_failover_enabled
+  elasticache_multi_az_enabled           = var.elasticache_multi_az_enabled
 }
 
 module "comet_rds" {
-  source      = "./modules/comet_rds"
-  count       = var.enable_rds ? 1 : 0
-  environment = var.environment
-  common_tags = local.all_tags
+  source                         = "./modules/comet_rds"
+  count                          = var.enable_rds ? 1 : 0
+  environment                    = coalesce(var.rds_environment, var.environment)
+  rds_cluster_identifier         = var.rds_cluster_identifier
+  rds_instance_identifier_prefix = var.rds_instance_identifier_prefix
+  common_tags                    = local.all_tags
 
   availability_zones  = var.enable_vpc ? module.comet_vpc[0].azs : var.availability_zones
   vpc_id              = var.enable_vpc ? module.comet_vpc[0].vpc_id : var.comet_vpc_id
@@ -346,6 +350,9 @@ module "comet_rds" {
 
   # Storage type (aurora-iopt1 for I/O-Optimized)
   rds_storage_type = var.rds_storage_type
+
+  # Additional MySQL cluster parameters (defaults include operational tunings)
+  rds_cluster_parameters = var.rds_cluster_parameters
 }
 
 module "comet_s3" {
