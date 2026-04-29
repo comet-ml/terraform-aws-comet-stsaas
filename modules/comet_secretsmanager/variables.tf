@@ -155,3 +155,21 @@ variable "clickhouse_admin_password" {
   default     = null
   sensitive   = true
 }
+
+variable "clickhouse_host" {
+  description = "In-cluster DNS name of the ClickHouse HTTP service. The comet-monitoring chart's clickhouse-exporter pulls this from the clickhouse secret to populate its k8s Secret. If null, defaults to `clickhouse-opik-clickhouse.{environment}.svc.cluster.local` (the standard STSaaS pattern)."
+  type        = string
+  default     = null
+}
+
+variable "clickhouse_port" {
+  description = "ClickHouse HTTP port (used by clickhouse-exporter via the clickhouse secret)."
+  type        = string
+  default     = "8123"
+}
+
+variable "clickhouse_monitoring_username" {
+  description = "ClickHouse user the monitoring exporter authenticates as. Default `opikmonitoring` matches the user the comet-ml chart provisions in the cluster (see opik.clickhouse.monitoring.username)."
+  type        = string
+  default     = "opikmonitoring"
+}

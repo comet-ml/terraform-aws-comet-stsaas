@@ -1049,6 +1049,24 @@ variable "clickhouse_admin_password" {
   sensitive   = true
 }
 
+variable "clickhouse_host" {
+  description = "In-cluster DNS name of the ClickHouse HTTP service (used by the comet-monitoring clickhouse-exporter). If null, defaults to `clickhouse-opik-clickhouse.{environment}.svc.cluster.local`."
+  type        = string
+  default     = null
+}
+
+variable "clickhouse_port" {
+  description = "ClickHouse HTTP port (used by clickhouse-exporter)."
+  type        = string
+  default     = "8123"
+}
+
+variable "clickhouse_monitoring_username" {
+  description = "ClickHouse user the monitoring exporter authenticates as. Default matches the user the comet-ml chart provisions."
+  type        = string
+  default     = "opikmonitoring"
+}
+
 variable "rds_cluster_parameters" {
   description = "Additional MySQL parameters applied to the cluster parameter group on top of the module's baseline character-set/collation/innodb defaults. Defaults include operational tunings (wait_timeout, max_execution_time, innodb purge settings, aurora_read_replica_read_committed) used across Comet STSAAS deployments. Pass [] to disable, or override with a custom list."
   type = list(object({
