@@ -282,9 +282,9 @@ variable "secretsmanager_environment" {
 }
 
 variable "external_secrets_chart_version" {
-  description = "Helm chart version for external-secrets"
+  description = "Helm chart version for external-secrets. Must align with the comet-devops umbrella chart pinned in comet-gitops (currently 2.2.0); using an older version leaves stale CRDs whose conversion webhook references a service that gets removed when ArgoCD takes over the operator install, blocking ArgoCD sync until the CRDs are patched."
   type        = string
-  default     = "0.9.3"
+  default     = "2.2.0"
 }
 
 variable "enable_loki" {
