@@ -1035,6 +1035,20 @@ variable "clickhouse_monitoring_password" {
   sensitive   = true
 }
 
+variable "clickhouse_agentro_password" {
+  description = "ClickHouse password for the read-only agentro user. If null and enable_clickhouse_secret is true, a random 32-char password is generated."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "clickhouse_admin_password" {
+  description = "ClickHouse password for the opik admin user. If null and enable_clickhouse_secret is true, a random 32-char password is generated."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
 variable "rds_cluster_parameters" {
   description = "Additional MySQL parameters applied to the cluster parameter group on top of the module's baseline character-set/collation/innodb defaults. Defaults include operational tunings (wait_timeout, max_execution_time, innodb purge settings, aurora_read_replica_read_committed) used across Comet STSAAS deployments. Pass [] to disable, or override with a custom list."
   type = list(object({

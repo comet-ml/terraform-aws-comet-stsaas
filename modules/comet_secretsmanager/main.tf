@@ -78,6 +78,21 @@ resource "aws_secretsmanager_secret_version" "monitoring" {
 ############################
 #### ClickHouse Secret ####
 ############################
+# Auto-generate ClickHouse user passwords when not provided. `special = false`
+# avoids characters (quotes, $, etc.) that can break the Altinity ClickHouse
+# operator's YAML-embedded user-creation logic.
+resource "random_password" "clickhouse_agentro" {
+  count   = var.enable_clickhouse_secret && var.clickhouse_agentro_password == null ? 1 : 0
+  length  = 32
+  special = false
+}
+
+resource "random_password" "clickhouse_admin" {
+  count   = var.enable_clickhouse_secret && var.clickhouse_admin_password == null ? 1 : 0
+  length  = 32
+  special = false
+}
+
 resource "aws_secretsmanager_secret" "clickhouse" {
   count = var.enable_clickhouse_secret ? 1 : 0
 
@@ -93,5 +108,7 @@ resource "aws_secretsmanager_secret_version" "clickhouse" {
   secret_id = aws_secretsmanager_secret.clickhouse[0].id
   secret_string = jsonencode({
     monitoring_pass = var.clickhouse_monitoring_password
+    agentro_pass    = var.clickhouse_agentro_password != null ? var.clickhouse_agentro_password : try(random_password.clickhouse_agentro[0].result, null)
+    opik_admin_pass = var.clickhouse_admin_password != null ? var.clickhouse_admin_password : try(random_password.clickhouse_admin[0].result, null)
   })
 }

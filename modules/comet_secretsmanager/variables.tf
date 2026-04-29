@@ -141,3 +141,17 @@ variable "clickhouse_monitoring_password" {
   default     = null
   sensitive   = true
 }
+
+variable "clickhouse_agentro_password" {
+  description = "ClickHouse password for the read-only agentro user. If null and enable_clickhouse_secret is true, a random 32-char password is generated."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "clickhouse_admin_password" {
+  description = "ClickHouse password for the opik admin user. If null and enable_clickhouse_secret is true, a random 32-char password is generated."
+  type        = string
+  default     = null
+  sensitive   = true
+}
