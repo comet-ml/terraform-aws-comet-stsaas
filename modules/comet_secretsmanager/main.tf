@@ -87,11 +87,16 @@ resource "random_password" "clickhouse_agentro" {
   special = false
 }
 
-resource "random_password" "clickhouse_admin" {
-  count   = var.enable_clickhouse_secret && var.clickhouse_admin_password == null ? 1 : 0
-  length  = 32
-  special = false
-}
+# Note: clickhouse_admin_password (the `opik` user) is NOT auto-generated.
+# The opik subchart hardcodes ANALYTICS_DB_PASS / ANALYTICS_DB_MIGRATIONS_PASS
+# / STATE_DB_PASS to the literal "opik" in its values.yaml (public:
+# https://github.com/comet-ml/opik/blob/main/deployment/helm_chart/opik/values.yaml).
+# The Altinity operator and opik-backend must agree on this user's password,
+# so terraform must default to the chart's literal — randomizing it puts the
+# operator-side and client-side passwords out of sync, surfacing as
+# `Code: 516. opik: Authentication failed` in opik-backend on first start.
+# Override `clickhouse_admin_password` only if you also override
+# opik.component.backend.env.ANALYTICS_DB_PASS in the chart values.
 
 resource "aws_secretsmanager_secret" "clickhouse" {
   count = var.enable_clickhouse_secret ? 1 : 0
@@ -109,7 +114,7 @@ resource "aws_secretsmanager_secret_version" "clickhouse" {
   secret_string = jsonencode({
     monitoring_pass = var.clickhouse_monitoring_password
     agentro_pass    = var.clickhouse_agentro_password != null ? var.clickhouse_agentro_password : try(random_password.clickhouse_agentro[0].result, null)
-    opik_admin_pass = var.clickhouse_admin_password != null ? var.clickhouse_admin_password : try(random_password.clickhouse_admin[0].result, null)
+    opik_admin_pass = var.clickhouse_admin_password != null ? var.clickhouse_admin_password : "opik"
     # Connection details — also pulled by the comet-monitoring chart's
     # clickhouse-exporter (host/port/username) into a k8s Secret alongside
     # monitoring_pass. Not sensitive, but co-located here so the exporter's
