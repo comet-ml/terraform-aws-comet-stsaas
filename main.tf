@@ -409,6 +409,11 @@ module "comet_secretsmanager" {
 
   # ClickHouse secret configuration
   clickhouse_monitoring_password = var.clickhouse_monitoring_password
+  clickhouse_agentro_password    = var.clickhouse_agentro_password
+  clickhouse_admin_password      = var.clickhouse_admin_password
+  clickhouse_host                = var.clickhouse_host
+  clickhouse_port                = var.clickhouse_port
+  clickhouse_monitoring_username = var.clickhouse_monitoring_username
 
   depends_on = [
     module.comet_elasticache,
