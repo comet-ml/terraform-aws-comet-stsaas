@@ -572,3 +572,39 @@ variable "storage_class_reclaim_policy" {
   }
 }
 
+# Per-Node-Group Subnet Pinning
+# When set, restricts a specific node group to a subset of subnets (typically a
+# single AZ). Use to align node placement with stateful workload PVs that are
+# AZ-bound (e.g. ClickHouse EBS volumes), or to reduce cross-AZ data transfer.
+# When null (the default), the node group inherits eks_private_subnets and
+# spans all AZs. The subnets must be a subset of eks_private_subnets.
+variable "eks_admin_subnet_ids" {
+  description = "Subnet IDs for the admin node group. When set, overrides eks_private_subnets for this NG only (typically used for single-AZ pinning). Must be a subset of eks_private_subnets."
+  type        = list(string)
+  default     = null
+}
+
+variable "eks_comet_subnet_ids" {
+  description = "Subnet IDs for the comet node group. When set, overrides eks_private_subnets for this NG only (typically used for single-AZ pinning). Must be a subset of eks_private_subnets."
+  type        = list(string)
+  default     = null
+}
+
+variable "eks_druid_subnet_ids" {
+  description = "Subnet IDs for the druid node group. When set, overrides eks_private_subnets for this NG only (typically used for single-AZ pinning). Must be a subset of eks_private_subnets."
+  type        = list(string)
+  default     = null
+}
+
+variable "eks_airflow_subnet_ids" {
+  description = "Subnet IDs for the airflow node group. When set, overrides eks_private_subnets for this NG only (typically used for single-AZ pinning). Must be a subset of eks_private_subnets."
+  type        = list(string)
+  default     = null
+}
+
+variable "eks_clickhouse_subnet_ids" {
+  description = "Subnet IDs for the ClickHouse node group. When set, overrides eks_private_subnets for this NG only. CRITICAL: must match the AZ of any existing ClickHouse EBS volumes — otherwise the CH pod cannot reschedule onto the new NG. Verify with: kubectl get pv <PV_NAME> -o jsonpath='{.spec.nodeAffinity...zone...}'."
+  type        = list(string)
+  default     = null
+}
+

@@ -210,6 +210,7 @@ module "comet_eks" {
   eks_admin_min_size       = var.eks_admin_min_size
   eks_admin_max_size       = var.eks_admin_max_size
   eks_admin_desired_size   = var.eks_admin_desired_size
+  eks_admin_subnet_ids     = var.eks_admin_subnet_ids
 
   # Comet Node Group
   eks_comet_name           = var.eks_comet_name
@@ -217,6 +218,7 @@ module "comet_eks" {
   eks_comet_min_size       = var.eks_comet_min_size
   eks_comet_max_size       = var.eks_comet_max_size
   eks_comet_desired_size   = var.eks_comet_desired_size
+  eks_comet_subnet_ids     = var.eks_comet_subnet_ids
 
   # Druid Node Group
   eks_druid_name           = var.eks_druid_name
@@ -224,6 +226,7 @@ module "comet_eks" {
   eks_druid_min_size       = var.eks_druid_min_size
   eks_druid_max_size       = var.eks_druid_max_size
   eks_druid_desired_size   = var.eks_druid_desired_size
+  eks_druid_subnet_ids     = var.eks_druid_subnet_ids
 
   # Airflow Node Group
   eks_airflow_name           = var.eks_airflow_name
@@ -231,6 +234,7 @@ module "comet_eks" {
   eks_airflow_min_size       = var.eks_airflow_min_size
   eks_airflow_max_size       = var.eks_airflow_max_size
   eks_airflow_desired_size   = var.eks_airflow_desired_size
+  eks_airflow_subnet_ids     = var.eks_airflow_subnet_ids
 
   # ClickHouse Node Group
   eks_clickhouse_name                  = var.eks_clickhouse_name
@@ -243,6 +247,7 @@ module "comet_eks" {
   eks_clickhouse_volume_encrypted      = var.eks_clickhouse_volume_encrypted
   eks_clickhouse_delete_on_termination = var.eks_clickhouse_delete_on_termination
   eks_clickhouse_taints                = var.eks_clickhouse_taints
+  eks_clickhouse_subnet_ids            = var.eks_clickhouse_subnet_ids
 
   # Additional custom node groups
   additional_node_groups = var.eks_additional_node_groups
