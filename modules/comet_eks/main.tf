@@ -229,7 +229,9 @@ module "eks" {
         tags_propagate_at_launch     = true
         launch_template_version      = "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
-      }, var.eks_admin_ami_type != null ? { ami_type = var.eks_admin_ami_type } : {})
+        },
+        var.eks_admin_ami_type != null ? { ami_type = var.eks_admin_ami_type } : {},
+      var.eks_admin_subnet_ids != null ? { subnet_ids = var.eks_admin_subnet_ids } : {})
     } : {},
     # Comet Node Group — disabled when Karpenter is enabled (Karpenter provisions comet nodes)
     (var.enable_comet_node_group && !var.enable_karpenter) ? {
@@ -257,11 +259,13 @@ module "eks" {
         tags_propagate_at_launch     = true
         launch_template_version      = "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
-      }, var.eks_comet_ami_type != null ? { ami_type = var.eks_comet_ami_type } : {})
+        },
+        var.eks_comet_ami_type != null ? { ami_type = var.eks_comet_ami_type } : {},
+      var.eks_comet_subnet_ids != null ? { subnet_ids = var.eks_comet_subnet_ids } : {})
     } : {},
     # Druid Node Group — disabled when Karpenter is enabled
     (var.enable_druid_node_group && var.enable_mpm_infra && !var.enable_karpenter) ? {
-      druid = {
+      druid = merge({
         name           = var.eks_druid_name
         instance_types = var.eks_druid_instance_types
         min_size       = var.eks_druid_min_size
@@ -285,11 +289,12 @@ module "eks" {
         tags_propagate_at_launch     = true
         launch_template_version      = "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
-      }
+        },
+      var.eks_druid_subnet_ids != null ? { subnet_ids = var.eks_druid_subnet_ids } : {})
     } : {},
     # Airflow Node Group — disabled when Karpenter is enabled
     (var.enable_airflow_node_group && var.enable_mpm_infra && !var.enable_karpenter) ? {
-      airflow = {
+      airflow = merge({
         name           = var.eks_airflow_name
         instance_types = var.eks_airflow_instance_types
         min_size       = var.eks_airflow_min_size
@@ -313,7 +318,8 @@ module "eks" {
         tags_propagate_at_launch     = true
         launch_template_version      = "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
-      }
+        },
+      var.eks_airflow_subnet_ids != null ? { subnet_ids = var.eks_airflow_subnet_ids } : {})
     } : {},
     # ClickHouse Node Group — requires explicit opt-in AND Karpenter must be disabled
     (var.enable_clickhouse_node_group && !var.enable_karpenter) ? {
@@ -342,7 +348,9 @@ module "eks" {
         tags_propagate_at_launch     = true
         launch_template_version      = "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
-      }, var.eks_clickhouse_ami_type != null ? { ami_type = var.eks_clickhouse_ami_type } : {})
+        },
+        var.eks_clickhouse_ami_type != null ? { ami_type = var.eks_clickhouse_ami_type } : {},
+      var.eks_clickhouse_subnet_ids != null ? { subnet_ids = var.eks_clickhouse_subnet_ids } : {})
     } : {},
     # Additional custom node groups
     var.additional_node_groups

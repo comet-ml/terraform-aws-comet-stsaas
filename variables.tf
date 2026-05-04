@@ -1084,3 +1084,39 @@ variable "rds_cluster_parameters" {
     { name = "wait_timeout", value = "1800", apply_method = "immediate" },
   ]
 }
+
+# Per-Node-Group Subnet Pinning
+# When set, restricts a specific node group to a subset of subnets (typically a
+# single AZ). Use to align node placement with stateful workload PVs that are
+# AZ-bound (e.g. ClickHouse EBS volumes), or to reduce cross-AZ data transfer.
+# When null (the default), the node group inherits the cluster-wide subnets and
+# spans all AZs. The subnets must be a subset of the EKS cluster's subnets.
+variable "eks_admin_subnet_ids" {
+  description = "Subnet IDs for the admin node group. When set, overrides cluster-wide subnets for this NG only (typically single-AZ pinning). Must be a subset of the EKS cluster subnets."
+  type        = list(string)
+  default     = null
+}
+
+variable "eks_comet_subnet_ids" {
+  description = "Subnet IDs for the comet node group. When set, overrides cluster-wide subnets for this NG only (typically single-AZ pinning). Must be a subset of the EKS cluster subnets."
+  type        = list(string)
+  default     = null
+}
+
+variable "eks_druid_subnet_ids" {
+  description = "Subnet IDs for the druid node group. When set, overrides cluster-wide subnets for this NG only (typically single-AZ pinning). Must be a subset of the EKS cluster subnets."
+  type        = list(string)
+  default     = null
+}
+
+variable "eks_airflow_subnet_ids" {
+  description = "Subnet IDs for the airflow node group. When set, overrides cluster-wide subnets for this NG only (typically single-AZ pinning). Must be a subset of the EKS cluster subnets."
+  type        = list(string)
+  default     = null
+}
+
+variable "eks_clickhouse_subnet_ids" {
+  description = "Subnet IDs for the ClickHouse node group. When set, overrides cluster-wide subnets for this NG only. CRITICAL: must match the AZ of any existing ClickHouse EBS volumes — otherwise the CH pod cannot reschedule onto the new NG. Verify with: kubectl get pv <PV_NAME> -o jsonpath='{.spec.nodeAffinity...zone...}'."
+  type        = list(string)
+  default     = null
+}
