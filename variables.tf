@@ -426,6 +426,16 @@ variable "eks_comet_name" {
   default     = "comet"
 }
 
+variable "eks_comet_capacity_type" {
+  description = "Capacity type for comet node group: ON_DEMAND or SPOT. SPOT is ~70% cheaper but interruptible — only safe for non-prod (dev/UAT) clusters."
+  type        = string
+  default     = "ON_DEMAND"
+  validation {
+    condition     = contains(["ON_DEMAND", "SPOT"], var.eks_comet_capacity_type)
+    error_message = "eks_comet_capacity_type must be ON_DEMAND or SPOT."
+  }
+}
+
 variable "eks_comet_instance_types" {
   description = "Instance types for comet node group"
   type        = list(string)
@@ -829,6 +839,30 @@ variable "rds_instance_count" {
   description = "Number of RDS instances in the database cluster"
   type        = number
   default     = 2
+}
+
+variable "rds_serverless_v2_enabled" {
+  description = "Enable Aurora Serverless v2. When true, instances use db.serverless and the cluster gets a serverless_v2_scaling_configuration block. rds_instance_type is ignored."
+  type        = bool
+  default     = false
+}
+
+variable "rds_serverless_v2_min_capacity" {
+  description = "Minimum ACU for Aurora Serverless v2. Set to 0 to enable auto-pause (Aurora MySQL 3.08+, PostgreSQL 16.3+). Otherwise minimum is 0.5."
+  type        = number
+  default     = 0.5
+}
+
+variable "rds_serverless_v2_max_capacity" {
+  description = "Maximum ACU for Aurora Serverless v2."
+  type        = number
+  default     = 1.0
+}
+
+variable "rds_serverless_v2_seconds_until_auto_pause" {
+  description = "Seconds of idle before auto-pause kicks in. Only effective when rds_serverless_v2_min_capacity = 0. Min 300 (5 min), max 86400 (24 h)."
+  type        = number
+  default     = 300
 }
 
 variable "rds_storage_encrypted" {

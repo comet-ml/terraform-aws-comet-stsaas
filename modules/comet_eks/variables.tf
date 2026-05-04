@@ -160,6 +160,16 @@ variable "eks_comet_instance_types" {
   default     = ["m7i.4xlarge"]
 }
 
+variable "eks_comet_capacity_type" {
+  description = "Capacity type for comet node group: ON_DEMAND or SPOT. SPOT is ~70% cheaper but interruptible — only safe for non-prod (dev/UAT) clusters."
+  type        = string
+  default     = "ON_DEMAND"
+  validation {
+    condition     = contains(["ON_DEMAND", "SPOT"], var.eks_comet_capacity_type)
+    error_message = "eks_comet_capacity_type must be ON_DEMAND or SPOT."
+  }
+}
+
 variable "eks_comet_min_size" {
   description = "Minimum number of nodes in comet node group"
   type        = number
