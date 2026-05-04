@@ -238,6 +238,7 @@ module "eks" {
       comet = merge({
         name           = var.eks_comet_name
         instance_types = var.eks_comet_instance_types
+        capacity_type  = var.eks_comet_capacity_type
         min_size       = var.eks_comet_min_size
         max_size       = var.eks_comet_max_size
         desired_size   = var.eks_comet_desired_size

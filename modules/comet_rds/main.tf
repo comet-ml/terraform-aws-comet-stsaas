@@ -45,7 +45,7 @@ resource "aws_rds_cluster_instance" "comet-ml-rds-mysql" {
   count              = var.rds_instance_count
   identifier         = "${coalesce(var.rds_instance_identifier_prefix, "cometml-rds-${var.environment}")}-${count.index}"
   cluster_identifier = aws_rds_cluster.cometml-db-cluster.id
-  instance_class     = var.rds_instance_type
+  instance_class     = var.rds_serverless_v2_enabled ? "db.serverless" : var.rds_instance_type
   engine             = var.rds_engine
   engine_version     = var.rds_engine_version
 
@@ -88,6 +88,15 @@ resource "aws_rds_cluster" "cometml-db-cluster" {
   allow_major_version_upgrade         = true
   deletion_protection                 = var.rds_deletion_protection
   storage_type                        = var.rds_storage_type
+
+  dynamic "serverlessv2_scaling_configuration" {
+    for_each = var.rds_serverless_v2_enabled ? [1] : []
+    content {
+      min_capacity             = var.rds_serverless_v2_min_capacity
+      max_capacity             = var.rds_serverless_v2_max_capacity
+      seconds_until_auto_pause = var.rds_serverless_v2_min_capacity == 0 ? var.rds_serverless_v2_seconds_until_auto_pause : null
+    }
+  }
 
   tags = merge(
     var.common_tags,

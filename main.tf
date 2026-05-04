@@ -215,6 +215,7 @@ module "comet_eks" {
   # Comet Node Group
   eks_comet_name           = var.eks_comet_name
   eks_comet_instance_types = var.eks_comet_instance_types
+  eks_comet_capacity_type  = var.eks_comet_capacity_type
   eks_comet_min_size       = var.eks_comet_min_size
   eks_comet_max_size       = var.eks_comet_max_size
   eks_comet_desired_size   = var.eks_comet_desired_size
@@ -330,19 +331,25 @@ module "comet_rds" {
   rds_allow_from_sg = var.enable_ec2 ? module.comet_ec2[0].comet_ec2_sg_id : (
     var.enable_eks ? module.comet_eks[0].nodegroup_sg_id : (
   var.rds_allow_from_sg))
-  rds_engine                  = var.rds_engine
-  rds_engine_version          = var.rds_engine_version
-  rds_instance_type           = var.rds_instance_type
-  rds_instance_count          = var.rds_instance_count
-  rds_storage_encrypted       = var.rds_storage_encrypted
-  rds_iam_db_auth             = var.rds_iam_db_auth
-  rds_backup_retention_period = var.rds_backup_retention_period
-  rds_preferred_backup_window = var.rds_preferred_backup_window
-  rds_database_name           = var.rds_database_name
-  rds_master_username         = var.rds_master_username
-  rds_master_password         = local.rds_master_password
-  rds_snapshot_identifier     = var.rds_snapshot_identifier
-  rds_kms_key_id              = var.rds_kms_key_id
+  rds_engine            = var.rds_engine
+  rds_engine_version    = var.rds_engine_version
+  rds_instance_type     = var.rds_instance_type
+  rds_instance_count    = var.rds_instance_count
+  rds_storage_encrypted = var.rds_storage_encrypted
+
+  # Aurora Serverless v2 (optional)
+  rds_serverless_v2_enabled                  = var.rds_serverless_v2_enabled
+  rds_serverless_v2_min_capacity             = var.rds_serverless_v2_min_capacity
+  rds_serverless_v2_max_capacity             = var.rds_serverless_v2_max_capacity
+  rds_serverless_v2_seconds_until_auto_pause = var.rds_serverless_v2_seconds_until_auto_pause
+  rds_iam_db_auth                            = var.rds_iam_db_auth
+  rds_backup_retention_period                = var.rds_backup_retention_period
+  rds_preferred_backup_window                = var.rds_preferred_backup_window
+  rds_database_name                          = var.rds_database_name
+  rds_master_username                        = var.rds_master_username
+  rds_master_password                        = local.rds_master_password
+  rds_snapshot_identifier                    = var.rds_snapshot_identifier
+  rds_kms_key_id                             = var.rds_kms_key_id
 
   # Performance Insights and Enhanced Monitoring
   rds_performance_insights_enabled          = var.rds_performance_insights_enabled
