@@ -17,6 +17,7 @@ resource "aws_elasticache_replication_group" "comet-ml-ec-redis" {
   subnet_group_name          = aws_elasticache_subnet_group.comet-ml-ec-subnet-group.name
   security_group_ids         = [aws_security_group.redis_inbound_sg.id]
   description                = "Redis for CometML"
+  apply_immediately          = true
 
   tags = merge(
     var.common_tags,
