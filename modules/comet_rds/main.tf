@@ -48,6 +48,7 @@ resource "aws_rds_cluster_instance" "comet-ml-rds-mysql" {
   instance_class     = var.rds_serverless_v2_enabled ? "db.serverless" : var.rds_instance_type
   engine             = var.rds_engine
   engine_version     = var.rds_engine_version
+  apply_immediately  = true
 
   # Performance Insights
   performance_insights_enabled          = var.rds_performance_insights_enabled
@@ -88,6 +89,7 @@ resource "aws_rds_cluster" "cometml-db-cluster" {
   allow_major_version_upgrade         = true
   deletion_protection                 = var.rds_deletion_protection
   storage_type                        = var.rds_storage_type
+  apply_immediately                   = true
 
   dynamic "serverlessv2_scaling_configuration" {
     for_each = var.rds_serverless_v2_enabled ? [1] : []
