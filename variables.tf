@@ -810,6 +810,12 @@ variable "elasticache_multi_az_enabled" {
   default     = false
 }
 
+variable "elasticache_preferred_cache_cluster_azs" {
+  description = "Ordered list of preferred AZs for cache cluster nodes. Length must equal elasticache_num_cache_nodes. Use to pin all nodes to a single AZ (e.g., [\"us-east-1b\"] with num_cache_nodes=1) to eliminate cross-AZ traffic between the workload and Redis. Null leaves AZ placement to AWS."
+  type        = list(string)
+  default     = null
+}
+
 #### comet_rds ####
 variable "rds_allow_from_sg" {
   description = "Security group from which to allow connections to RDS, to use when provisioning with existing compute"

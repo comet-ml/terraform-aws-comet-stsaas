@@ -60,6 +60,12 @@ variable "elasticache_multi_az_enabled" {
   default     = false
 }
 
+variable "elasticache_preferred_cache_cluster_azs" {
+  description = "Ordered list of preferred AZs for cache cluster nodes. Length must equal elasticache_num_cache_nodes. Use to pin all nodes to a single AZ (e.g., [\"us-east-1b\"] with num_cache_nodes=1) to eliminate cross-AZ traffic. Null leaves AZ placement to AWS."
+  type        = list(string)
+  default     = null
+}
+
 variable "elasticache_auth_token" {
   description = "Auth token for ElastiCache"
   type        = string
