@@ -116,6 +116,10 @@ module "comet_vpc" {
 
   eks_enabled        = var.enable_eks
   single_nat_gateway = var.single_nat_gateway
+
+  enable_tgw_prep      = var.enable_tgw_prep
+  enable_vpc_flow_logs = var.enable_vpc_flow_logs
+  enable_s3_endpoint   = var.enable_s3_endpoint
 }
 
 module "comet_ec2" {

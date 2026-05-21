@@ -981,6 +981,24 @@ variable "single_nat_gateway" {
   default     = true
 }
 
+variable "enable_tgw_prep" {
+  description = "Tag private subnets with tgw_connect=true so a future TGW attachment can target them. The attachment itself is created separately."
+  type        = bool
+  default     = false
+}
+
+variable "enable_vpc_flow_logs" {
+  description = "Enable VPC Flow Logs to CloudWatch (creates the IAM role and log group when true)"
+  type        = bool
+  default     = false
+}
+
+variable "enable_s3_endpoint" {
+  description = "Provision the S3 gateway VPC endpoint attached to all route tables"
+  type        = bool
+  default     = true
+}
+
 variable "common_tags" {
   description = "A map of tags to apply to resources"
   type        = map(string)

@@ -25,17 +25,51 @@ variable "region" {
 }
 
 variable "vpc_cidr" {
-  description = "CIDR block for the VPC"
+  description = "CIDR block for the VPC (must be a valid RFC1918 private range)"
   type        = string
   default     = "10.0.0.0/16"
+
+  validation {
+    condition     = can(cidrhost(var.vpc_cidr, 0))
+    error_message = "vpc_cidr must be valid CIDR notation."
+  }
+
+  validation {
+    condition = anytrue([
+      can(regex("^10\\.", var.vpc_cidr)),
+      can(regex("^172\\.(1[6-9]|2[0-9]|3[01])\\.", var.vpc_cidr)),
+      can(regex("^192\\.168\\.", var.vpc_cidr)),
+    ])
+    error_message = "vpc_cidr must be inside an RFC1918 private range (10/8, 172.16/12, or 192.168/16)."
+  }
 }
+
 variable "private_subnet_tags" {
   type        = map(string)
   description = "A map of tags for private subnets"
   default     = {}
 }
+
 variable "public_subnet_tags" {
   type        = map(string)
   description = "A map of tags for public subnets"
   default     = {}
+}
+
+variable "enable_tgw_prep" {
+  description = "Tag private subnets with tgw_connect=true so a future TGW attachment can target them. The attachment itself is created separately."
+  type        = bool
+  default     = false
+}
+
+variable "enable_vpc_flow_logs" {
+  description = "Enable VPC Flow Logs to CloudWatch (creates the IAM role and log group when true)"
+  type        = bool
+  default     = false
+}
+
+variable "enable_s3_endpoint" {
+  description = "Provision the S3 gateway VPC endpoint attached to all route tables"
+  type        = bool
+  default     = true
 }

@@ -4,9 +4,14 @@ locals {
   resource_name = "comet-${var.environment}"
   vpc_cidr      = var.vpc_cidr
   azs           = slice(data.aws_availability_zones.available.names, 0, 3)
-  # if EKS deployment, set subnet tags for AWS Load Balancer Controller auto-discovery
-  public_subnet_tags  = var.eks_enabled ? { "kubernetes.io/role/elb" = "1" } : {}
-  private_subnet_tags = var.eks_enabled ? { "kubernetes.io/role/internal-elb" = "1" } : {}
+
+  # When EKS is enabled, set subnet tags for AWS Load Balancer Controller auto-discovery.
+  eks_public_subnet_tags  = var.eks_enabled ? { "kubernetes.io/role/elb" = "1" } : {}
+  eks_private_subnet_tags = var.eks_enabled ? { "kubernetes.io/role/internal-elb" = "1" } : {}
+
+  # TGW Connect-attachment targeting tag — set on private subnets when TGW prep is enabled.
+  # The attachment resource is created in a follow-on change.
+  tgw_private_subnet_tags = var.enable_tgw_prep ? { tgw_connect = "true" } : {}
 }
 
 module "vpc" {
@@ -24,6 +29,10 @@ module "vpc" {
   enable_dns_hostnames = true
   single_nat_gateway   = var.single_nat_gateway
 
+  enable_flow_log                      = var.enable_vpc_flow_logs
+  create_flow_log_cloudwatch_iam_role  = var.enable_vpc_flow_logs
+  create_flow_log_cloudwatch_log_group = var.enable_vpc_flow_logs
+
   # Manage so we can name
   manage_default_network_acl    = true
   default_network_acl_tags      = merge(var.common_tags, { Name = "${local.resource_name}-default" })
@@ -33,16 +42,19 @@ module "vpc" {
   default_security_group_tags   = merge(var.common_tags, { Name = "${local.resource_name}-default" })
 
   public_subnet_tags = merge(
-    local.public_subnet_tags,
+    local.eks_public_subnet_tags,
     var.public_subnet_tags,
   )
   private_subnet_tags = merge(
-    local.private_subnet_tags,
+    local.eks_private_subnet_tags,
+    local.tgw_private_subnet_tags,
     var.private_subnet_tags,
   )
 }
 
 resource "aws_vpc_endpoint" "s3" {
+  count = var.enable_s3_endpoint ? 1 : 0
+
   vpc_id            = module.vpc.vpc_id
   service_name      = "com.amazonaws.${var.region}.s3"
   vpc_endpoint_type = "Gateway"
