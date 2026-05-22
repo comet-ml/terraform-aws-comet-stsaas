@@ -100,6 +100,16 @@ variable "eks_admin_instance_types" {
   default     = ["t3.large"]
 }
 
+variable "eks_admin_capacity_type" {
+  description = "Capacity type for admin node group: ON_DEMAND or SPOT. SPOT is ~70% cheaper but interruptible — only safe for non-prod (dev/UAT) clusters."
+  type        = string
+  default     = "ON_DEMAND"
+  validation {
+    condition     = contains(["ON_DEMAND", "SPOT"], var.eks_admin_capacity_type)
+    error_message = "eks_admin_capacity_type must be ON_DEMAND or SPOT."
+  }
+}
+
 variable "eks_admin_min_size" {
   description = "Minimum number of nodes in admin node group"
   type        = number
@@ -426,6 +436,16 @@ variable "eks_clickhouse_instance_types" {
   description = "Instance types for the ClickHouse node group"
   type        = list(string)
   default     = ["m7i.2xlarge"]
+}
+
+variable "eks_clickhouse_capacity_type" {
+  description = "Capacity type for ClickHouse node group: ON_DEMAND or SPOT. SPOT is ~70% cheaper but interruptible — only safe for non-prod (dev/UAT) clusters. ClickHouse is a stateful workload; only set SPOT when data loss on eviction is acceptable."
+  type        = string
+  default     = "ON_DEMAND"
+  validation {
+    condition     = contains(["ON_DEMAND", "SPOT"], var.eks_clickhouse_capacity_type)
+    error_message = "eks_clickhouse_capacity_type must be ON_DEMAND or SPOT."
+  }
 }
 
 variable "eks_clickhouse_min_size" {
