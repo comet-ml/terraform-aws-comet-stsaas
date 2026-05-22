@@ -207,6 +207,7 @@ module "comet_eks" {
   # Admin Node Group
   eks_admin_name           = var.eks_admin_name
   eks_admin_instance_types = var.eks_admin_instance_types
+  eks_admin_capacity_type  = var.eks_admin_capacity_type
   eks_admin_min_size       = var.eks_admin_min_size
   eks_admin_max_size       = var.eks_admin_max_size
   eks_admin_desired_size   = var.eks_admin_desired_size
@@ -240,6 +241,7 @@ module "comet_eks" {
   # ClickHouse Node Group
   eks_clickhouse_name                  = var.eks_clickhouse_name
   eks_clickhouse_instance_types        = var.eks_clickhouse_instance_types
+  eks_clickhouse_capacity_type         = var.eks_clickhouse_capacity_type
   eks_clickhouse_min_size              = var.eks_clickhouse_min_size
   eks_clickhouse_max_size              = var.eks_clickhouse_max_size
   eks_clickhouse_desired_size          = var.eks_clickhouse_desired_size

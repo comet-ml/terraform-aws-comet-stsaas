@@ -436,6 +436,26 @@ variable "eks_comet_capacity_type" {
   }
 }
 
+variable "eks_admin_capacity_type" {
+  description = "Capacity type for admin node group: ON_DEMAND or SPOT. SPOT is ~70% cheaper but interruptible — only safe for non-prod (dev/UAT) clusters."
+  type        = string
+  default     = "ON_DEMAND"
+  validation {
+    condition     = contains(["ON_DEMAND", "SPOT"], var.eks_admin_capacity_type)
+    error_message = "eks_admin_capacity_type must be ON_DEMAND or SPOT."
+  }
+}
+
+variable "eks_clickhouse_capacity_type" {
+  description = "Capacity type for ClickHouse node group: ON_DEMAND or SPOT. SPOT is ~70% cheaper but interruptible — only safe for non-prod (dev/UAT) clusters. ClickHouse is stateful; only set SPOT when data loss on eviction is acceptable."
+  type        = string
+  default     = "ON_DEMAND"
+  validation {
+    condition     = contains(["ON_DEMAND", "SPOT"], var.eks_clickhouse_capacity_type)
+    error_message = "eks_clickhouse_capacity_type must be ON_DEMAND or SPOT."
+  }
+}
+
 variable "eks_comet_instance_types" {
   description = "Instance types for comet node group"
   type        = list(string)

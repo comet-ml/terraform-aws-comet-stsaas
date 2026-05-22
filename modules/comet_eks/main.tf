@@ -208,6 +208,7 @@ module "eks" {
       admin = merge({
         name           = var.eks_admin_name
         instance_types = var.enable_karpenter ? var.eks_admin_karpenter_instance_types : var.eks_admin_instance_types
+        capacity_type  = var.eks_admin_capacity_type
         min_size       = var.eks_admin_min_size
         max_size       = var.eks_admin_max_size
         desired_size   = var.eks_admin_desired_size
@@ -327,6 +328,7 @@ module "eks" {
       clickhouse = merge({
         name           = var.eks_clickhouse_name
         instance_types = var.eks_clickhouse_instance_types
+        capacity_type  = var.eks_clickhouse_capacity_type
         min_size       = var.eks_clickhouse_min_size
         max_size       = var.eks_clickhouse_max_size
         desired_size   = var.eks_clickhouse_desired_size
