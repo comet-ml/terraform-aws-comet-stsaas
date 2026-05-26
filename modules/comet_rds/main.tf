@@ -189,6 +189,15 @@ resource "aws_rds_cluster_parameter_group" "cometml-cluster-pg" {
       value        = parameter.value.value
     }
   }
+
+  dynamic "parameter" {
+    for_each = var.rds_require_secure_transport ? [1] : []
+    content {
+      apply_method = "pending-reboot"
+      name         = "require_secure_transport"
+      value        = "1"
+    }
+  }
 }
 
 resource "aws_security_group" "mysql_sg" {

@@ -186,3 +186,9 @@ variable "rds_cluster_parameters" {
     { name = "wait_timeout", value = "1800", apply_method = "immediate" },
   ]
 }
+
+variable "rds_require_secure_transport" {
+  description = "Reject MySQL connections that don't use TLS. Sets require_secure_transport=1 on the cluster parameter group. Applies pending-reboot. Default false to preserve existing behavior; new STSAAS customers should onboard with this true."
+  type        = bool
+  default     = false
+}
