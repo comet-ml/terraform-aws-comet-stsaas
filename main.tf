@@ -384,6 +384,9 @@ module "comet_rds" {
 
   # Additional MySQL cluster parameters (defaults include operational tunings)
   rds_cluster_parameters = var.rds_cluster_parameters
+
+  # MySQL TLS enforcement (pending-reboot when flipped)
+  rds_require_secure_transport = var.rds_require_secure_transport
 }
 
 module "comet_s3" {

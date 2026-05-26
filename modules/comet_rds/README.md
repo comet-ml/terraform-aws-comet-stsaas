@@ -39,6 +39,7 @@ No modules.
 | <a name="input_rds_instance_type"></a> [rds\_instance\_type](#input\_rds\_instance\_type) | Instance type for RDS database | `string` | n/a | yes |
 | <a name="input_rds_preferred_backup_window"></a> [rds\_preferred\_backup\_window](#input\_rds\_preferred\_backup\_window) | Backup window for RDS | `string` | n/a | yes |
 | <a name="input_rds_private_subnets"></a> [rds\_private\_subnets](#input\_rds\_private\_subnets) | IDs of private subnets within the VPC | `list(string)` | n/a | yes |
+| <a name="input_rds_require_secure_transport"></a> [rds\_require\_secure\_transport](#input\_rds\_require\_secure\_transport) | Reject MySQL connections that don't use TLS. Sets `require_secure_transport=1` on the cluster parameter group. Applies `pending-reboot`. Default `false` to preserve existing behavior; new STSAAS customers should onboard with this `true`. | `bool` | `false` | no |
 | <a name="input_rds_master_username"></a> [rds\_root\_username](#input\_rds\_root\_username) | Root username for RDS database | `string` | n/a | yes |
 | <a name="input_rds_master_password"></a> [rds\_root\_password](#input\_rds\_root\_password) | Root password for RDS database | `string` | n/a | yes |
 | <a name="input_rds_storage_encrypted"></a> [rds\_storage\_encrypted](#input\_rds\_storage\_encrypted) | Enables encryption for RDS storage | `bool` | n/a | yes |
