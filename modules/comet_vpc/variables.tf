@@ -73,3 +73,21 @@ variable "enable_s3_endpoint" {
   type        = bool
   default     = true
 }
+
+variable "enable_vpc_interface_endpoints" {
+  description = "Provision interface VPC endpoints for AWS-managed services so workloads can reach them without NAT/Internet egress. Required when flipping EKS API / RDS / ElastiCache endpoints private-only."
+  type        = bool
+  default     = false
+}
+
+variable "vpc_interface_endpoints_services" {
+  description = "Override list of interface endpoint service short-names (without the com.amazonaws.<region>. prefix). When empty, defaults to: ecr.api, ecr.dkr, sts, ec2, ec2messages, ssm, ssmmessages, secretsmanager, logs, monitoring, eks."
+  type        = list(string)
+  default     = []
+}
+
+variable "vpc_interface_endpoints_allowed_cidrs" {
+  description = "Additional CIDR blocks allowed to reach interface VPC endpoints on 443 (in addition to the VPC's own CIDR). Defaults to the agentro management surface: 10.162.0.0/16 (ArgoCD mgmt VPC) + 10.126.0.0/15 (VPN client pool). Set to [] to allow only in-VPC traffic."
+  type        = list(string)
+  default     = ["10.162.0.0/16", "10.126.0.0/15"]
+}

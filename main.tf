@@ -120,6 +120,10 @@ module "comet_vpc" {
   enable_tgw_prep      = var.enable_tgw_prep
   enable_vpc_flow_logs = var.enable_vpc_flow_logs
   enable_s3_endpoint   = var.enable_s3_endpoint
+
+  enable_vpc_interface_endpoints        = var.enable_vpc_interface_endpoints
+  vpc_interface_endpoints_services      = var.vpc_interface_endpoints_services
+  vpc_interface_endpoints_allowed_cidrs = var.vpc_interface_endpoints_allowed_cidrs
 }
 
 module "comet_ec2" {
