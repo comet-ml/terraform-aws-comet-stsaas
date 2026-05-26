@@ -1224,7 +1224,7 @@ variable "rds_cluster_parameters" {
 }
 
 variable "rds_require_secure_transport" {
-  description = "Reject MySQL connections that don't use TLS. Sets require_secure_transport=1 on the cluster parameter group. Applies pending-reboot. Default false to preserve existing behavior; new STSAAS customers should onboard with this true."
+  description = "Reject MySQL connections that don't use TLS. Sets require_secure_transport=ON on the cluster parameter group (Aurora MySQL value format; vanilla MySQL uses 1/0). Applies pending-reboot. Default false to preserve existing behavior; new STSAAS customers should onboard with this true."
   type        = bool
   default     = false
 }

@@ -195,7 +195,7 @@ resource "aws_rds_cluster_parameter_group" "cometml-cluster-pg" {
     content {
       apply_method = "pending-reboot"
       name         = "require_secure_transport"
-      value        = "1"
+      value        = "ON"
     }
   }
 }
