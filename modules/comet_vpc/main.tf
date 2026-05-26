@@ -154,8 +154,8 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "this" {
 
   lifecycle {
     precondition {
-      condition     = !var.enable_tgw_attachment || var.tgw_id != null
-      error_message = "tgw_id is required when enable_tgw_attachment is true."
+      condition     = !var.enable_tgw_attachment || (var.tgw_id != null && can(regex("^tgw-", var.tgw_id)))
+      error_message = "tgw_id must be set to a non-empty TGW ID (e.g. tgw-0123abcd...) when enable_tgw_attachment is true."
     }
   }
 }
@@ -166,7 +166,7 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "this" {
 resource "aws_route" "tgw" {
   for_each = var.enable_tgw_attachment ? merge([
     for rt_id in module.vpc.private_route_table_ids : {
-      for cidr in var.tgw_propagated_cidrs : "${rt_id}|${cidr}" => {
+      for cidr in distinct(var.tgw_propagated_cidrs) : "${rt_id}|${cidr}" => {
         route_table_id = rt_id
         cidr           = cidr
       }
