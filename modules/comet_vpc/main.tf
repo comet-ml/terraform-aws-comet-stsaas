@@ -130,3 +130,52 @@ resource "aws_vpc_endpoint" "interface" {
     { Name = "${local.resource_name}-${each.key}-endpoint" }
   )
 }
+
+# Spoke-side Transit Gateway VPC attachment. The TGW itself (and any RAM share)
+# lives in the mgmt-account TF — this module only attaches a pre-existing TGW
+# whose ID is passed in via var.tgw_id.
+resource "aws_ec2_transit_gateway_vpc_attachment" "this" {
+  count = var.enable_tgw_attachment ? 1 : 0
+
+  transit_gateway_id     = var.tgw_id
+  vpc_id                 = module.vpc.vpc_id
+  subnet_ids             = module.vpc.private_subnets
+  dns_support            = var.tgw_attachment_dns_support
+  appliance_mode_support = var.tgw_attachment_appliance_mode_support
+  ipv6_support           = "disable"
+
+  transit_gateway_default_route_table_association = var.tgw_attachment_default_route_table_association
+  transit_gateway_default_route_table_propagation = var.tgw_attachment_default_route_table_propagation
+
+  tags = merge(
+    var.common_tags,
+    { Name = "${local.resource_name}-tgw-attach" }
+  )
+
+  lifecycle {
+    precondition {
+      condition     = !var.enable_tgw_attachment || (var.tgw_id != null && can(regex("^tgw-", var.tgw_id)))
+      error_message = "tgw_id must be set to a non-empty TGW ID (e.g. tgw-0123abcd...) when enable_tgw_attachment is true."
+    }
+  }
+}
+
+# Send mgmt-CIDR traffic via the TGW from every private route table. Flattened
+# pairs of (route_table_id, cidr) so each combination is a single resource and
+# can be targeted independently if a CIDR ever needs to be removed.
+resource "aws_route" "tgw" {
+  for_each = var.enable_tgw_attachment ? merge([
+    for rt_id in module.vpc.private_route_table_ids : {
+      for cidr in distinct(var.tgw_propagated_cidrs) : "${rt_id}|${cidr}" => {
+        route_table_id = rt_id
+        cidr           = cidr
+      }
+    }
+  ]...) : {}
+
+  route_table_id         = each.value.route_table_id
+  destination_cidr_block = each.value.cidr
+  transit_gateway_id     = var.tgw_id
+
+  depends_on = [aws_ec2_transit_gateway_vpc_attachment.this]
+}
