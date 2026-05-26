@@ -81,7 +81,7 @@ variable "enable_vpc_interface_endpoints" {
 }
 
 variable "vpc_interface_endpoints_services" {
-  description = "Override list of interface endpoint service short-names (without the com.amazonaws.<region>. prefix). When empty, defaults to: ecr.api, ecr.dkr, sts, ec2, ec2messages, ssm, ssmmessages, secretsmanager, logs, monitoring, eks."
+  description = "Override list of interface endpoint service short-names (without the com.amazonaws.<region>. prefix). When empty, defaults to: ecr.api, ecr.dkr, sts, ec2, ec2messages, ssm, ssmmessages, sqs, secretsmanager, logs, monitoring, eks. sqs covers Karpenter spot-interruption queues."
   type        = list(string)
   default     = []
 }

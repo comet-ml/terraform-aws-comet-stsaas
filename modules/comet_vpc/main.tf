@@ -21,6 +21,7 @@ locals {
     "ec2messages",
     "ssm",
     "ssmmessages",
+    "sqs",
     "secretsmanager",
     "logs",
     "monitoring",

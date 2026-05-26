@@ -41,7 +41,7 @@ No requirements.
 | <a name="input_single_nat_gateway"></a> [single\_nat\_gateway](#input\_single\_nat\_gateway) | Controls whether single NAT gateway used for all public subnets | `bool` | n/a | yes |
 | <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr) | CIDR block for the VPC (must be a valid RFC1918 private range) | `string` | `"10.0.0.0/16"` | no |
 | <a name="input_vpc_interface_endpoints_allowed_cidrs"></a> [vpc\_interface\_endpoints\_allowed\_cidrs](#input\_vpc\_interface\_endpoints\_allowed\_cidrs) | Additional CIDR blocks allowed to reach interface VPC endpoints on 443 (in addition to the VPC's own CIDR). Defaults to the agentro management surface: 10.162.0.0/16 (ArgoCD mgmt VPC) + 10.126.0.0/15 (VPN client pool). Set to `[]` to allow only in-VPC traffic. | `list(string)` | <pre>["10.162.0.0/16",<br>"10.126.0.0/15"]</pre> | no |
-| <a name="input_vpc_interface_endpoints_services"></a> [vpc\_interface\_endpoints\_services](#input\_vpc\_interface\_endpoints\_services) | Override list of interface endpoint service short-names (without the `com.amazonaws.<region>.` prefix). When empty, defaults to: ecr.api, ecr.dkr, sts, ec2, ec2messages, ssm, ssmmessages, secretsmanager, logs, monitoring, eks. | `list(string)` | `[]` | no |
+| <a name="input_vpc_interface_endpoints_services"></a> [vpc\_interface\_endpoints\_services](#input\_vpc\_interface\_endpoints\_services) | Override list of interface endpoint service short-names (without the `com.amazonaws.<region>.` prefix). When empty, defaults to: ecr.api, ecr.dkr, sts, ec2, ec2messages, ssm, ssmmessages, sqs, secretsmanager, logs, monitoring, eks. `sqs` covers Karpenter spot-interruption queues. | `list(string)` | `[]` | no |
 
 ## Outputs
 
