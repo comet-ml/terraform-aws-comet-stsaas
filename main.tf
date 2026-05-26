@@ -124,6 +124,14 @@ module "comet_vpc" {
   enable_vpc_interface_endpoints        = var.enable_vpc_interface_endpoints
   vpc_interface_endpoints_services      = var.vpc_interface_endpoints_services
   vpc_interface_endpoints_allowed_cidrs = var.vpc_interface_endpoints_allowed_cidrs
+
+  enable_tgw_attachment                          = var.enable_tgw_attachment
+  tgw_id                                         = var.tgw_id
+  tgw_propagated_cidrs                           = var.tgw_propagated_cidrs
+  tgw_attachment_dns_support                     = var.tgw_attachment_dns_support
+  tgw_attachment_appliance_mode_support          = var.tgw_attachment_appliance_mode_support
+  tgw_attachment_default_route_table_association = var.tgw_attachment_default_route_table_association
+  tgw_attachment_default_route_table_propagation = var.tgw_attachment_default_route_table_propagation
 }
 
 module "comet_ec2" {

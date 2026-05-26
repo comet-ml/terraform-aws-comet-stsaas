@@ -1037,6 +1037,48 @@ variable "vpc_interface_endpoints_allowed_cidrs" {
   default     = ["10.162.0.0/16", "10.126.0.0/15"]
 }
 
+variable "enable_tgw_attachment" {
+  description = "Attach this VPC to a pre-existing Transit Gateway (whose ID must be passed via tgw_id). Adds routes on every private route table for the destinations in tgw_propagated_cidrs."
+  type        = bool
+  default     = false
+}
+
+variable "tgw_id" {
+  description = "ID of the pre-existing (and, if cross-account, RAM-shared) Transit Gateway to attach the VPC to. Required when enable_tgw_attachment is true."
+  type        = string
+  default     = null
+}
+
+variable "tgw_propagated_cidrs" {
+  description = "Destination CIDRs to route via the TGW attachment from every private route table. Defaults to the agentro management surface (VPN client pool + ArgoCD mgmt VPC)."
+  type        = list(string)
+  default     = ["10.126.0.0/15", "10.162.0.0/16"]
+}
+
+variable "tgw_attachment_dns_support" {
+  description = "Whether the TGW attachment resolves DNS hostnames to private addresses across attachments. Accepts 'enable' or 'disable'."
+  type        = string
+  default     = "enable"
+}
+
+variable "tgw_attachment_appliance_mode_support" {
+  description = "Whether the TGW attachment maintains traffic-flow affinity through stateful appliances. Accepts 'enable' or 'disable'."
+  type        = string
+  default     = "disable"
+}
+
+variable "tgw_attachment_default_route_table_association" {
+  description = "Associate the attachment with the TGW's default route table. Set false when the TGW uses custom route tables and another account manages the association."
+  type        = bool
+  default     = true
+}
+
+variable "tgw_attachment_default_route_table_propagation" {
+  description = "Propagate this VPC's CIDR to the TGW's default route table. Set false when propagation is managed by the TGW owner account."
+  type        = bool
+  default     = true
+}
+
 variable "common_tags" {
   description = "A map of tags to apply to resources"
   type        = map(string)
