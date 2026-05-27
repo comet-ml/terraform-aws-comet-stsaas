@@ -1229,6 +1229,55 @@ variable "rds_require_secure_transport" {
   default     = false
 }
 
+#### comet_rds_proxy ####
+variable "enable_rds_proxy" {
+  description = "Provision an RDS Proxy in front of the Aurora MySQL cluster (connection pooling, faster failover). Requires enable_rds. Auth via a dedicated Secrets Manager secret created by the sub-module."
+  type        = bool
+  default     = false
+}
+
+variable "rds_proxy_allowed_sg_ids" {
+  description = "When enable_eks=false, the list of security group IDs allowed to connect to the proxy on 3306. When enable_eks=true the EKS nodegroup SG is wired in automatically and this is ignored."
+  type        = list(string)
+  default     = []
+}
+
+variable "rds_proxy_require_tls" {
+  description = "Require TLS for client connections to the proxy. Should be true whenever rds_require_secure_transport is true."
+  type        = bool
+  default     = true
+}
+
+variable "rds_proxy_idle_client_timeout" {
+  description = "Seconds a client connection can be idle before the proxy closes it"
+  type        = number
+  default     = 1800
+}
+
+variable "rds_proxy_debug_logging" {
+  description = "Enable proxy debug logging (verbose)"
+  type        = bool
+  default     = false
+}
+
+variable "rds_proxy_max_connections_percent" {
+  description = "Maximum percentage of the cluster's max_connections the proxy will open"
+  type        = number
+  default     = 100
+}
+
+variable "rds_proxy_max_idle_connections_percent" {
+  description = "Maximum percentage of idle connections the proxy will keep warm"
+  type        = number
+  default     = 50
+}
+
+variable "rds_proxy_connection_borrow_timeout" {
+  description = "Seconds a client request waits for an available connection from the pool before failing"
+  type        = number
+  default     = 120
+}
+
 # Per-Node-Group Subnet Pinning
 # When set, restricts a specific node group to a subset of subnets (typically a
 # single AZ). Use to align node placement with stateful workload PVs that are

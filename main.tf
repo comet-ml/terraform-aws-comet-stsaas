@@ -106,6 +106,17 @@ resource "terraform_data" "secretsmanager_validation" {
   }
 }
 
+resource "terraform_data" "rds_proxy_validation" {
+  count = var.enable_rds_proxy ? 1 : 0
+
+  lifecycle {
+    precondition {
+      condition     = var.enable_rds
+      error_message = "enable_rds_proxy requires enable_rds to be true."
+    }
+  }
+}
+
 module "comet_vpc" {
   source      = "./modules/comet_vpc"
   count       = var.enable_vpc ? 1 : 0
@@ -387,6 +398,33 @@ module "comet_rds" {
 
   # MySQL TLS enforcement (pending-reboot when flipped)
   rds_require_secure_transport = var.rds_require_secure_transport
+}
+
+module "comet_rds_proxy" {
+  source = "./modules/comet_rds_proxy"
+  count  = var.enable_rds_proxy ? 1 : 0
+
+  environment = var.environment
+  common_tags = local.all_tags
+
+  vpc_id     = var.enable_vpc ? module.comet_vpc[0].vpc_id : var.comet_vpc_id
+  subnet_ids = var.enable_vpc ? module.comet_vpc[0].private_subnets : var.comet_private_subnets
+
+  allowed_sg_ids = var.enable_eks ? [module.comet_eks[0].nodegroup_sg_id] : var.rds_proxy_allowed_sg_ids
+
+  mysql_cluster_id      = module.comet_rds[0].mysql_cluster_id
+  mysql_sg_id           = module.comet_rds[0].mysql_sg_id
+  mysql_master_username = var.rds_master_username
+  mysql_master_password = local.rds_master_password
+
+  require_tls                  = var.rds_proxy_require_tls
+  idle_client_timeout          = var.rds_proxy_idle_client_timeout
+  debug_logging                = var.rds_proxy_debug_logging
+  max_connections_percent      = var.rds_proxy_max_connections_percent
+  max_idle_connections_percent = var.rds_proxy_max_idle_connections_percent
+  connection_borrow_timeout    = var.rds_proxy_connection_borrow_timeout
+
+  depends_on = [module.comet_rds]
 }
 
 module "comet_s3" {
