@@ -17,3 +17,13 @@ output "mysql_database_name" {
   description = "MySQL database name"
   value       = aws_rds_cluster.cometml-db-cluster.database_name
 }
+
+output "mysql_cluster_id" {
+  description = "Aurora MySQL cluster identifier"
+  value       = aws_rds_cluster.cometml-db-cluster.id
+}
+
+output "mysql_sg_id" {
+  description = "Security group ID of the MySQL cluster"
+  value       = aws_security_group.mysql_sg.id
+}
