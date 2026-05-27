@@ -16,6 +16,7 @@ No modules.
 
 | Name | Type |
 |------|------|
+| [aws_db_parameter_group.cometml-db-pg](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_parameter_group) | resource |
 | [aws_db_subnet_group.comet-ml-rds-subnet](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_subnet_group) | resource |
 | [aws_rds_cluster.cometml-db-cluster](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/rds_cluster) | resource |
 | [aws_rds_cluster_instance.comet-ml-rds-mysql](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/rds_cluster_instance) | resource |
@@ -40,6 +41,7 @@ No modules.
 | <a name="input_rds_preferred_backup_window"></a> [rds\_preferred\_backup\_window](#input\_rds\_preferred\_backup\_window) | Backup window for RDS | `string` | n/a | yes |
 | <a name="input_rds_private_subnets"></a> [rds\_private\_subnets](#input\_rds\_private\_subnets) | IDs of private subnets within the VPC | `list(string)` | n/a | yes |
 | <a name="input_rds_require_secure_transport"></a> [rds\_require\_secure\_transport](#input\_rds\_require\_secure\_transport) | Reject MySQL connections that don't use TLS. Sets `require_secure_transport=1` on the cluster parameter group. Applies `pending-reboot`. Default `false` to preserve existing behavior; new STSAAS customers should onboard with this `true`. | `bool` | `false` | no |
+| <a name="input_rds_db_parameters"></a> [rds\_db\_parameters](#input\_rds\_db\_parameters) | Per-instance MySQL parameters applied to the DB-instance parameter group. Use for instance-specific overrides of cluster-level settings (rarely needed; use `rds_cluster_parameters` for fleet-wide tunings). Empty by default. | `list(object({ name = string, value = string, apply_method = string }))` | `[]` | no |
 | <a name="input_rds_master_username"></a> [rds\_root\_username](#input\_rds\_root\_username) | Root username for RDS database | `string` | n/a | yes |
 | <a name="input_rds_master_password"></a> [rds\_root\_password](#input\_rds\_root\_password) | Root password for RDS database | `string` | n/a | yes |
 | <a name="input_rds_storage_encrypted"></a> [rds\_storage\_encrypted](#input\_rds\_storage\_encrypted) | Enables encryption for RDS storage | `bool` | n/a | yes |

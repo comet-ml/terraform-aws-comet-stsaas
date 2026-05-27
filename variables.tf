@@ -1229,6 +1229,16 @@ variable "rds_require_secure_transport" {
   default     = false
 }
 
+variable "rds_db_parameters" {
+  description = "Per-instance MySQL parameters applied to the DB-instance parameter group. For instance-specific overrides of cluster-level settings (rarely needed; use rds_cluster_parameters for fleet-wide tunings). Empty by default."
+  type = list(object({
+    name         = string
+    value        = string
+    apply_method = string
+  }))
+  default = []
+}
+
 #### comet_rds_proxy ####
 variable "enable_rds_proxy" {
   description = "Provision an RDS Proxy in front of the Aurora MySQL cluster (connection pooling, faster failover). Requires enable_rds. Auth via a dedicated Secrets Manager secret created by the sub-module."

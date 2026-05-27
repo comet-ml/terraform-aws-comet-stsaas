@@ -192,3 +192,13 @@ variable "rds_require_secure_transport" {
   type        = bool
   default     = false
 }
+
+variable "rds_db_parameters" {
+  description = "Per-instance MySQL parameters applied to the DB-instance parameter group. Use this for parameters that should override the cluster-level pg on individual instances (e.g. operational tunings, instance-specific monitoring). Empty by default to preserve current behavior — every customer historically inherited only the cluster pg."
+  type = list(object({
+    name         = string
+    value        = string
+    apply_method = string
+  }))
+  default = []
+}

@@ -85,7 +85,7 @@ resource "aws_rds_cluster" "cometml-db-cluster" {
   preferred_backup_window             = var.rds_preferred_backup_window
   vpc_security_group_ids              = [aws_security_group.mysql_sg.id]
   db_cluster_parameter_group_name     = aws_rds_cluster_parameter_group.cometml-cluster-pg.name
-  db_instance_parameter_group_name    = aws_rds_cluster_parameter_group.cometml-cluster-pg.name
+  db_instance_parameter_group_name    = aws_db_parameter_group.cometml-db-pg.name
   allow_major_version_upgrade         = true
   deletion_protection                 = var.rds_deletion_protection
   storage_type                        = var.rds_storage_type
@@ -196,6 +196,32 @@ resource "aws_rds_cluster_parameter_group" "cometml-cluster-pg" {
       apply_method = "pending-reboot"
       name         = "require_secure_transport"
       value        = "ON"
+    }
+  }
+}
+
+# Instance-level (DB) parameter group. Aurora cluster parameter groups apply
+# fleet-wide; this DB pg lets operators set per-instance overrides without
+# touching the cluster pg. Empty by default — caller-provided extras come
+# through var.rds_db_parameters.
+resource "aws_db_parameter_group" "cometml-db-pg" {
+  name        = "cometml-rds-db-pg-${var.environment}"
+  family      = "aurora-mysql${var.rds_engine_version}"
+  description = "CometML RDS DB-instance parameter group"
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "cometml-rds-db-pg-${var.environment}"
+    }
+  )
+
+  dynamic "parameter" {
+    for_each = var.rds_db_parameters
+    content {
+      apply_method = parameter.value.apply_method
+      name         = parameter.value.name
+      value        = parameter.value.value
     }
   }
 }
