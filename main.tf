@@ -406,6 +406,9 @@ module "comet_rds" {
 
   # MySQL TLS enforcement (pending-reboot when flipped)
   rds_require_secure_transport = var.rds_require_secure_transport
+
+  # Per-instance MySQL parameters (DB-instance parameter group)
+  rds_db_parameters = var.rds_db_parameters
 }
 
 module "comet_rds_proxy" {
