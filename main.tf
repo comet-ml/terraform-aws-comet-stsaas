@@ -115,8 +115,8 @@ resource "terraform_data" "rds_proxy_validation" {
       error_message = "enable_rds_proxy requires enable_rds to be true."
     }
     precondition {
-      condition     = var.enable_eks || length(var.rds_proxy_allowed_sg_ids) > 0
-      error_message = "enable_rds_proxy requires either enable_eks=true (the nodegroup SG is auto-wired) or rds_proxy_allowed_sg_ids to contain at least one SG ID. Otherwise the proxy has no ingress rules and is unreachable."
+      condition     = var.enable_eks || length(var.rds_proxy_allowed_sg_ids) > 0 || length(var.rds_proxy_allowed_cidrs) > 0
+      error_message = "enable_rds_proxy requires at least one ingress source: enable_eks=true (auto-wires the nodegroup SG), or non-empty rds_proxy_allowed_sg_ids, or non-empty rds_proxy_allowed_cidrs. Otherwise the proxy has no ingress rules and is unreachable."
     }
     precondition {
       condition     = var.rds_snapshot_identifier == null
@@ -419,6 +419,7 @@ module "comet_rds_proxy" {
   subnet_ids = var.enable_vpc ? module.comet_vpc[0].private_subnets : var.comet_private_subnets
 
   allowed_sg_ids = var.enable_eks ? [module.comet_eks[0].nodegroup_sg_id] : var.rds_proxy_allowed_sg_ids
+  allowed_cidrs  = var.rds_proxy_allowed_cidrs
 
   mysql_cluster_id      = module.comet_rds[0].mysql_cluster_id
   mysql_sg_id           = module.comet_rds[0].mysql_sg_id

@@ -25,6 +25,12 @@ variable "allowed_sg_ids" {
   default     = []
 }
 
+variable "allowed_cidrs" {
+  description = "CIDR blocks allowed to connect to the proxy on the MySQL port (in addition to allowed_sg_ids). Defaults to the agentro VPN client pool so ops queries via VPN reach the proxy directly. Set to [] to allow only SG-based ingress."
+  type        = list(string)
+  default     = ["10.126.0.0/15"]
+}
+
 variable "mysql_cluster_id" {
   description = "Aurora MySQL cluster identifier the proxy targets"
   type        = string

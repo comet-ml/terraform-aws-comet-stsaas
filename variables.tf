@@ -1242,6 +1242,12 @@ variable "rds_proxy_allowed_sg_ids" {
   default     = []
 }
 
+variable "rds_proxy_allowed_cidrs" {
+  description = "CIDR blocks allowed to connect to the proxy on 3306 (in addition to allowed SGs). Defaults to the agentro VPN client pool (10.126.0.0/15)."
+  type        = list(string)
+  default     = ["10.126.0.0/15"]
+}
+
 variable "rds_proxy_require_tls" {
   description = "Require TLS for client connections to the proxy. Should be true whenever rds_require_secure_transport is true."
   type        = bool
