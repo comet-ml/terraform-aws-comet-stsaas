@@ -78,6 +78,17 @@ resource "aws_vpc_security_group_ingress_rule" "proxy_from_caller" {
   referenced_security_group_id = each.value
 }
 
+resource "aws_vpc_security_group_ingress_rule" "proxy_from_cidr" {
+  for_each = toset(var.allowed_cidrs)
+
+  security_group_id = aws_security_group.proxy.id
+  description       = "MySQL from ${each.value}"
+  ip_protocol       = "tcp"
+  from_port         = 3306
+  to_port           = 3306
+  cidr_ipv4         = each.value
+}
+
 # Allow the proxy SG to reach the MySQL cluster SG.
 resource "aws_vpc_security_group_ingress_rule" "mysql_from_proxy" {
   security_group_id            = var.mysql_sg_id
@@ -86,6 +97,28 @@ resource "aws_vpc_security_group_ingress_rule" "mysql_from_proxy" {
   from_port                    = 3306
   to_port                      = 3306
   referenced_security_group_id = aws_security_group.proxy.id
+}
+
+# Proxy egress — when an SG is created via terraform, AWS does NOT add the
+# default allow-all egress rule (only the console does). Without these rules
+# the proxy capacity stays in PENDING_PROXY_CAPACITY forever because it
+# cannot reach the cluster on 3306 or Secrets Manager on 443.
+resource "aws_vpc_security_group_egress_rule" "proxy_to_mysql" {
+  security_group_id            = aws_security_group.proxy.id
+  description                  = "RDS Proxy egress to MySQL cluster"
+  ip_protocol                  = "tcp"
+  from_port                    = 3306
+  to_port                      = 3306
+  referenced_security_group_id = var.mysql_sg_id
+}
+
+resource "aws_vpc_security_group_egress_rule" "proxy_aws_api" {
+  security_group_id = aws_security_group.proxy.id
+  description       = "RDS Proxy egress to AWS APIs (Secrets Manager, KMS)"
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+  cidr_ipv4         = "0.0.0.0/0"
 }
 
 resource "aws_db_proxy" "this" {
