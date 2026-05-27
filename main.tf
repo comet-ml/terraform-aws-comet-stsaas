@@ -114,6 +114,14 @@ resource "terraform_data" "rds_proxy_validation" {
       condition     = var.enable_rds
       error_message = "enable_rds_proxy requires enable_rds to be true."
     }
+    precondition {
+      condition     = var.enable_eks || length(var.rds_proxy_allowed_sg_ids) > 0
+      error_message = "enable_rds_proxy requires either enable_eks=true (the nodegroup SG is auto-wired) or rds_proxy_allowed_sg_ids to contain at least one SG ID. Otherwise the proxy has no ingress rules and is unreachable."
+    }
+    precondition {
+      condition     = var.rds_snapshot_identifier == null
+      error_message = "enable_rds_proxy is not currently supported with rds_snapshot_identifier — the proxy auth secret would be written with vars that don't match the snapshot's embedded credentials. Disable enable_rds_proxy or open a follow-up to add an explicit rds_proxy_username/password override."
+    }
   }
 }
 
