@@ -295,6 +295,12 @@ variable "enable_external_secrets" {
   default     = true
 }
 
+variable "external_secrets_via_helm_release" {
+  description = "When true, the module installs external-secrets (CRDs, operator, webhook, and the ClusterSecretStore manifest) via in-module helm_release + kubectl_manifest resources. When false (default), the module skips those K8s-side resources and assumes external-secrets is deployed externally (e.g., via ArgoCD); the AWS-side IRSA role still gets created so the external deployment can wire its ServiceAccount to it. Set true on customers not yet migrated to ArgoCD-managed external-secrets."
+  type        = bool
+  default     = false
+}
+
 variable "secretsmanager_environment" {
   description = "Environment name used for Secrets Manager secret paths (e.g., cometml/{secretsmanager_environment}/config). If different from 'environment', both patterns will be allowed in the IAM policy."
   type        = string
@@ -520,6 +526,12 @@ variable "additional_s3_bucket_arns" {
 
 variable "enable_karpenter" {
   description = "Enable Karpenter prerequisites: discovery tags on subnets and node security group, SQS interruption queue, EventBridge rules, node IAM role/instance profile, and controller IRSA role. Outputs can be consumed by a separate Karpenter Helm release."
+  type        = bool
+  default     = false
+}
+
+variable "karpenter_via_helm_release" {
+  description = "When true, the module installs the Karpenter Helm chart (comet-stsaas-karpenter) via an in-module helm_release. When false (default), the module skips the helm_release and assumes Karpenter is deployed externally (e.g., via ArgoCD); the AWS-side prerequisites (IRSA, SQS, instance profile, discovery tags) still get created so the external deployment can wire them up."
   type        = bool
   default     = false
 }
