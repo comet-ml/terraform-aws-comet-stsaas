@@ -3,6 +3,11 @@ locals {
   volume_encrypted             = false
   volume_delete_on_termination = true
 
+  # Gates for in-module helm_release installs. Dedup'd so the 4 external-secrets
+  # resources and the karpenter helm_release all share a single source of truth.
+  install_external_secrets_via_helm = var.enable_external_secrets && var.external_secrets_via_helm_release
+  install_karpenter_via_helm        = var.enable_karpenter && var.karpenter_via_helm_release
+
   # Check if additional S3 bucket ARNs are provided
   has_additional_s3_buckets = var.additional_s3_bucket_arns != null && length(var.additional_s3_bucket_arns) > 0
 
@@ -566,7 +571,7 @@ module "external_secrets_irsa_role" {
 # This follows the workaround from comet-devops README:
 # "helm install external-secrets external-secrets/external-secrets --set installCRDs=true"
 resource "helm_release" "external_secrets_crds" {
-  count = var.enable_external_secrets && var.external_secrets_via_helm_release ? 1 : 0
+  count = local.install_external_secrets_via_helm ? 1 : 0
 
   name             = "external-secrets-crds"
   repository       = "https://charts.external-secrets.io"
@@ -608,7 +613,7 @@ resource "helm_release" "external_secrets_crds" {
 
 # Phase 2: Install the full external-secrets operator
 resource "helm_release" "external_secrets" {
-  count = var.enable_external_secrets && var.external_secrets_via_helm_release ? 1 : 0
+  count = local.install_external_secrets_via_helm ? 1 : 0
 
   name             = "external-secrets"
   repository       = "https://charts.external-secrets.io"
@@ -685,7 +690,7 @@ resource "helm_release" "external_secrets" {
 # This matches the template from comet-devops/charts/external-secrets/templates/cluster-secret-store.yml
 # Using a time_sleep to ensure the webhook is ready before creating the ClusterSecretStore
 resource "time_sleep" "wait_for_external_secrets_webhook" {
-  count = var.enable_external_secrets && var.external_secrets_via_helm_release ? 1 : 0
+  count = local.install_external_secrets_via_helm ? 1 : 0
 
   depends_on = [helm_release.external_secrets]
 
@@ -697,7 +702,7 @@ resource "time_sleep" "wait_for_external_secrets_webhook" {
 # Using kubectl_manifest instead of kubernetes_manifest to avoid the chicken-and-egg problem
 # where kubernetes_manifest tries to connect to the cluster during plan before it exists
 resource "kubectl_manifest" "cluster_secret_store" {
-  count = var.enable_external_secrets && var.external_secrets_via_helm_release ? 1 : 0
+  count = local.install_external_secrets_via_helm ? 1 : 0
 
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
@@ -1294,7 +1299,7 @@ module "karpenter_irsa" {
 #### Karpenter Helm Chart ####
 #########################################
 resource "helm_release" "karpenter_stsaas" {
-  count = var.enable_karpenter && var.karpenter_via_helm_release ? 1 : 0
+  count = local.install_karpenter_via_helm ? 1 : 0
 
   name             = "karpenter"
   repository       = "https://helm.comet.com/"
