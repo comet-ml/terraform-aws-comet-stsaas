@@ -295,6 +295,35 @@ variable "enable_external_secrets" {
   default     = true
 }
 
+variable "external_secrets_via_helm_release" {
+  description = <<-EOT
+    When true, the module installs external-secrets (CRDs, operator, webhook, and
+    the ClusterSecretStore manifest) via in-module helm_release + kubectl_manifest
+    resources. When false (default), the module skips those K8s-side resources and
+    assumes external-secrets is deployed externally (e.g., via ArgoCD). The AWS-side
+    IRSA role gets created either way so the external deployment can wire its
+    ServiceAccount to it.
+
+    MIGRATION SAFETY: If the in-module helm_release is currently in the customer's
+    TF state, flipping this from true to false on the next apply will trigger
+    `helm uninstall`, DELETING the K8s resources (Deployments, Services,
+    ServiceAccounts, CRDs, etc.). Safe per-customer sequence:
+      1. Stand up the ArgoCD app pointing at the same chart + values.
+      2. Either annotate existing K8s resources with
+         `app.kubernetes.io/managed-by: ArgoCD` and adjust the
+         `meta.helm.sh/release-name` annotations so the next uninstall is a no-op,
+         OR `terraform state rm` the helm_release before applying.
+      3. Then flip this to false and apply. TF state will have nothing to destroy.
+
+    On stsaasuat specifically: the in-module helm_release was left in a broken
+    state by the DND-1214 apply (K8s resources orphaned, helm metadata gone).
+    Flipping to false on stsaasuat is safe — TF just stops fighting a release
+    that already doesn't own anything.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "secretsmanager_environment" {
   description = "Environment name used for Secrets Manager secret paths (e.g., cometml/{secretsmanager_environment}/config). If different from 'environment', both patterns will be allowed in the IAM policy."
   type        = string
@@ -520,6 +549,31 @@ variable "additional_s3_bucket_arns" {
 
 variable "enable_karpenter" {
   description = "Enable Karpenter prerequisites: discovery tags on subnets and node security group, SQS interruption queue, EventBridge rules, node IAM role/instance profile, and controller IRSA role. Outputs can be consumed by a separate Karpenter Helm release."
+  type        = bool
+  default     = false
+}
+
+variable "karpenter_via_helm_release" {
+  description = <<-EOT
+    When true, the module installs the Karpenter Helm chart
+    (comet-stsaas-karpenter) via an in-module helm_release. When false (default),
+    the module skips the helm_release and assumes Karpenter is deployed externally
+    (e.g., via ArgoCD). The AWS-side prerequisites (IRSA, SQS, instance profile,
+    discovery tags) get created either way so the external deployment can wire
+    them up.
+
+    MIGRATION SAFETY: If the in-module helm_release is currently in the customer's
+    TF state, flipping this from true to false on the next apply will trigger
+    `helm uninstall`, DELETING the Karpenter controller + its K8s resources. Until
+    something recreates them, the cluster has no autoscaler — running nodes stay
+    but no new nodes spawn for pending pods. Safe per-customer sequence:
+      1. Stand up the ArgoCD app for Karpenter pointing at the same chart + values.
+      2. Either annotate existing Karpenter K8s resources with
+         `app.kubernetes.io/managed-by: ArgoCD` and adjust
+         `meta.helm.sh/release-name` so the next uninstall is a no-op,
+         OR `terraform state rm` the helm_release before applying.
+      3. Then flip this to false and apply.
+  EOT
   type        = bool
   default     = false
 }

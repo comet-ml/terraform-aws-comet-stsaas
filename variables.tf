@@ -55,6 +55,23 @@ variable "eks_enable_karpenter" {
   default     = false
 }
 
+variable "eks_karpenter_via_helm_release" {
+  description = <<-EOT
+    When true, install the Karpenter Helm chart via an in-module helm_release.
+    When false (default), skip the helm_release and assume Karpenter is deployed
+    externally (e.g., ArgoCD). AWS-side prerequisites (IRSA, SQS, instance
+    profile, discovery tags) are created either way.
+
+    MIGRATION SAFETY: flipping true to false on a customer where the in-module
+    helm_release is currently in TF state will run `helm uninstall` on the next
+    apply, DELETING the Karpenter controller — autoscaling stops. Before
+    flipping, either adopt via ArgoCD or `terraform state rm` the helm_release.
+    See the comet_eks sub-module variable docs for the full migration sequence.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "enable_cloudwatch_exporter" {
   description = "Enable CloudWatch Exporter IRSA role for scraping ElastiCache, RDS, and other AWS managed service metrics (used by comet_eks module)"
   type        = bool
@@ -756,6 +773,24 @@ variable "eks_external_secrets_chart_version" {
   description = "Helm chart version for external-secrets"
   type        = string
   default     = "2.2.0"
+}
+
+variable "eks_external_secrets_via_helm_release" {
+  description = <<-EOT
+    When true, install external-secrets (CRDs + operator + ClusterSecretStore) via
+    in-module helm_release resources. When false (default), skip the K8s-side
+    resources and assume external-secrets is deployed externally (e.g., ArgoCD).
+    The IRSA role is created either way.
+
+    MIGRATION SAFETY: flipping true to false on a customer where the in-module
+    helm_release is currently in TF state will run `helm uninstall` on the next
+    apply, DELETING the K8s resources. Before flipping, either adopt the
+    resources via ArgoCD (annotate them so the helm uninstall is a no-op) or
+    `terraform state rm` the helm_release. See the comet_eks sub-module variable
+    docs for the full migration sequence.
+  EOT
+  type        = bool
+  default     = false
 }
 
 variable "eks_storage_class_reclaim_policy" {

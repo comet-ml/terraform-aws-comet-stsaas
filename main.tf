@@ -294,9 +294,10 @@ module "comet_eks" {
   additional_s3_bucket_arns = var.eks_additional_s3_bucket_arns
 
   # External Secrets IRSA role and Helm chart
-  enable_external_secrets        = var.eks_enable_external_secrets
-  external_secrets_chart_version = var.eks_external_secrets_chart_version
-  secretsmanager_environment     = var.secretsmanager_environment
+  enable_external_secrets           = var.eks_enable_external_secrets
+  external_secrets_chart_version    = var.eks_external_secrets_chart_version
+  external_secrets_via_helm_release = var.eks_external_secrets_via_helm_release
+  secretsmanager_environment        = var.secretsmanager_environment
 
   # Storage class configuration
   storage_class_reclaim_policy = var.eks_storage_class_reclaim_policy
@@ -315,7 +316,8 @@ module "comet_eks" {
   grafana_admin_password  = var.grafana_admin_password
 
   # Karpenter prerequisites
-  enable_karpenter = var.eks_enable_karpenter
+  enable_karpenter           = var.eks_enable_karpenter
+  karpenter_via_helm_release = var.eks_karpenter_via_helm_release
 
   # Karpenter Node Group (dedicated controller node group, created when enable_karpenter = true)
   eks_karpenter_node_instance_types  = var.eks_karpenter_node_instance_types
