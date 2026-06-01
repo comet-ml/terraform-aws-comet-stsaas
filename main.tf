@@ -33,6 +33,10 @@ resource "random_password" "rds_master" {
   length           = 20
   special          = true
   override_special = "!#$%&*()-_=+[]{}<>:?"
+
+  lifecycle {
+    ignore_changes = [length, special, override_special, min_special, min_upper, min_lower, min_numeric, numeric, lower, upper]
+  }
 }
 
 #######################
