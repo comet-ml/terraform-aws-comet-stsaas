@@ -62,13 +62,13 @@ module "vpc" {
   default_security_group_tags   = merge(var.common_tags, { Name = "${local.resource_name}-default" })
 
   public_subnet_tags = merge(
-    local.eks_public_subnet_tags,
     var.public_subnet_tags,
+    local.eks_public_subnet_tags,
   )
   private_subnet_tags = merge(
+    var.private_subnet_tags,
     local.eks_private_subnet_tags,
     local.tgw_private_subnet_tags,
-    var.private_subnet_tags,
   )
 }
 
