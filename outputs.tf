@@ -55,7 +55,7 @@ output "mysql_database_name" {
 
 output "rds_password_auto_generated" {
   description = "Whether the RDS master password was auto-generated (true) or provided explicitly (false)"
-  value       = var.enable_rds ? var.rds_master_password == null : null
+  value       = var.enable_rds ? nonsensitive(var.rds_master_password == null) : null
 }
 
 output "configure_kubectl" {

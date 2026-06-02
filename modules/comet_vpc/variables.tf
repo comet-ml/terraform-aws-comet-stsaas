@@ -57,7 +57,7 @@ variable "public_subnet_tags" {
 }
 
 variable "vpc_name" {
-  description = "Override the VPC name. Defaults to comet-${environment}-vpc. Set this when adopting an existing brownfield VPC whose name differs."
+  description = "Override the VPC name. Defaults to comet-$${environment}-vpc. Set this when adopting an existing brownfield VPC whose name differs."
   type        = string
   default     = null
 }
