@@ -38,12 +38,12 @@ module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 5.0.0"
 
-  name = "${local.resource_name}-vpc"
+  name = coalesce(var.vpc_name, "${local.resource_name}-vpc")
   cidr = local.vpc_cidr
 
   azs             = local.azs
-  public_subnets  = [for k, v in local.azs : cidrsubnet(local.vpc_cidr, 8, k)]
-  private_subnets = [for k, v in local.azs : cidrsubnet(local.vpc_cidr, 5, 3 * k + 1)]
+  public_subnets  = var.public_subnets != null ? var.public_subnets : [for k, v in local.azs : cidrsubnet(local.vpc_cidr, 8, k)]
+  private_subnets = var.private_subnets != null ? var.private_subnets : [for k, v in local.azs : cidrsubnet(local.vpc_cidr, 5, 3 * k + 1)]
 
   enable_nat_gateway   = true
   enable_dns_hostnames = true
@@ -62,13 +62,13 @@ module "vpc" {
   default_security_group_tags   = merge(var.common_tags, { Name = "${local.resource_name}-default" })
 
   public_subnet_tags = merge(
-    local.eks_public_subnet_tags,
     var.public_subnet_tags,
+    local.eks_public_subnet_tags,
   )
   private_subnet_tags = merge(
+    var.private_subnet_tags,
     local.eks_private_subnet_tags,
     local.tgw_private_subnet_tags,
-    var.private_subnet_tags,
   )
 }
 

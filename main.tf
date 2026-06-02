@@ -137,6 +137,12 @@ module "comet_vpc" {
   region      = var.region
   vpc_cidr    = var.vpc_cidr
 
+  vpc_name            = var.vpc_name
+  public_subnets      = var.public_subnets
+  private_subnets     = var.private_subnets
+  public_subnet_tags  = var.public_subnet_tags
+  private_subnet_tags = var.private_subnet_tags
+
   eks_enabled        = var.enable_eks
   single_nat_gateway = var.single_nat_gateway
 
