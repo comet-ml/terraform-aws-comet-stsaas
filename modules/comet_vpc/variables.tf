@@ -56,6 +56,24 @@ variable "public_subnet_tags" {
   default     = {}
 }
 
+variable "vpc_name" {
+  description = "Override the VPC name. Defaults to comet-${environment}-vpc. Set this when adopting an existing brownfield VPC whose name differs."
+  type        = string
+  default     = null
+}
+
+variable "public_subnets" {
+  description = "Override the public subnet CIDR list. Defaults to cidrsubnet(vpc_cidr, 8, k) for k in 0..2. Set this when adopting an existing brownfield VPC whose subnet layout differs from the formula."
+  type        = list(string)
+  default     = null
+}
+
+variable "private_subnets" {
+  description = "Override the private subnet CIDR list. Defaults to cidrsubnet(vpc_cidr, 5, 3*k+1) for k in 0..2. Set this when adopting an existing brownfield VPC whose subnet layout differs from the formula."
+  type        = list(string)
+  default     = null
+}
+
 variable "enable_tgw_prep" {
   description = "Tag private subnets with tgw_connect=true so a future TGW attachment can target them. The attachment itself is created separately."
   type        = bool
