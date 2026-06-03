@@ -462,6 +462,11 @@ module "comet_s3" {
 
   enable_mpm_infra   = var.enable_mpm_infra
   enable_loki_bucket = var.enable_loki_bucket
+
+  enable_s3_versioning         = var.enable_s3_versioning
+  enable_s3_lifecycle          = var.enable_s3_lifecycle
+  comet_bucket_lifecycle_rules = var.comet_bucket_lifecycle_rules
+  loki_bucket_lifecycle_rules  = var.loki_bucket_lifecycle_rules
 }
 
 module "comet_secretsmanager" {

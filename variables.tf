@@ -1029,6 +1029,77 @@ variable "s3_force_destroy" {
   default     = false
 }
 
+variable "enable_s3_versioning" {
+  description = "Enable S3 bucket versioning on the comet bucket and (when enable_loki_bucket=true) the loki bucket. Existing objects are unaffected; only writes after enabling get version IDs."
+  type        = bool
+  default     = false
+}
+
+variable "enable_s3_lifecycle" {
+  description = "Enable AWS-managed lifecycle rules on the comet bucket and (when enable_loki_bucket=true) the loki bucket. Rules come from comet_bucket_lifecycle_rules / loki_bucket_lifecycle_rules (defaults match DND-1261). noncurrent_version_expiration clauses are no-op on unversioned buckets."
+  type        = bool
+  default     = false
+}
+
+variable "comet_bucket_lifecycle_rules" {
+  description = "Lifecycle rules applied to the comet S3 bucket when enable_s3_lifecycle = true. Defaults match DND-1261. Override to change retention/tiering per customer."
+  type = list(object({
+    id                                     = string
+    status                                 = optional(string, "Enabled")
+    filter_prefix                          = optional(string, "")
+    abort_incomplete_multipart_upload_days = optional(number)
+    expiration_days                        = optional(number)
+    noncurrent_version_expiration_days     = optional(number)
+    transitions = optional(list(object({
+      days          = number
+      storage_class = string
+    })), [])
+  }))
+  default = [
+    {
+      id                                     = "delete-old-versions"
+      abort_incomplete_multipart_upload_days = 1
+      noncurrent_version_expiration_days     = 10
+    },
+    {
+      id = "FilesOlderThan12Months"
+      transitions = [
+        { days = 365, storage_class = "STANDARD_IA" },
+        { days = 730, storage_class = "GLACIER_IR" },
+      ]
+    },
+  ]
+}
+
+variable "loki_bucket_lifecycle_rules" {
+  description = "Lifecycle rules applied to the loki S3 bucket when enable_s3_lifecycle = true and enable_loki_bucket = true. Defaults match DND-1261. Same schema as comet_bucket_lifecycle_rules."
+  type = list(object({
+    id                                     = string
+    status                                 = optional(string, "Enabled")
+    filter_prefix                          = optional(string, "")
+    abort_incomplete_multipart_upload_days = optional(number)
+    expiration_days                        = optional(number)
+    noncurrent_version_expiration_days     = optional(number)
+    transitions = optional(list(object({
+      days          = number
+      storage_class = string
+    })), [])
+  }))
+  default = [
+    {
+      id                                     = "delete-old-versions"
+      abort_incomplete_multipart_upload_days = 1
+      noncurrent_version_expiration_days     = 30
+    },
+    {
+      id = "transition-to-ia"
+      transitions = [
+        { days = 30, storage_class = "STANDARD_IA" },
+      ]
+    },
+  ]
+}
+
 #### comet_vpc ####
 variable "single_nat_gateway" {
   description = "Controls whether single NAT gateway used for all public subnets"
