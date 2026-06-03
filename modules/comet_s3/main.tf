@@ -1,5 +1,24 @@
 locals {
   suffix = substr(sha1("${var.environment}"), 0, 8)
+
+  # Buckets that get a lifecycle configuration. Each key produces one
+  # aws_s3_bucket_lifecycle_configuration resource. Empty rule lists are
+  # filtered out so we never call AWS PutBucketLifecycleConfiguration with
+  # an empty rule set (the API rejects that).
+  s3_lifecycle_targets = var.enable_s3_lifecycle ? merge(
+    length(var.comet_bucket_lifecycle_rules) > 0 ? {
+      comet = {
+        bucket_id = aws_s3_bucket.comet_s3_bucket.id
+        rules     = var.comet_bucket_lifecycle_rules
+      }
+    } : {},
+    var.enable_loki_bucket && length(var.loki_bucket_lifecycle_rules) > 0 ? {
+      loki = {
+        bucket_id = aws_s3_bucket.comet_loki_bucket[0].id
+        rules     = var.loki_bucket_lifecycle_rules
+      }
+    } : {},
+  ) : {}
 }
 
 resource "aws_s3_bucket" "comet_s3_bucket" {
@@ -80,60 +99,13 @@ resource "aws_s3_bucket_versioning" "loki" {
   }
 }
 
-resource "aws_s3_bucket_lifecycle_configuration" "comet" {
-  count = var.enable_s3_lifecycle ? 1 : 0
+resource "aws_s3_bucket_lifecycle_configuration" "buckets" {
+  for_each = local.s3_lifecycle_targets
 
-  bucket = aws_s3_bucket.comet_s3_bucket.id
-
-  dynamic "rule" {
-    for_each = var.comet_bucket_lifecycle_rules
-    content {
-      id     = rule.value.id
-      status = rule.value.status
-
-      filter {
-        prefix = rule.value.filter_prefix
-      }
-
-      dynamic "abort_incomplete_multipart_upload" {
-        for_each = rule.value.abort_incomplete_multipart_upload_days != null ? [1] : []
-        content {
-          days_after_initiation = rule.value.abort_incomplete_multipart_upload_days
-        }
-      }
-
-      dynamic "expiration" {
-        for_each = rule.value.expiration_days != null ? [1] : []
-        content {
-          days = rule.value.expiration_days
-        }
-      }
-
-      dynamic "noncurrent_version_expiration" {
-        for_each = rule.value.noncurrent_version_expiration_days != null ? [1] : []
-        content {
-          noncurrent_days = rule.value.noncurrent_version_expiration_days
-        }
-      }
-
-      dynamic "transition" {
-        for_each = rule.value.transitions
-        content {
-          days          = transition.value.days
-          storage_class = transition.value.storage_class
-        }
-      }
-    }
-  }
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "loki" {
-  count = var.enable_s3_lifecycle && var.enable_loki_bucket ? 1 : 0
-
-  bucket = aws_s3_bucket.comet_loki_bucket[0].id
+  bucket = each.value.bucket_id
 
   dynamic "rule" {
-    for_each = var.loki_bucket_lifecycle_rules
+    for_each = each.value.rules
     content {
       id     = rule.value.id
       status = rule.value.status
