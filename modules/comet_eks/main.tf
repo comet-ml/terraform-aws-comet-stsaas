@@ -1401,7 +1401,7 @@ locals {
 resource "aws_vpc_security_group_ingress_rule" "eks_api" {
   for_each = local.eks_api_ingress_rules
 
-  security_group_id = module.eks.cluster_security_group_id
+  security_group_id = module.eks.cluster_primary_security_group_id
   description       = each.value.description
   ip_protocol       = "tcp"
   from_port         = 443
