@@ -342,6 +342,26 @@ module "comet_eks" {
   karpenter_helm_username = var.eks_karpenter_helm_username
   karpenter_helm_password = var.eks_karpenter_helm_password
   karpenter_extra_tags    = var.eks_karpenter_extra_tags
+
+  # EKS API ingress — standardized fleet-wide access
+  enable_argocd_management_eks_access = var.enable_argocd_management_eks_access
+  argocd_management_cidrs             = var.argocd_management_cidrs
+  enable_vpn_eks_api_access           = var.enable_vpn_eks_api_access
+  vpn_client_cidr                     = var.vpn_client_cidr
+  enable_ci_runners_eks_api_access    = var.enable_ci_runners_eks_api_access
+  ci_runners_cidr                     = var.ci_runners_cidr
+
+  # Agentro EKS access + RBAC (DND-809)
+  enable_agentro_access = var.enable_agentro_access
+  agentro_role_arn      = var.agentro_role_arn
+
+  # Namespace nodegroup pinning
+  enable_namespace_nodegroup_pinning = var.enable_namespace_nodegroup_pinning
+  app_namespace                      = var.app_namespace
+  admin_pinned_namespaces            = var.admin_pinned_namespaces
+
+  # Redis Insights namespace + agentro port-forward RBAC
+  enable_redis_insights_ns = var.enable_redis_insights_ns
 }
 
 module "comet_elasticache" {
@@ -365,6 +385,9 @@ module "comet_elasticache" {
   elasticache_automatic_failover_enabled  = var.elasticache_automatic_failover_enabled
   elasticache_multi_az_enabled            = var.elasticache_multi_az_enabled
   elasticache_preferred_cache_cluster_azs = var.elasticache_preferred_cache_cluster_azs
+
+  enable_vpn_redis_access = var.enable_vpn_redis_access
+  vpn_client_cidr         = var.vpn_client_cidr
 }
 
 module "comet_rds" {
