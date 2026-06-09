@@ -1374,7 +1374,7 @@ resource "helm_release" "karpenter_stsaas" {
 locals {
   eks_api_ingress_rules = merge(
     var.enable_argocd_management_eks_access ? {
-      for cidr in var.argocd_management_cidrs :
+      for cidr in distinct(var.argocd_management_cidrs) :
       "argocd-management-${replace(cidr, "/", "_")}" => {
         cidr        = cidr
         description = "Allow ArgoCD management to reach EKS API from ${cidr}"

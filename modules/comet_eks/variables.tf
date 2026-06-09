@@ -776,15 +776,25 @@ variable "enable_namespace_nodegroup_pinning" {
 }
 
 variable "app_namespace" {
-  description = "Application namespace to pin to the comet node group. Defaults to the module environment (which matches the Helm chart's default namespace)."
+  description = "Application namespace to pin to the comet node group. Defaults to the module environment (which matches the Helm chart's default namespace). Reserved namespaces (kube-system, kube-public, kube-node-lease, default, monitoring) are rejected — they host DaemonSets and must schedule freely."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.app_namespace == null || !contains(["kube-system", "kube-public", "kube-node-lease", "default", "monitoring"], coalesce(var.app_namespace, "unset"))
+    error_message = "app_namespace cannot be a reserved Kubernetes namespace (kube-system, kube-public, kube-node-lease, default, monitoring). Those host DaemonSets and must schedule across all nodes."
+  }
 }
 
 variable "admin_pinned_namespaces" {
-  description = "Namespaces to pin to the admin node group via scheduler.alpha annotations. Skipped if the namespace does not yet exist (annotation patches an existing namespace; create the namespace via Helm or terraform first)."
+  description = "Namespaces to pin to the admin node group via scheduler.alpha annotations. Skipped if the namespace does not yet exist (annotation patches an existing namespace; create the namespace via Helm or terraform first). Reserved namespaces (kube-system, kube-public, kube-node-lease, default, monitoring) are rejected."
   type        = list(string)
   default     = ["cert-manager", "external-dns", "external-secrets"]
+
+  validation {
+    condition     = length(setintersection(toset(var.admin_pinned_namespaces), toset(["kube-system", "kube-public", "kube-node-lease", "default", "monitoring"]))) == 0
+    error_message = "admin_pinned_namespaces cannot include reserved Kubernetes namespaces (kube-system, kube-public, kube-node-lease, default, monitoring). Those host DaemonSets and must schedule across all nodes."
+  }
 }
 
 #####################
