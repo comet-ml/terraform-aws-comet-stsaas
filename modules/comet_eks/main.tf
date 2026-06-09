@@ -1367,46 +1367,48 @@ resource "helm_release" "karpenter_stsaas" {
 #### EKS API ingress — fleet-wide CIDRs ####
 #########################################
 # These open the EKS cluster_security_group_id (the cluster's primary SG) on
-# port 443 to fleet-wide management surfaces. Each rule is gated by its own
-# toggle so customers can adopt independently.
+# port 443 to fleet-wide management surfaces. Each ingress source is gated by
+# its own toggle; the local map merges all enabled rules into a single
+# for_each so the common attributes live in one place.
 
-resource "aws_vpc_security_group_ingress_rule" "argocd_management" {
-  for_each = var.enable_argocd_management_eks_access ? toset(var.argocd_management_cidrs) : []
-
-  security_group_id = module.eks.cluster_security_group_id
-  description       = "Allow ArgoCD management to reach EKS API from ${each.value}"
-  ip_protocol       = "tcp"
-  from_port         = 443
-  to_port           = 443
-  cidr_ipv4         = each.value
-
-  tags = merge(var.common_tags, { Name = "argocd-management-access-${replace(each.value, "/", "_")}" })
+locals {
+  eks_api_ingress_rules = merge(
+    var.enable_argocd_management_eks_access ? {
+      for cidr in var.argocd_management_cidrs :
+      "argocd-management-${replace(cidr, "/", "_")}" => {
+        cidr        = cidr
+        description = "Allow ArgoCD management to reach EKS API from ${cidr}"
+        name        = "argocd-management-access-${replace(cidr, "/", "_")}"
+      }
+    } : {},
+    var.enable_vpn_eks_api_access ? {
+      "vpn" = {
+        cidr        = var.vpn_client_cidr
+        description = "Allow VPN clients to reach EKS API"
+        name        = "vpn-eks-api-access"
+      }
+    } : {},
+    var.enable_ci_runners_eks_api_access ? {
+      "ci-runners" = {
+        cidr        = var.ci_runners_cidr
+        description = "Allow CI cluster runners to reach EKS API"
+        name        = "ci-runners-eks-api-access"
+      }
+    } : {},
+  )
 }
 
-resource "aws_vpc_security_group_ingress_rule" "vpn_eks_api" {
-  count = var.enable_vpn_eks_api_access ? 1 : 0
+resource "aws_vpc_security_group_ingress_rule" "eks_api" {
+  for_each = local.eks_api_ingress_rules
 
   security_group_id = module.eks.cluster_security_group_id
-  description       = "Allow VPN clients to reach EKS API"
+  description       = each.value.description
   ip_protocol       = "tcp"
   from_port         = 443
   to_port           = 443
-  cidr_ipv4         = var.vpn_client_cidr
+  cidr_ipv4         = each.value.cidr
 
-  tags = merge(var.common_tags, { Name = "vpn-eks-api-access" })
-}
-
-resource "aws_vpc_security_group_ingress_rule" "ci_runners_eks_api" {
-  count = var.enable_ci_runners_eks_api_access ? 1 : 0
-
-  security_group_id = module.eks.cluster_security_group_id
-  description       = "Allow CI cluster runners to reach EKS API"
-  ip_protocol       = "tcp"
-  from_port         = 443
-  to_port           = 443
-  cidr_ipv4         = var.ci_runners_cidr
-
-  tags = merge(var.common_tags, { Name = "ci-runners-eks-api-access" })
+  tags = merge(var.common_tags, { Name = each.value.name })
 }
 
 #########################################

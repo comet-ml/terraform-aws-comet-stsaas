@@ -753,7 +753,24 @@ variable "agentro_role_arn" {
 #####################
 
 variable "enable_namespace_nodegroup_pinning" {
-  description = "Annotate the application namespace with scheduler.alpha.kubernetes.io/node-selector=nodegroup_name=comet and the admin_pinned_namespaces with nodegroup_name=admin. Skips kube-system and monitoring (they host DaemonSets and need to schedule everywhere)."
+  description = <<-EOT
+    Annotate the application namespace with scheduler.alpha.kubernetes.io/node-selector=nodegroup_name=comet
+    and the admin_pinned_namespaces with nodegroup_name=admin. Skips kube-system and monitoring
+    (they host DaemonSets and need to schedule everywhere).
+
+    PREREQUISITE: kubernetes_annotations PATCHES an existing namespace — it does NOT create one.
+    The target namespaces must already exist before this toggle is enabled. The expected order is:
+
+      1. Apply terraform with enable_namespace_nodegroup_pinning = false
+      2. Run Helm (FRED-helm-apply / ArgoCD / chart install) — creates the namespaces
+      3. Apply terraform with enable_namespace_nodegroup_pinning = true
+
+    For brownfield customers (the typical migration path from a wrapper that already managed these
+    annotations), step 2 is already done; flipping the toggle on the next apply is safe.
+
+    For greenfield, attempting to apply with the toggle enabled before namespaces exist will fail
+    with "namespace ... not found" at apply time.
+  EOT
   type        = bool
   default     = false
 }
