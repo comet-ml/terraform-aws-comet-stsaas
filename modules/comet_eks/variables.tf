@@ -692,3 +692,91 @@ variable "eks_clickhouse_subnet_ids" {
   default     = null
 }
 
+#####################
+#### EKS API ingress — standardized fleet-wide access patterns
+#####################
+
+variable "enable_argocd_management_eks_access" {
+  description = "Open EKS API (port 443) to the ArgoCD management cluster CIDRs in argocd_management_cidrs. Required for ArgoCD to deploy into this cluster from the central mgmt cluster."
+  type        = bool
+  default     = false
+}
+
+variable "argocd_management_cidrs" {
+  description = "CIDRs allowed to reach the EKS API for ArgoCD management. Defaults cover the ArgoCD mgmt VPC + cluster CIDRs."
+  type        = list(string)
+  default     = ["10.162.0.0/16", "10.100.0.0/16"]
+}
+
+variable "enable_vpn_eks_api_access" {
+  description = "Open EKS API (port 443) to the VPN client pool CIDR. Required after flipping endpoint_public_access=false (DND-915)."
+  type        = bool
+  default     = false
+}
+
+variable "vpn_client_cidr" {
+  description = "CIDR of the VPN client pool. Used by enable_vpn_eks_api_access and enable_vpn_redis_access."
+  type        = string
+  default     = "10.126.0.0/15"
+}
+
+variable "enable_ci_runners_eks_api_access" {
+  description = "Open EKS API (port 443) to the CI runners cluster CIDR. Required for CI workflows that exec against the cluster (DND-1153)."
+  type        = bool
+  default     = false
+}
+
+variable "ci_runners_cidr" {
+  description = "CIDR of the CI runners cluster."
+  type        = string
+  default     = "10.4.0.0/16"
+}
+
+#####################
+#### Agentro EKS access — standardized read-only RBAC for the support agent (DND-809)
+#####################
+
+variable "enable_agentro_access" {
+  description = "Provision the agentro IAM role's EKS access entry + k8s RBAC bindings. Includes (1) EKS access entry mapping the agentro IAM role to the k8s 'agentro' group, (2) ClusterRoleBinding binding 'agentro' group to the built-in 'view' ClusterRole (excludes Secrets), and (3) ClusterRole 'agentro-extras' granting reads on nodes/PVs/storage/CRDs/CH/Karpenter plus pods/portforward."
+  type        = bool
+  default     = false
+}
+
+variable "agentro_role_arn" {
+  description = "IAM role ARN granted EKS read access via the agentro group. Defaults to the fleet-wide agentro role."
+  type        = string
+  default     = "arn:aws:iam::947208553405:role/agentro"
+}
+
+#####################
+#### Namespace nodegroup pinning — scheduler.alpha annotations
+#####################
+
+variable "enable_namespace_nodegroup_pinning" {
+  description = "Annotate the application namespace with scheduler.alpha.kubernetes.io/node-selector=nodegroup_name=comet and the admin_pinned_namespaces with nodegroup_name=admin. Skips kube-system and monitoring (they host DaemonSets and need to schedule everywhere)."
+  type        = bool
+  default     = false
+}
+
+variable "app_namespace" {
+  description = "Application namespace to pin to the comet node group. Defaults to the module environment (which matches the Helm chart's default namespace)."
+  type        = string
+  default     = null
+}
+
+variable "admin_pinned_namespaces" {
+  description = "Namespaces to pin to the admin node group via scheduler.alpha annotations. Skipped if the namespace does not yet exist (annotation patches an existing namespace; create the namespace via Helm or terraform first)."
+  type        = list(string)
+  default     = ["cert-manager", "external-dns", "external-secrets"]
+}
+
+#####################
+#### Redis Insights — operational debug surface
+#####################
+
+variable "enable_redis_insights_ns" {
+  description = "Create the redis-insights Kubernetes namespace with scheduler.alpha annotation pinning to admin NG. When combined with enable_agentro_access, also creates Role/RoleBinding granting the agentro group pods/portforward in this namespace (so the support agent can connect to Redis via port-forward for read-only inspection)."
+  type        = bool
+  default     = false
+}
+

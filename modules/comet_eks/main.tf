@@ -1362,3 +1362,256 @@ resource "helm_release" "karpenter_stsaas" {
     aws_ec2_tag.karpenter_sg,
   ]
 }
+
+#########################################
+#### EKS API ingress — fleet-wide CIDRs ####
+#########################################
+# These open the EKS cluster_security_group_id (the cluster's primary SG) on
+# port 443 to fleet-wide management surfaces. Each rule is gated by its own
+# toggle so customers can adopt independently.
+
+resource "aws_vpc_security_group_ingress_rule" "argocd_management" {
+  for_each = var.enable_argocd_management_eks_access ? toset(var.argocd_management_cidrs) : []
+
+  security_group_id = module.eks.cluster_security_group_id
+  description       = "Allow ArgoCD management to reach EKS API from ${each.value}"
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+  cidr_ipv4         = each.value
+
+  tags = merge(var.common_tags, { Name = "argocd-management-access-${replace(each.value, "/", "_")}" })
+}
+
+resource "aws_vpc_security_group_ingress_rule" "vpn_eks_api" {
+  count = var.enable_vpn_eks_api_access ? 1 : 0
+
+  security_group_id = module.eks.cluster_security_group_id
+  description       = "Allow VPN clients to reach EKS API"
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+  cidr_ipv4         = var.vpn_client_cidr
+
+  tags = merge(var.common_tags, { Name = "vpn-eks-api-access" })
+}
+
+resource "aws_vpc_security_group_ingress_rule" "ci_runners_eks_api" {
+  count = var.enable_ci_runners_eks_api_access ? 1 : 0
+
+  security_group_id = module.eks.cluster_security_group_id
+  description       = "Allow CI cluster runners to reach EKS API"
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+  cidr_ipv4         = var.ci_runners_cidr
+
+  tags = merge(var.common_tags, { Name = "ci-runners-eks-api-access" })
+}
+
+#########################################
+#### Agentro EKS access + RBAC (DND-809) ####
+#########################################
+# EKS access entry maps the agentro IAM role to the k8s 'agentro' group, which
+# is then bound to the built-in 'view' ClusterRole (excludes Secrets) plus the
+# agentro-extras ClusterRole granting reads on cluster-scoped resources and
+# operator CRDs the support agent needs to debug.
+
+resource "aws_eks_access_entry" "agentro" {
+  count = var.enable_agentro_access ? 1 : 0
+
+  cluster_name      = module.eks.cluster_name
+  principal_arn     = var.agentro_role_arn
+  kubernetes_groups = ["agentro"]
+}
+
+resource "kubernetes_cluster_role_binding" "agentro_view" {
+  count = var.enable_agentro_access ? 1 : 0
+
+  metadata {
+    name = "agentro-view"
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = "view"
+  }
+
+  subject {
+    kind      = "Group"
+    name      = "agentro"
+    api_group = "rbac.authorization.k8s.io"
+  }
+
+  depends_on = [aws_eks_access_entry.agentro]
+}
+
+resource "kubernetes_cluster_role" "agentro_extras" {
+  count = var.enable_agentro_access ? 1 : 0
+
+  metadata {
+    name = "agentro-extras"
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["nodes", "nodes/metrics", "nodes/stats", "persistentvolumes"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["storage.k8s.io"]
+    resources  = ["storageclasses", "csinodes", "volumeattachments"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["apiextensions.k8s.io"]
+    resources  = ["customresourcedefinitions"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["pods/portforward", "services/portforward"]
+    verbs      = ["get", "create"]
+  }
+
+  rule {
+    api_groups = ["clickhouse.altinity.com"]
+    resources  = ["clickhouseinstallations", "clickhouseinstallationtemplates", "clickhouseoperatorconfigurations"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["karpenter.sh"]
+    resources  = ["nodepools", "nodeclaims"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["karpenter.k8s.aws"]
+    resources  = ["ec2nodeclasses"]
+    verbs      = ["get", "list", "watch"]
+  }
+}
+
+resource "kubernetes_cluster_role_binding" "agentro_extras" {
+  count = var.enable_agentro_access ? 1 : 0
+
+  metadata {
+    name = "agentro-extras"
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = kubernetes_cluster_role.agentro_extras[0].metadata[0].name
+  }
+
+  subject {
+    kind      = "Group"
+    name      = "agentro"
+    api_group = "rbac.authorization.k8s.io"
+  }
+
+  depends_on = [aws_eks_access_entry.agentro]
+}
+
+#########################################
+#### Namespace nodegroup pinning ####
+#########################################
+# Annotates namespaces with scheduler.alpha.kubernetes.io/node-selector to route
+# every Pod admitted into the namespace onto a specific node group. Skips
+# kube-system + monitoring (they host DaemonSets and must schedule everywhere).
+# Patches in place — does NOT create the namespace; create via Helm first.
+
+resource "kubernetes_annotations" "app_ns_node_selector" {
+  count = var.enable_namespace_nodegroup_pinning ? 1 : 0
+
+  api_version = "v1"
+  kind        = "Namespace"
+  metadata {
+    name = coalesce(var.app_namespace, var.environment)
+  }
+  annotations = {
+    "scheduler.alpha.kubernetes.io/node-selector" = "nodegroup_name=comet"
+  }
+  force = true
+}
+
+resource "kubernetes_annotations" "admin_ns_node_selector" {
+  for_each = var.enable_namespace_nodegroup_pinning ? toset(var.admin_pinned_namespaces) : []
+
+  api_version = "v1"
+  kind        = "Namespace"
+  metadata {
+    name = each.value
+  }
+  annotations = {
+    "scheduler.alpha.kubernetes.io/node-selector" = "nodegroup_name=admin"
+  }
+  force = true
+}
+
+#########################################
+#### Redis Insights namespace + agentro port-forward RBAC ####
+#########################################
+# Operational debug surface — provides a namespace for the redis-insights helm
+# chart (installed by FRED-helm-apply) pinned to the admin NG. When combined
+# with enable_agentro_access, also grants the agentro group port-forward in
+# this namespace so the support agent can reach Redis via kubectl port-forward.
+
+resource "kubernetes_namespace" "redis_insights" {
+  count = var.enable_redis_insights_ns ? 1 : 0
+
+  metadata {
+    name = "redis-insights"
+    annotations = {
+      "scheduler.alpha.kubernetes.io/node-selector" = "nodegroup_name=admin"
+    }
+  }
+}
+
+resource "kubernetes_role" "agentro_portforward" {
+  count = var.enable_agentro_access && var.enable_redis_insights_ns ? 1 : 0
+
+  metadata {
+    name      = "agentro-portforward"
+    namespace = kubernetes_namespace.redis_insights[0].metadata[0].name
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["pods"]
+    verbs      = ["get", "list"]
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["pods/portforward"]
+    verbs      = ["create"]
+  }
+}
+
+resource "kubernetes_role_binding" "agentro_portforward" {
+  count = var.enable_agentro_access && var.enable_redis_insights_ns ? 1 : 0
+
+  metadata {
+    name      = "agentro-portforward"
+    namespace = kubernetes_namespace.redis_insights[0].metadata[0].name
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role.agentro_portforward[0].metadata[0].name
+  }
+
+  subject {
+    kind      = "Group"
+    name      = "agentro"
+    api_group = "rbac.authorization.k8s.io"
+  }
+}

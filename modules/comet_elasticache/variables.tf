@@ -77,3 +77,15 @@ variable "common_tags" {
   description = "A map of common tags"
   default     = {}
 }
+
+variable "enable_vpn_redis_access" {
+  description = "Add a VPN client CIDR ingress rule on the Redis SG (port 6379). Required for operator port-forward access via the VPN (DND-752)."
+  type        = bool
+  default     = false
+}
+
+variable "vpn_client_cidr" {
+  description = "CIDR of the VPN client pool. Used when enable_vpn_redis_access = true."
+  type        = string
+  default     = "10.126.0.0/15"
+}
