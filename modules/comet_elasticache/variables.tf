@@ -72,6 +72,17 @@ variable "elasticache_auth_token" {
   default     = null
 }
 
+variable "elasticache_auth_token_update_strategy" {
+  description = "Strategy applied when elasticache_auth_token changes. Valid values: SET (replace immediately), ROTATE (add new token, keep old valid for transition), DELETE (remove auth)."
+  type        = string
+  default     = "ROTATE"
+
+  validation {
+    condition     = contains(["SET", "ROTATE", "DELETE"], var.elasticache_auth_token_update_strategy)
+    error_message = "elasticache_auth_token_update_strategy must be one of SET, ROTATE, DELETE."
+  }
+}
+
 variable "common_tags" {
   type        = map(string)
   description = "A map of common tags"
