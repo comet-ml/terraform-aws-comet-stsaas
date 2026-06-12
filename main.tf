@@ -214,6 +214,7 @@ module "comet_eks" {
   eks_cluster_version                          = var.eks_cluster_version
   eks_cluster_endpoint_public_access           = var.eks_cluster_endpoint_public_access
   eks_cluster_endpoint_private_access          = var.eks_cluster_endpoint_private_access
+  eks_cluster_deletion_protection              = var.eks_cluster_deletion_protection
   eks_cluster_security_group_additional_rules  = var.eks_cluster_security_group_additional_rules
   eks_private_access_cidrs                     = var.eks_private_access_cidrs
   eks_authentication_mode                      = var.eks_authentication_mode
@@ -382,6 +383,7 @@ module "comet_elasticache" {
   elasticache_num_cache_nodes             = var.elasticache_num_cache_nodes
   elasticache_transit_encryption          = var.elasticache_transit_encryption
   elasticache_auth_token                  = var.elasticache_auth_token
+  elasticache_auth_token_update_strategy  = var.elasticache_auth_token_update_strategy
   elasticache_automatic_failover_enabled  = var.elasticache_automatic_failover_enabled
   elasticache_multi_az_enabled            = var.elasticache_multi_az_enabled
   elasticache_preferred_cache_cluster_azs = var.elasticache_preferred_cache_cluster_azs

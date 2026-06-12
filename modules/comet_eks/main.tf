@@ -125,15 +125,16 @@ resource "aws_iam_policy" "additional_s3_bucket_policy" {
 
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "~> 20.31.6"
+  version = "~> 21.23.0"
 
-  cluster_name                    = var.eks_cluster_name
-  cluster_version                 = var.eks_cluster_version
-  cluster_endpoint_public_access  = var.eks_cluster_endpoint_public_access
-  cluster_endpoint_private_access = var.eks_cluster_endpoint_private_access
+  name                     = var.eks_cluster_name
+  kubernetes_version       = var.eks_cluster_version
+  endpoint_public_access   = var.eks_cluster_endpoint_public_access
+  endpoint_private_access  = var.eks_cluster_endpoint_private_access
+  deletion_protection      = var.eks_cluster_deletion_protection
 
-  cluster_security_group_additional_rules = local.cluster_security_group_rules
-  node_security_group_additional_rules    = local.node_security_group_additional_rules
+  security_group_additional_rules      = local.cluster_security_group_rules
+  node_security_group_additional_rules = local.node_security_group_additional_rules
 
   authentication_mode                      = var.eks_authentication_mode
   enable_cluster_creator_admin_permissions = var.eks_enable_cluster_creator_admin_permissions
@@ -157,6 +158,7 @@ module "eks" {
     {
       ami_type                   = var.eks_mng_ami_type
       enable_bootstrap_user_data = true
+      enable_monitoring          = true
       # Set platform based on AMI type - AL2023 uses nodeadm, AL2 uses bootstrap.sh
       platform = startswith(var.eks_mng_ami_type, "AL2023") ? "al2023" : "linux"
       # common_tags on the nodegroup propagate to instances; CA discovery

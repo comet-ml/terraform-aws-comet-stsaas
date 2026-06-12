@@ -291,6 +291,12 @@ variable "eks_cluster_endpoint_public_access" {
   default     = true
 }
 
+variable "eks_cluster_deletion_protection" {
+  description = "Enable EKS cluster deletion protection. When true, the cluster cannot be deleted via the AWS API until protection is disabled. Requires upstream eks/aws module v21.1.0+."
+  type        = bool
+  default     = true
+}
+
 variable "eks_cluster_endpoint_private_access" {
   description = "Enable private access to the EKS cluster API endpoint"
   type        = bool
@@ -851,6 +857,12 @@ variable "elasticache_auth_token" {
   description = "Auth token for ElastiCache"
   type        = string
   default     = null
+}
+
+variable "elasticache_auth_token_update_strategy" {
+  description = "Strategy applied when elasticache_auth_token changes. Required by AWS provider v6 when auth_token is set. Valid values: SET (replace immediately), ROTATE (add new token, keep old valid for transition), DELETE."
+  type        = string
+  default     = "ROTATE"
 }
 
 variable "elasticache_automatic_failover_enabled" {
