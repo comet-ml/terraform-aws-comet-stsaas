@@ -526,19 +526,19 @@ variable "eks_clickhouse_delete_on_termination" {
 }
 
 variable "eks_clickhouse_taints" {
-  description = "Taints to apply to ClickHouse node group"
-  type = list(object({
+  description = "Taints to apply to ClickHouse node group. Map keyed by taint name (v21 of upstream eks/aws expects map, not list)."
+  type = map(object({
     key    = string
     value  = string
     effect = string
   }))
-  default = [
-    {
+  default = {
+    clickhouse = {
       key    = "clickhouse"
       value  = "true"
       effect = "NO_SCHEDULE"
     }
-  ]
+  }
 }
 
 variable "additional_node_groups" {

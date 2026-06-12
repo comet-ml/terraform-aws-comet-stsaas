@@ -51,14 +51,41 @@ locals {
     }
   } : {}
 
-  # Tags the Cluster Autoscaler uses for auto-discovery of ASGs. Applied
-  # via `eks_managed_node_group_defaults.tags` so every managed nodegroup
+  # Tags the Cluster Autoscaler uses for auto-discovery of ASGs. Merged into
+  # local.eks_managed_node_group_defaults.tags so every managed nodegroup
   # inherits them automatically. When CA is disabled this is empty and the
   # tags are not applied.
   cluster_autoscaler_asg_tags = var.eks_enable_cluster_autoscaler ? {
     "k8s.io/cluster-autoscaler/enabled"                 = "true"
     "k8s.io/cluster-autoscaler/${var.eks_cluster_name}" = "owned"
   } : {}
+
+  # Defaults applied to every entry in eks_managed_node_groups. v21 of the
+  # upstream module dropped the top-level eks_managed_node_group_defaults
+  # variable, so we merge these into each entry below.
+  eks_managed_node_group_defaults = merge(
+    {
+      ami_type                   = var.eks_mng_ami_type
+      enable_bootstrap_user_data = true
+      enable_monitoring          = true
+      # Set platform based on AMI type - AL2023 uses nodeadm, AL2 uses bootstrap.sh
+      platform = startswith(var.eks_mng_ami_type, "AL2023") ? "al2023" : "linux"
+      # Preserve v20 IMDS hop limit of 2. v21 default is 1 — flipping it would
+      # break any sidecar/proxy pattern that reaches IMDS through an extra hop.
+      metadata_options = {
+        http_endpoint               = "enabled"
+        http_tokens                 = "required"
+        http_put_response_hop_limit = 2
+        instance_metadata_tags      = "disabled"
+      }
+      # common_tags on the nodegroup propagate to instances; CA discovery
+      # tags must be on the ASG so the autoscaler can match them.
+      tags = merge(var.common_tags, local.cluster_autoscaler_asg_tags)
+    },
+    var.eks_mng_ami_id != null ? {
+      ami_id = var.eks_mng_ami_id
+    } : {}
+  )
 
   # Build access entries for admin roles
   admin_access_entries = {
@@ -154,28 +181,12 @@ module "eks" {
     "karpenter.sh/discovery" = var.eks_cluster_name
   } : {}
 
-  eks_managed_node_group_defaults = merge(
-    {
-      ami_type                   = var.eks_mng_ami_type
-      enable_bootstrap_user_data = true
-      enable_monitoring          = true
-      # Set platform based on AMI type - AL2023 uses nodeadm, AL2 uses bootstrap.sh
-      platform = startswith(var.eks_mng_ami_type, "AL2023") ? "al2023" : "linux"
-      # common_tags on the nodegroup propagate to instances; CA discovery
-      # tags must be on the ASG so the autoscaler can match them.
-      tags = merge(var.common_tags, local.cluster_autoscaler_asg_tags)
-    },
-    var.eks_mng_ami_id != null ? {
-      ami_id = var.eks_mng_ami_id
-    } : {}
-  )
-
   eks_managed_node_groups = merge(
     # Karpenter Node Group — created when Karpenter is enabled.
     # Dedicated to the Karpenter controller only; tainted so no other pods schedule here.
     # All other node groups are suppressed when Karpenter is enabled (Karpenter provisions them).
     var.enable_karpenter ? {
-      karpenter = {
+      karpenter = merge(local.eks_managed_node_group_defaults, {
         name           = "karpenter"
         instance_types = var.eks_karpenter_node_instance_types
         min_size       = var.eks_karpenter_node_min_size
@@ -195,24 +206,24 @@ module "eks" {
         labels = {
           nodegroup_name = "karpenter"
         }
-        taints = [
-          {
+        taints = {
+          dedicated = {
             key    = "dedicated"
             value  = "karpenter"
             effect = "NO_SCHEDULE"
           }
-        ]
+        }
         tags                         = var.common_tags
         tags_propagate_at_launch     = true
         launch_template_version      = "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
-      }
+      })
     } : {},
     # Admin Node Group — always created when enabled. Required for system workloads (cert-manager, LBC,
     # external-secrets, etc.) before Karpenter bootstraps, and for infra isolation in production.
     # When Karpenter is enabled, uses smaller instance types since these nodes only run system pods.
     var.enable_admin_node_group ? {
-      admin = merge({
+      admin = merge(local.eks_managed_node_group_defaults, {
         name           = var.eks_admin_name
         instance_types = var.enable_karpenter ? var.eks_admin_karpenter_instance_types : var.eks_admin_instance_types
         capacity_type  = var.eks_admin_capacity_type
@@ -243,7 +254,7 @@ module "eks" {
     } : {},
     # Comet Node Group — disabled when Karpenter is enabled (Karpenter provisions comet nodes)
     (var.enable_comet_node_group && !var.enable_karpenter) ? {
-      comet = merge({
+      comet = merge(local.eks_managed_node_group_defaults, {
         name           = var.eks_comet_name
         instance_types = var.eks_comet_instance_types
         capacity_type  = var.eks_comet_capacity_type
@@ -274,7 +285,7 @@ module "eks" {
     } : {},
     # Druid Node Group — disabled when Karpenter is enabled
     (var.enable_druid_node_group && var.enable_mpm_infra && !var.enable_karpenter) ? {
-      druid = merge({
+      druid = merge(local.eks_managed_node_group_defaults, {
         name           = var.eks_druid_name
         instance_types = var.eks_druid_instance_types
         min_size       = var.eks_druid_min_size
@@ -303,7 +314,7 @@ module "eks" {
     } : {},
     # Airflow Node Group — disabled when Karpenter is enabled
     (var.enable_airflow_node_group && var.enable_mpm_infra && !var.enable_karpenter) ? {
-      airflow = merge({
+      airflow = merge(local.eks_managed_node_group_defaults, {
         name           = var.eks_airflow_name
         instance_types = var.eks_airflow_instance_types
         min_size       = var.eks_airflow_min_size
@@ -332,7 +343,7 @@ module "eks" {
     } : {},
     # ClickHouse Node Group — requires explicit opt-in AND Karpenter must be disabled
     (var.enable_clickhouse_node_group && !var.enable_karpenter) ? {
-      clickhouse = merge({
+      clickhouse = merge(local.eks_managed_node_group_defaults, {
         name           = var.eks_clickhouse_name
         instance_types = var.eks_clickhouse_instance_types
         capacity_type  = var.eks_clickhouse_capacity_type
@@ -363,7 +374,7 @@ module "eks" {
       var.eks_clickhouse_subnet_ids != null ? { subnet_ids = var.eks_clickhouse_subnet_ids } : {})
     } : {},
     # Additional custom node groups
-    var.additional_node_groups
+    { for k, v in var.additional_node_groups : k => merge(local.eks_managed_node_group_defaults, v) }
   )
 }
 

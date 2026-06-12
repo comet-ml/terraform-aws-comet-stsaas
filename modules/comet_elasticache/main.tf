@@ -7,7 +7,8 @@ resource "aws_elasticache_replication_group" "comet-ml-ec-redis" {
   engine_version              = var.elasticache_engine_version
   transit_encryption_enabled  = var.elasticache_transit_encryption
   auth_token                  = var.elasticache_auth_token
-  auth_token_update_strategy  = var.elasticache_auth_token_update_strategy
+  # AWS provider v6 errors if auth_token_update_strategy is set without auth_token.
+  auth_token_update_strategy  = var.elasticache_auth_token != null ? var.elasticache_auth_token_update_strategy : null
   automatic_failover_enabled  = var.elasticache_automatic_failover_enabled
   multi_az_enabled            = var.elasticache_multi_az_enabled
   preferred_cache_cluster_azs = var.elasticache_preferred_cache_cluster_azs
