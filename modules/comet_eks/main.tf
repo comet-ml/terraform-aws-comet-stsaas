@@ -213,8 +213,7 @@ module "eks" {
             effect = "NO_SCHEDULE"
           }
         }
-        tags                         = var.common_tags
-        tags_propagate_at_launch     = true
+        tags_propagate_at_launch = true
         launch_template_version      = "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
       })
@@ -244,8 +243,7 @@ module "eks" {
         labels = {
           nodegroup_name = "admin"
         }
-        tags                         = var.common_tags
-        tags_propagate_at_launch     = true
+        tags_propagate_at_launch = true
         launch_template_version      = "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
         },
@@ -275,8 +273,7 @@ module "eks" {
         labels = {
           nodegroup_name = "comet"
         }
-        tags                         = var.common_tags
-        tags_propagate_at_launch     = true
+        tags_propagate_at_launch = true
         launch_template_version      = "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
         },
@@ -305,8 +302,7 @@ module "eks" {
         labels = {
           nodegroup_name = "druid"
         }
-        tags                         = var.common_tags
-        tags_propagate_at_launch     = true
+        tags_propagate_at_launch = true
         launch_template_version      = "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
         },
@@ -334,8 +330,7 @@ module "eks" {
         labels = {
           nodegroup_name = "airflow"
         }
-        tags                         = var.common_tags
-        tags_propagate_at_launch     = true
+        tags_propagate_at_launch = true
         launch_template_version      = "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
         },
@@ -365,8 +360,7 @@ module "eks" {
           nodegroup_name = "clickhouse"
         }
         taints                       = var.eks_clickhouse_taints
-        tags                         = var.common_tags
-        tags_propagate_at_launch     = true
+        tags_propagate_at_launch = true
         launch_template_version      = "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
         },
@@ -374,7 +368,16 @@ module "eks" {
       var.eks_clickhouse_subnet_ids != null ? { subnet_ids = var.eks_clickhouse_subnet_ids } : {})
     } : {},
     # Additional custom node groups
-    { for k, v in var.additional_node_groups : k => merge(local.eks_managed_node_group_defaults, v) }
+    {
+      for k, v in var.additional_node_groups : k => merge(
+        local.eks_managed_node_group_defaults,
+        v,
+        {
+          tags             = merge(local.eks_managed_node_group_defaults.tags, lookup(v, "tags", {}))
+          metadata_options = merge(local.eks_managed_node_group_defaults.metadata_options, lookup(v, "metadata_options", {}))
+        }
+      )
+    }
   )
 }
 
