@@ -7,7 +7,10 @@ resource "aws_elasticache_replication_group" "comet-ml-ec-redis" {
   engine_version              = var.elasticache_engine_version
   transit_encryption_enabled  = var.elasticache_transit_encryption
   auth_token                  = var.elasticache_auth_token
-  auth_token_update_strategy  = var.elasticache_auth_token_update_strategy
+  # AWS provider v6 errors when auth_token_update_strategy is set on a replication
+  # group that has no auth_token, with one exception: the explicit removal path
+  # auth_token=null + auth_token_update_strategy="DELETE" must reach AWS.
+  auth_token_update_strategy = (var.elasticache_auth_token != null || var.elasticache_auth_token_update_strategy == "DELETE") ? var.elasticache_auth_token_update_strategy : null
   automatic_failover_enabled  = var.elasticache_automatic_failover_enabled
   multi_az_enabled            = var.elasticache_multi_az_enabled
   preferred_cache_cluster_azs = var.elasticache_preferred_cache_cluster_azs
