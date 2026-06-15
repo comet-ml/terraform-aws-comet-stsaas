@@ -170,7 +170,7 @@ variable "rds_storage_type" {
 }
 
 variable "rds_cluster_parameters" {
-  description = "Additional MySQL parameters applied to the cluster parameter group on top of the module's baseline character-set/collation/innodb defaults. Defaults include operational tunings (wait_timeout, max_execution_time, innodb purge settings, aurora_read_replica_read_committed) used across Comet STSAAS deployments. Pass [] to disable, or override with a custom list."
+  description = "Additional MySQL parameters applied to the cluster parameter group on top of the module's baseline character-set/collation/innodb defaults. Defaults include operational tunings (wait_timeout, max_execution_time, innodb purge settings, aurora_read_replica_read_committed) used across Comet STSAAS deployments, plus innodb_monitor_enable=module_trx so information_schema.INNODB_METRICS exposes transaction-subsystem counters (powers the 'Active Transactions' panel on the comet-rds-overview Grafana dashboard — DND-1307 / DND-1263). Pass [] to disable, or override with a custom list."
   type = list(object({
     name         = string
     value        = string
@@ -184,6 +184,7 @@ variable "rds_cluster_parameters" {
     { name = "innodb_purge_threads", value = "16", apply_method = "pending-reboot" },
     { name = "max_execution_time", value = "60000", apply_method = "immediate" },
     { name = "wait_timeout", value = "1800", apply_method = "immediate" },
+    { name = "innodb_monitor_enable", value = "module_trx", apply_method = "immediate" },
   ]
 }
 
