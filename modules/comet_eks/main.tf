@@ -36,21 +36,6 @@ locals {
     var.eks_cluster_security_group_additional_rules
   )
 
-  # Node SG rules opened for cluster-managed addons that expose metrics
-  # APIs the kube-apiserver must reach. metrics-server listens on 10251 by
-  # default on EKS builds; the upstream EKS module only opens the standard
-  # webhook ports (443/4443/6443/8443/9443) and kubelet (10250).
-  node_security_group_additional_rules = var.eks_enable_metrics_server ? {
-    metrics_server_10251 = {
-      description                   = "Cluster API to node metrics-server 10251/tcp"
-      protocol                      = "tcp"
-      from_port                     = 10251
-      to_port                       = 10251
-      type                          = "ingress"
-      source_cluster_security_group = true
-    }
-  } : {}
-
   # Tags the Cluster Autoscaler uses for auto-discovery of ASGs. Merged into
   # local.eks_managed_node_group_defaults.tags so every managed nodegroup
   # inherits them automatically. When CA is disabled this is empty and the
@@ -160,8 +145,7 @@ module "eks" {
   endpoint_private_access  = var.eks_cluster_endpoint_private_access
   deletion_protection      = var.eks_cluster_deletion_protection
 
-  security_group_additional_rules      = local.cluster_security_group_rules
-  node_security_group_additional_rules = local.node_security_group_additional_rules
+  security_group_additional_rules = local.cluster_security_group_rules
 
   authentication_mode                      = var.eks_authentication_mode
   enable_cluster_creator_admin_permissions = var.eks_enable_cluster_creator_admin_permissions
