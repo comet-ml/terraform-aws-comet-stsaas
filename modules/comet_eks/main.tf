@@ -53,7 +53,7 @@ locals {
       ami_type                   = var.eks_mng_ami_type
       enable_bootstrap_user_data = true
       enable_monitoring          = true
-      force_update_version       = true
+      force_update_version       = var.eks_mng_force_update_version
       # Set platform based on AMI type - AL2023 uses nodeadm, AL2 uses bootstrap.sh
       platform = startswith(var.eks_mng_ami_type, "AL2023") ? "al2023" : "linux"
       # Preserve v20 IMDS hop limit of 2. v21 default is 1 — flipping it would

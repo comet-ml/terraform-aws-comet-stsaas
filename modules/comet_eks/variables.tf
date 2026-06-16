@@ -170,6 +170,12 @@ variable "eks_mng_ami_id" {
   default     = null
 }
 
+variable "eks_mng_force_update_version" {
+  description = "Force EKS managed node group version updates to bypass the eviction API's PDB check. Default true because NG version updates in this module are operator-driven (terraform apply against changed LT or release_version), not transient/automated — PDB enforcement during such updates is an operational hazard, not a safety net. terminationGracePeriodSeconds is still honored. Set to false to restore the default PDB-respecting behavior."
+  type        = bool
+  default     = true
+}
+
 variable "eks_comet_instance_types" {
   description = "Instance types for comet node group"
   type        = list(string)
