@@ -381,9 +381,9 @@ variable "eks_mng_ami_id" {
 }
 
 variable "eks_mng_force_update_version" {
-  description = "Force EKS managed node group version updates to bypass the eviction API's PDB check. Default true because NG version updates in this module are operator-driven, not transient/automated. terminationGracePeriodSeconds is still honored. Set to false to restore the default PDB-respecting behavior."
+  description = "Force EKS managed node group version updates to bypass the eviction API's PDB check. Default false (PDB-respecting) — appropriate for HA STSaaS deployments. Set to true on right-sized non-HA envs (e.g. UAT canaries with single-replica deployments) where PDBs structurally block any voluntary eviction. terminationGracePeriodSeconds is still honored either way."
   type        = bool
-  default     = true
+  default     = false
 }
 
 # Node Group Toggles
