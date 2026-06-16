@@ -380,6 +380,12 @@ variable "eks_mng_ami_id" {
   default     = null
 }
 
+variable "eks_mng_force_update_version" {
+  description = "Force EKS managed node group version updates to bypass the eviction API's PDB check. Default true because NG version updates in this module are operator-driven, not transient/automated. terminationGracePeriodSeconds is still honored. Set to false to restore the default PDB-respecting behavior."
+  type        = bool
+  default     = true
+}
+
 # Node Group Toggles
 variable "eks_enable_admin_node_group" {
   description = "Enable admin node group for EKS cluster management tasks"
