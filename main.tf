@@ -228,6 +228,7 @@ module "comet_eks" {
   eks_clickhouse_ami_type                      = var.eks_clickhouse_ami_type
   eks_mng_ami_id                               = var.eks_mng_ami_id
   eks_mng_force_update_version                 = var.eks_mng_force_update_version
+  eks_mng_use_latest_ami_release_version       = var.eks_mng_use_latest_ami_release_version
   eks_mng_disk_size                            = var.eks_mng_disk_size
   eks_aws_load_balancer_controller             = var.eks_aws_load_balancer_controller
   eks_cert_manager                             = var.eks_cert_manager
