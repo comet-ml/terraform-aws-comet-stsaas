@@ -58,6 +58,10 @@ locals {
       # is left AWS-managed) instead of bumping to the latest on every apply —
       # lets AMI rolls be scheduled separately from other terraform changes.
       use_latest_ami_release_version = var.eks_mng_use_latest_ami_release_version
+      # When pinned, don't auto-promote new launch-template versions to default,
+      # so the node groups (which then track "$Default") don't roll on benign LT
+      # changes (e.g. tag-only version bumps). Deliberate rolls bump the default.
+      update_launch_template_default_version = !var.eks_mng_pin_launch_template_version
       # Set platform based on AMI type - AL2023 uses nodeadm, AL2 uses bootstrap.sh
       platform = startswith(var.eks_mng_ami_type, "AL2023") ? "al2023" : "linux"
       # Preserve v20 IMDS hop limit of 2. v21 default is 1 — flipping it would
@@ -203,7 +207,7 @@ module "eks" {
           }
         }
         tags_propagate_at_launch = true
-        launch_template_version      = "$Latest"
+        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
       })
     } : {},
@@ -233,7 +237,7 @@ module "eks" {
           nodegroup_name = "admin"
         }
         tags_propagate_at_launch = true
-        launch_template_version      = "$Latest"
+        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
         },
         var.eks_admin_ami_type != null ? { ami_type = var.eks_admin_ami_type } : {},
@@ -263,7 +267,7 @@ module "eks" {
           nodegroup_name = "comet"
         }
         tags_propagate_at_launch = true
-        launch_template_version      = "$Latest"
+        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
         },
         var.eks_comet_ami_type != null ? { ami_type = var.eks_comet_ami_type } : {},
@@ -292,7 +296,7 @@ module "eks" {
           nodegroup_name = "druid"
         }
         tags_propagate_at_launch = true
-        launch_template_version      = "$Latest"
+        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
         },
       var.eks_druid_subnet_ids != null ? { subnet_ids = var.eks_druid_subnet_ids } : {})
@@ -320,7 +324,7 @@ module "eks" {
           nodegroup_name = "airflow"
         }
         tags_propagate_at_launch = true
-        launch_template_version      = "$Latest"
+        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
         },
       var.eks_airflow_subnet_ids != null ? { subnet_ids = var.eks_airflow_subnet_ids } : {})
@@ -350,7 +354,7 @@ module "eks" {
         }
         taints                       = var.eks_clickhouse_taints
         tags_propagate_at_launch = true
-        launch_template_version      = "$Latest"
+        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
         },
         var.eks_clickhouse_ami_type != null ? { ami_type = var.eks_clickhouse_ami_type } : {},

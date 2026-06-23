@@ -392,6 +392,12 @@ variable "eks_mng_use_latest_ami_release_version" {
   default     = true
 }
 
+variable "eks_mng_pin_launch_template_version" {
+  description = "When false (default), node groups track the latest launch-template version, so any LT change rolls the nodes. Set true to track \"$Default\" and stop auto-promoting new LT versions to default, so benign LT changes (e.g. tag-only version bumps) do NOT roll the nodes. Trade-off: deliberate LT changes (AMI/instance type) then require a separate default-version bump to take effect. Useful for workload-neutral applies (e.g. a state consolidation)."
+  type        = bool
+  default     = false
+}
+
 # Node Group Toggles
 variable "eks_enable_admin_node_group" {
   description = "Enable admin node group for EKS cluster management tasks"
