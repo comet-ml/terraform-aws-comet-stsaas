@@ -386,6 +386,12 @@ variable "eks_mng_force_update_version" {
   default     = false
 }
 
+variable "eks_mng_use_latest_ami_release_version" {
+  description = "When true (default), EKS managed node groups track the latest AMI release for their ami_type, so terraform bumps release_version on every apply (rolling the nodes). Set false to leave release_version AWS-managed (no AMI bump on apply), so AMI rolls can be scheduled separately from other terraform changes (e.g. during a state consolidation that must not touch workloads)."
+  type        = bool
+  default     = true
+}
+
 # Node Group Toggles
 variable "eks_enable_admin_node_group" {
   description = "Enable admin node group for EKS cluster management tasks"
