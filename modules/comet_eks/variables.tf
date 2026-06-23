@@ -668,6 +668,12 @@ variable "storage_class_reclaim_policy" {
   }
 }
 
+variable "create_comet_generic_storage_class" {
+  description = "Create the comet-generic StorageClass. Set false when comet-generic is owned by the comet-ml Helm chart (Helm/ArgoCD), to avoid dual ownership. The gp3 StorageClass is always created by this module."
+  type        = bool
+  default     = true
+}
+
 # Per-Node-Group Subnet Pinning
 # When set, restricts a specific node group to a subset of subnets (typically a
 # single AZ). Use to align node placement with stateful workload PVs that are

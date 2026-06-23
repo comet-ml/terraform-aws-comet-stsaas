@@ -468,6 +468,11 @@ resource "kubernetes_storage_class" "gp3" {
 }
 
 resource "kubernetes_storage_class" "comet_generic" {
+  # Some deployments have comet-generic created by the comet-ml Helm chart
+  # (Helm/ArgoCD-owned). Set create_comet_generic_storage_class=false there so
+  # this module does not fight the chart over ownership of the same SC.
+  count = var.create_comet_generic_storage_class ? 1 : 0
+
   metadata {
     name   = "comet-generic"
     labels = var.common_tags

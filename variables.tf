@@ -816,6 +816,12 @@ variable "eks_storage_class_reclaim_policy" {
   }
 }
 
+variable "eks_create_comet_generic_storage_class" {
+  description = "Create the comet-generic StorageClass via this module. Set false when comet-generic is owned by the comet-ml Helm chart (Helm/ArgoCD) to avoid dual ownership. The gp3 StorageClass is always created by this module."
+  type        = bool
+  default     = true
+}
+
 #### comet_elasticache ####
 variable "elasticache_allow_from_sg" {
   description = "Security group from which to allow connections to ElastiCache, to use when provisioning with existing compute"
