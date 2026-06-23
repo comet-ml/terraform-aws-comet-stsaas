@@ -312,7 +312,8 @@ module "comet_eks" {
   secretsmanager_environment        = var.secretsmanager_environment
 
   # Storage class configuration
-  storage_class_reclaim_policy = var.eks_storage_class_reclaim_policy
+  storage_class_reclaim_policy       = var.eks_storage_class_reclaim_policy
+  create_comet_generic_storage_class = var.eks_create_comet_generic_storage_class
 
   # Loki IRSA for S3 access
   enable_loki        = var.enable_loki_bucket
