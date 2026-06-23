@@ -182,6 +182,12 @@ variable "eks_mng_use_latest_ami_release_version" {
   default     = true
 }
 
+variable "eks_mng_pin_launch_template_version" {
+  description = "When false (default), node groups track the latest launch-template version (launch_template_version=\"$Latest\", default auto-updated), so any LT change rolls the nodes. Set true to track \"$Default\" and stop auto-promoting new LT versions to default, so benign LT changes (e.g. tag-only version bumps) do NOT roll the nodes. Trade-off: deliberate LT changes (AMI/instance type) then require a separate default-version bump to take effect."
+  type        = bool
+  default     = false
+}
+
 variable "eks_comet_instance_types" {
   description = "Instance types for comet node group"
   type        = list(string)
