@@ -308,21 +308,24 @@ module "comet_eks" {
   additional_s3_bucket_arns = var.eks_additional_s3_bucket_arns
 
   # External Secrets IRSA role and Helm chart
-  enable_external_secrets           = var.eks_enable_external_secrets
-  external_secrets_chart_version    = var.eks_external_secrets_chart_version
-  external_secrets_via_helm_release = var.eks_external_secrets_via_helm_release
-  secretsmanager_environment        = var.secretsmanager_environment
+  enable_external_secrets                 = var.eks_enable_external_secrets
+  external_secrets_chart_version          = var.eks_external_secrets_chart_version
+  external_secrets_via_helm_release       = var.eks_external_secrets_via_helm_release
+  external_secrets_iam_role_name_override = var.external_secrets_iam_role_name_override
+  secretsmanager_environment              = var.secretsmanager_environment
 
   # Storage class configuration
   storage_class_reclaim_policy       = var.eks_storage_class_reclaim_policy
   create_comet_generic_storage_class = var.eks_create_comet_generic_storage_class
 
   # Loki IRSA for S3 access
-  enable_loki        = var.enable_loki_bucket
-  loki_s3_bucket_arn = var.enable_s3 && var.enable_loki_bucket ? module.comet_s3[0].comet_loki_bucket_arn : null
+  enable_loki                 = var.enable_loki_bucket
+  loki_s3_bucket_arn          = var.enable_s3 && var.enable_loki_bucket ? module.comet_s3[0].comet_loki_bucket_arn : null
+  loki_iam_role_name_override = var.loki_iam_role_name_override
 
   # CloudWatch Exporter IRSA for scraping AWS managed service metrics
-  enable_cloudwatch_exporter = var.enable_cloudwatch_exporter
+  enable_cloudwatch_exporter                 = var.enable_cloudwatch_exporter
+  cloudwatch_exporter_iam_role_name_override = var.cloudwatch_exporter_iam_role_name_override
 
   # Monitoring namespace and Grafana credentials
   enable_monitoring_setup = var.enable_monitoring_setup
@@ -489,8 +492,9 @@ module "comet_s3" {
   comet_s3_bucket  = var.s3_bucket_name
   s3_force_destroy = var.s3_force_destroy
 
-  enable_mpm_infra   = var.enable_mpm_infra
-  enable_loki_bucket = var.enable_loki_bucket
+  enable_mpm_infra          = var.enable_mpm_infra
+  enable_loki_bucket        = var.enable_loki_bucket
+  loki_bucket_name_override = var.loki_bucket_name_override
 
   enable_s3_versioning         = var.enable_s3_versioning
   enable_s3_lifecycle          = var.enable_s3_lifecycle

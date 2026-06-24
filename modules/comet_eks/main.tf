@@ -148,11 +148,11 @@ module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 21.23.0"
 
-  name                     = var.eks_cluster_name
-  kubernetes_version       = var.eks_cluster_version
-  endpoint_public_access   = var.eks_cluster_endpoint_public_access
-  endpoint_private_access  = var.eks_cluster_endpoint_private_access
-  deletion_protection      = var.eks_cluster_deletion_protection
+  name                    = var.eks_cluster_name
+  kubernetes_version      = var.eks_cluster_version
+  endpoint_public_access  = var.eks_cluster_endpoint_public_access
+  endpoint_private_access = var.eks_cluster_endpoint_private_access
+  deletion_protection     = var.eks_cluster_deletion_protection
 
   security_group_additional_rules = local.cluster_security_group_rules
 
@@ -206,7 +206,7 @@ module "eks" {
             effect = "NO_SCHEDULE"
           }
         }
-        tags_propagate_at_launch = true
+        tags_propagate_at_launch     = true
         launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
       })
@@ -236,7 +236,7 @@ module "eks" {
         labels = {
           nodegroup_name = "admin"
         }
-        tags_propagate_at_launch = true
+        tags_propagate_at_launch     = true
         launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
         },
@@ -266,7 +266,7 @@ module "eks" {
         labels = {
           nodegroup_name = "comet"
         }
-        tags_propagate_at_launch = true
+        tags_propagate_at_launch     = true
         launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
         },
@@ -295,7 +295,7 @@ module "eks" {
         labels = {
           nodegroup_name = "druid"
         }
-        tags_propagate_at_launch = true
+        tags_propagate_at_launch     = true
         launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
         },
@@ -323,7 +323,7 @@ module "eks" {
         labels = {
           nodegroup_name = "airflow"
         }
-        tags_propagate_at_launch = true
+        tags_propagate_at_launch     = true
         launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
         },
@@ -353,7 +353,7 @@ module "eks" {
           nodegroup_name = "clickhouse"
         }
         taints                       = var.eks_clickhouse_taints
-        tags_propagate_at_launch = true
+        tags_propagate_at_launch     = true
         launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
         iam_role_additional_policies = local.node_group_iam_policies
         },
@@ -541,8 +541,10 @@ module "external_secrets_irsa_role" {
 
   count = var.enable_external_secrets ? 1 : 0
 
-  # Role name matches the expected format: {environment}-external-secrets
-  role_name = "${var.environment}-external-secrets"
+  # Role name defaults to {environment}-external-secrets; override to adopt an
+  # existing differently-named role (e.g. legacy hand-rolled "zoox-external-secrets")
+  # without recreating it (which would break the SA's IRSA annotation).
+  role_name = coalesce(var.external_secrets_iam_role_name_override, "${var.environment}-external-secrets")
 
   # Attach the external secrets policy that allows Secrets Manager access
   attach_external_secrets_policy = true
@@ -789,7 +791,7 @@ module "loki_irsa_role" {
 
   count = var.enable_loki ? 1 : 0
 
-  role_name = "${var.environment}-loki"
+  role_name = coalesce(var.loki_iam_role_name_override, "${var.environment}-loki")
 
   role_policy_arns = {
     loki = aws_iam_policy.loki[0].arn
@@ -853,7 +855,7 @@ module "cloudwatch_exporter_irsa_role" {
 
   count = var.enable_cloudwatch_exporter ? 1 : 0
 
-  role_name = "${var.environment}-cloudwatch-exporter"
+  role_name = coalesce(var.cloudwatch_exporter_iam_role_name_override, "${var.environment}-cloudwatch-exporter")
 
   role_policy_arns = {
     cloudwatch_exporter = aws_iam_policy.cloudwatch_exporter[0].arn

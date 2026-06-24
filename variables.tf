@@ -49,6 +49,54 @@ variable "enable_loki_bucket" {
   default     = true
 }
 
+# Name overrides for resources whose identity downstream consumers depend on.
+# Default null keeps the computed name; set to adopt an existing differently-named
+# resource (e.g. a legacy hand-rolled "zoox-loki") by import/state-mv rather than
+# recreating it (bucket recreation = log loss; IRSA role recreation = broken SA
+# annotation). Backward-compatible: existing envs leave these null.
+variable "loki_bucket_name_override" {
+  description = "Override the Loki S3 bucket name. Null keeps the module-computed comet-loki-<environment>-<suffix> name."
+  type        = string
+  default     = null
+  validation {
+    # Null = unset. Otherwise enforce S3 bucket naming (3-63 chars, lowercase
+    # alphanumerics/'.'/'-', start+end alphanumeric) so a malformed override fails
+    # at plan time, not mid-apply in aws_s3_bucket.
+    condition     = var.loki_bucket_name_override == null || can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.loki_bucket_name_override))
+    error_message = "loki_bucket_name_override must be a valid S3 bucket name: 3-63 chars, lowercase letters/digits/'.'/'-', starting and ending alphanumeric."
+  }
+}
+
+variable "loki_iam_role_name_override" {
+  description = "Override the Loki IRSA role name. Null keeps the computed <environment>-loki name."
+  type        = string
+  default     = null
+  validation {
+    condition     = var.loki_iam_role_name_override == null || can(regex("^[a-zA-Z0-9+=,.@_-]{1,64}$", var.loki_iam_role_name_override))
+    error_message = "loki_iam_role_name_override must be a valid IAM role name: 1-64 chars from [a-zA-Z0-9+=,.@_-]."
+  }
+}
+
+variable "external_secrets_iam_role_name_override" {
+  description = "Override the External Secrets IRSA role name. Null keeps the computed <environment>-external-secrets name."
+  type        = string
+  default     = null
+  validation {
+    condition     = var.external_secrets_iam_role_name_override == null || can(regex("^[a-zA-Z0-9+=,.@_-]{1,64}$", var.external_secrets_iam_role_name_override))
+    error_message = "external_secrets_iam_role_name_override must be a valid IAM role name: 1-64 chars from [a-zA-Z0-9+=,.@_-]."
+  }
+}
+
+variable "cloudwatch_exporter_iam_role_name_override" {
+  description = "Override the CloudWatch Exporter IRSA role name. Null keeps the computed <environment>-cloudwatch-exporter name."
+  type        = string
+  default     = null
+  validation {
+    condition     = var.cloudwatch_exporter_iam_role_name_override == null || can(regex("^[a-zA-Z0-9+=,.@_-]{1,64}$", var.cloudwatch_exporter_iam_role_name_override))
+    error_message = "cloudwatch_exporter_iam_role_name_override must be a valid IAM role name: 1-64 chars from [a-zA-Z0-9+=,.@_-]."
+  }
+}
+
 variable "eks_enable_karpenter" {
   description = "Enable Karpenter prerequisites in the EKS module: discovery tags, SQS interruption queue, EventBridge rules, node IAM role/instance profile, and controller IRSA role"
   type        = bool

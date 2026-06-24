@@ -67,7 +67,7 @@ resource "aws_s3_bucket" "comet_airflow_bucket" {
 resource "aws_s3_bucket" "comet_loki_bucket" {
   count = var.enable_loki_bucket ? 1 : 0
 
-  bucket = "comet-loki-${var.environment}-${local.suffix}"
+  bucket = coalesce(var.loki_bucket_name_override, "comet-loki-${var.environment}-${local.suffix}")
 
   force_destroy = var.s3_force_destroy
 

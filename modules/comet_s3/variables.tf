@@ -24,6 +24,15 @@ variable "enable_loki_bucket" {
   default     = false
 }
 
+# Default null keeps the computed "comet-loki-${environment}-${suffix}" name. Set to
+# adopt an existing differently-named bucket (e.g. legacy "zoox-loki") by import/state-mv
+# instead of recreating it (which would destroy the live loki log data).
+variable "loki_bucket_name_override" {
+  description = "Override the Loki S3 bucket name. Null keeps the module-computed comet-loki-<environment>-<suffix> name."
+  type        = string
+  default     = null
+}
+
 variable "common_tags" {
   type        = map(string)
   description = "A map of common tags"
