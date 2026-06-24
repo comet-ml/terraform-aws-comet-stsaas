@@ -372,6 +372,28 @@ variable "enable_cloudwatch_exporter" {
   default     = false
 }
 
+# IRSA role-name overrides. Default null keeps the computed "${environment}-<role>"
+# name. Set to adopt an existing differently-named role (e.g. a legacy hand-rolled
+# "zoox-loki") by import/state-mv instead of recreating it — recreation would change
+# the role ARN and break the K8s service account's IRSA annotation.
+variable "loki_iam_role_name_override" {
+  description = "Override the Loki IRSA role name. Null keeps the computed <environment>-loki name."
+  type        = string
+  default     = null
+}
+
+variable "external_secrets_iam_role_name_override" {
+  description = "Override the External Secrets IRSA role name. Null keeps the computed <environment>-external-secrets name."
+  type        = string
+  default     = null
+}
+
+variable "cloudwatch_exporter_iam_role_name_override" {
+  description = "Override the CloudWatch Exporter IRSA role name. Null keeps the computed <environment>-cloudwatch-exporter name."
+  type        = string
+  default     = null
+}
+
 variable "loki_s3_bucket_arn" {
   description = "ARN of the S3 bucket for Loki log storage"
   type        = string

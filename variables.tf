@@ -49,6 +49,35 @@ variable "enable_loki_bucket" {
   default     = true
 }
 
+# Name overrides for resources whose identity downstream consumers depend on.
+# Default null keeps the computed name; set to adopt an existing differently-named
+# resource (e.g. a legacy hand-rolled "zoox-loki") by import/state-mv rather than
+# recreating it (bucket recreation = log loss; IRSA role recreation = broken SA
+# annotation). Backward-compatible: existing envs leave these null.
+variable "loki_bucket_name_override" {
+  description = "Override the Loki S3 bucket name. Null keeps the module-computed comet-loki-<environment>-<suffix> name."
+  type        = string
+  default     = null
+}
+
+variable "loki_iam_role_name_override" {
+  description = "Override the Loki IRSA role name. Null keeps the computed <environment>-loki name."
+  type        = string
+  default     = null
+}
+
+variable "external_secrets_iam_role_name_override" {
+  description = "Override the External Secrets IRSA role name. Null keeps the computed <environment>-external-secrets name."
+  type        = string
+  default     = null
+}
+
+variable "cloudwatch_exporter_iam_role_name_override" {
+  description = "Override the CloudWatch Exporter IRSA role name. Null keeps the computed <environment>-cloudwatch-exporter name."
+  type        = string
+  default     = null
+}
+
 variable "eks_enable_karpenter" {
   description = "Enable Karpenter prerequisites in the EKS module: discovery tags, SQS interruption queue, EventBridge rules, node IAM role/instance profile, and controller IRSA role"
   type        = bool
