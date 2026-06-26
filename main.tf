@@ -265,6 +265,7 @@ module "comet_eks" {
   # Comet Node Group
   eks_comet_name            = var.eks_comet_name
   eks_comet_use_name_prefix = var.eks_comet_use_name_prefix
+  eks_comet_iam_role_name   = var.eks_comet_iam_role_name
   eks_comet_instance_types  = var.eks_comet_instance_types
   eks_comet_capacity_type   = var.eks_comet_capacity_type
   eks_comet_min_size        = var.eks_comet_min_size
@@ -291,6 +292,7 @@ module "comet_eks" {
   # ClickHouse Node Group
   eks_clickhouse_name                  = var.eks_clickhouse_name
   eks_clickhouse_use_name_prefix       = var.eks_clickhouse_use_name_prefix
+  eks_clickhouse_iam_role_name         = var.eks_clickhouse_iam_role_name
   eks_clickhouse_instance_types        = var.eks_clickhouse_instance_types
   eks_clickhouse_capacity_type         = var.eks_clickhouse_capacity_type
   eks_clickhouse_min_size              = var.eks_clickhouse_min_size

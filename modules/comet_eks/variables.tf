@@ -147,6 +147,12 @@ variable "eks_comet_use_name_prefix" {
   default     = true
 }
 
+variable "eks_comet_iam_role_name" {
+  description = "Base name for the comet node group IAM role (the module appends a unique suffix via name_prefix). Defaults to '<node-group-name>-eks-node-group'. Set explicitly to decouple the role name from the node group name — e.g. when adopting a node group whose name was changed out-of-band ('comet-az2b') but whose IAM role kept the original base ('comet-eks-node-group'), so the role is not replaced."
+  type        = string
+  default     = null
+}
+
 variable "eks_mng_ami_type" {
   description = "AMI family to use for the EKS nodes (default for all nodegroups). Ignored if eks_mng_ami_id is set."
   type        = string
@@ -517,6 +523,12 @@ variable "eks_clickhouse_use_name_prefix" {
   description = "Whether to treat eks_clickhouse_name as a prefix (true, AWS appends a unique suffix) or as the exact node group name (false). Set false to adopt an existing ClickHouse node group whose name is fixed (e.g. a single-AZ 'clickhouse-az2b' created out-of-band)."
   type        = bool
   default     = true
+}
+
+variable "eks_clickhouse_iam_role_name" {
+  description = "Base name for the ClickHouse node group IAM role (the module appends a unique suffix via name_prefix). Defaults to '<node-group-name>-eks-node-group'. Set explicitly to decouple the role name from the node group name — e.g. when adopting a node group renamed out-of-band ('clickhouse-az2b') whose IAM role kept the original base ('clickhouse-eks-node-group'), so the role is not replaced."
+  type        = string
+  default     = null
 }
 
 variable "eks_clickhouse_instance_types" {
