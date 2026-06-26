@@ -248,6 +248,7 @@ module "eks" {
       comet = merge(local.eks_managed_node_group_defaults, {
         name            = var.eks_comet_name
         use_name_prefix = var.eks_comet_use_name_prefix
+        iam_role_name   = var.eks_comet_iam_role_name
         instance_types  = var.eks_comet_instance_types
         capacity_type   = var.eks_comet_capacity_type
         min_size        = var.eks_comet_min_size
@@ -335,6 +336,7 @@ module "eks" {
       clickhouse = merge(local.eks_managed_node_group_defaults, {
         name            = var.eks_clickhouse_name
         use_name_prefix = var.eks_clickhouse_use_name_prefix
+        iam_role_name   = var.eks_clickhouse_iam_role_name
         instance_types  = var.eks_clickhouse_instance_types
         capacity_type   = var.eks_clickhouse_capacity_type
         min_size        = var.eks_clickhouse_min_size
