@@ -515,6 +515,12 @@ variable "eks_comet_name" {
   default     = "comet"
 }
 
+variable "eks_comet_use_name_prefix" {
+  description = "Whether to treat eks_comet_name as a prefix (true, AWS appends a unique suffix) or as the exact node group name (false). Set false to adopt an existing comet node group whose name is fixed (e.g. a single-AZ 'comet-az2b' created out-of-band)."
+  type        = bool
+  default     = true
+}
+
 variable "eks_comet_capacity_type" {
   description = "Capacity type for comet node group: ON_DEMAND or SPOT. SPOT is ~70% cheaper but interruptible — only safe for non-prod (dev/UAT) clusters."
   type        = string
@@ -692,6 +698,12 @@ variable "eks_clickhouse_name" {
   description = "Name for the ClickHouse node group"
   type        = string
   default     = "clickhouse"
+}
+
+variable "eks_clickhouse_use_name_prefix" {
+  description = "Whether to treat eks_clickhouse_name as a prefix (true, AWS appends a unique suffix) or as the exact node group name (false). Set false to adopt an existing ClickHouse node group whose name is fixed (e.g. a single-AZ 'clickhouse-az2b' created out-of-band)."
+  type        = bool
+  default     = true
 }
 
 variable "eks_clickhouse_instance_types" {

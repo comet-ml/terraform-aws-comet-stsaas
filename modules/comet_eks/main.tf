@@ -246,12 +246,13 @@ module "eks" {
     # Comet Node Group — disabled when Karpenter is enabled (Karpenter provisions comet nodes)
     (var.enable_comet_node_group && !var.enable_karpenter) ? {
       comet = merge(local.eks_managed_node_group_defaults, {
-        name           = var.eks_comet_name
-        instance_types = var.eks_comet_instance_types
-        capacity_type  = var.eks_comet_capacity_type
-        min_size       = var.eks_comet_min_size
-        max_size       = var.eks_comet_max_size
-        desired_size   = var.eks_comet_desired_size
+        name            = var.eks_comet_name
+        use_name_prefix = var.eks_comet_use_name_prefix
+        instance_types  = var.eks_comet_instance_types
+        capacity_type   = var.eks_comet_capacity_type
+        min_size        = var.eks_comet_min_size
+        max_size        = var.eks_comet_max_size
+        desired_size    = var.eks_comet_desired_size
         block_device_mappings = {
           xvda = {
             device_name = "/dev/xvda"
@@ -332,12 +333,13 @@ module "eks" {
     # ClickHouse Node Group — requires explicit opt-in AND Karpenter must be disabled
     (var.enable_clickhouse_node_group && !var.enable_karpenter) ? {
       clickhouse = merge(local.eks_managed_node_group_defaults, {
-        name           = var.eks_clickhouse_name
-        instance_types = var.eks_clickhouse_instance_types
-        capacity_type  = var.eks_clickhouse_capacity_type
-        min_size       = var.eks_clickhouse_min_size
-        max_size       = var.eks_clickhouse_max_size
-        desired_size   = var.eks_clickhouse_desired_size
+        name            = var.eks_clickhouse_name
+        use_name_prefix = var.eks_clickhouse_use_name_prefix
+        instance_types  = var.eks_clickhouse_instance_types
+        capacity_type   = var.eks_clickhouse_capacity_type
+        min_size        = var.eks_clickhouse_min_size
+        max_size        = var.eks_clickhouse_max_size
+        desired_size    = var.eks_clickhouse_desired_size
         block_device_mappings = {
           xvda = {
             device_name = "/dev/xvda"
