@@ -1479,11 +1479,13 @@ resource "kubernetes_cluster_role_binding" "agentro_view" {
     api_group = "rbac.authorization.k8s.io"
   }
 
-  depends_on = [aws_eks_access_entry.agentro]
+  depends_on = [aws_eks_access_entry.agentro, time_sleep.wait_for_cluster_access]
 }
 
 resource "kubernetes_cluster_role" "agentro_extras" {
   count = var.enable_agentro_access ? 1 : 0
+
+  depends_on = [time_sleep.wait_for_cluster_access]
 
   metadata {
     name = "agentro-extras"
@@ -1565,6 +1567,8 @@ resource "kubernetes_cluster_role_binding" "agentro_extras" {
 resource "kubernetes_annotations" "app_ns_node_selector" {
   count = var.enable_namespace_nodegroup_pinning ? 1 : 0
 
+  depends_on = [time_sleep.wait_for_cluster_access]
+
   api_version = "v1"
   kind        = "Namespace"
   metadata {
@@ -1578,6 +1582,8 @@ resource "kubernetes_annotations" "app_ns_node_selector" {
 
 resource "kubernetes_annotations" "admin_ns_node_selector" {
   for_each = var.enable_namespace_nodegroup_pinning ? toset(var.admin_pinned_namespaces) : []
+
+  depends_on = [time_sleep.wait_for_cluster_access]
 
   api_version = "v1"
   kind        = "Namespace"
@@ -1600,6 +1606,8 @@ resource "kubernetes_annotations" "admin_ns_node_selector" {
 
 resource "kubernetes_namespace" "redis_insights" {
   count = var.enable_redis_insights_ns ? 1 : 0
+
+  depends_on = [time_sleep.wait_for_cluster_access]
 
   metadata {
     name = "redis-insights"
