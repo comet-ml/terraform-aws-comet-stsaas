@@ -390,6 +390,13 @@ module "irsa-ebs-csi" {
   oidc_fully_qualified_subjects = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
 }
 
+resource "time_sleep" "wait_for_cluster_access" {
+  count = var.eks_enable_cluster_creator_admin_permissions ? 1 : 0
+
+  depends_on      = [module.eks]
+  create_duration = "60s"
+}
+
 module "eks_blueprints_addons" {
   source  = "aws-ia/eks-blueprints-addons/aws"
   version = "1.9.1"
@@ -424,6 +431,8 @@ module "eks_blueprints_addons" {
   enable_aws_cloudwatch_metrics       = var.eks_aws_cloudwatch_metrics
   enable_external_dns                 = var.eks_external_dns
   external_dns_route53_zone_arns      = var.eks_external_dns_r53_zones
+
+  depends_on = [time_sleep.wait_for_cluster_access]
 }
 
 # Wait for AWS Load Balancer Controller webhook to be ready before creating Services
@@ -454,6 +463,8 @@ locals {
 }
 
 resource "kubernetes_storage_class" "gp3" {
+  depends_on = [time_sleep.wait_for_cluster_access]
+
   metadata {
     name   = "gp3"
     labels = var.common_tags
@@ -484,6 +495,8 @@ resource "kubernetes_storage_class" "comet_generic" {
   # (Helm/ArgoCD-owned). Set create_comet_generic_storage_class=false there so
   # this module does not fight the chart over ownership of the same SC.
   count = var.create_comet_generic_storage_class ? 1 : 0
+
+  depends_on = [time_sleep.wait_for_cluster_access]
 
   metadata {
     name   = "comet-generic"
@@ -1466,11 +1479,13 @@ resource "kubernetes_cluster_role_binding" "agentro_view" {
     api_group = "rbac.authorization.k8s.io"
   }
 
-  depends_on = [aws_eks_access_entry.agentro]
+  depends_on = [aws_eks_access_entry.agentro, time_sleep.wait_for_cluster_access]
 }
 
 resource "kubernetes_cluster_role" "agentro_extras" {
   count = var.enable_agentro_access ? 1 : 0
+
+  depends_on = [time_sleep.wait_for_cluster_access]
 
   metadata {
     name = "agentro-extras"
@@ -1552,6 +1567,8 @@ resource "kubernetes_cluster_role_binding" "agentro_extras" {
 resource "kubernetes_annotations" "app_ns_node_selector" {
   count = var.enable_namespace_nodegroup_pinning ? 1 : 0
 
+  depends_on = [time_sleep.wait_for_cluster_access]
+
   api_version = "v1"
   kind        = "Namespace"
   metadata {
@@ -1565,6 +1582,8 @@ resource "kubernetes_annotations" "app_ns_node_selector" {
 
 resource "kubernetes_annotations" "admin_ns_node_selector" {
   for_each = var.enable_namespace_nodegroup_pinning ? toset(var.admin_pinned_namespaces) : []
+
+  depends_on = [time_sleep.wait_for_cluster_access]
 
   api_version = "v1"
   kind        = "Namespace"
@@ -1587,6 +1606,8 @@ resource "kubernetes_annotations" "admin_ns_node_selector" {
 
 resource "kubernetes_namespace" "redis_insights" {
   count = var.enable_redis_insights_ns ? 1 : 0
+
+  depends_on = [time_sleep.wait_for_cluster_access]
 
   metadata {
     name = "redis-insights"
