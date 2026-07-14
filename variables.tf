@@ -1625,22 +1625,6 @@ variable "ci_runners_cidr" {
 }
 
 #####################
-#### Agentro EKS access — standardized read-only RBAC (DND-809)
-#####################
-
-variable "enable_agentro_access" {
-  description = "Provision the agentro IAM role's EKS access entry + k8s RBAC bindings (view ClusterRoleBinding + agentro-extras ClusterRole + binding). Excludes Secrets reads. See modules/comet_eks/variables.tf for the full ruleset."
-  type        = bool
-  default     = false
-}
-
-variable "agentro_role_arn" {
-  description = "IAM role ARN granted EKS read access via the agentro group. Defaults to the fleet-wide agentro role."
-  type        = string
-  default     = "arn:aws:iam::947208553405:role/agentro"
-}
-
-#####################
 #### Namespace nodegroup pinning
 #####################
 
@@ -1667,7 +1651,7 @@ variable "admin_pinned_namespaces" {
 #####################
 
 variable "enable_redis_insights_ns" {
-  description = "Create the redis-insights Kubernetes namespace with scheduler.alpha annotation pinning to admin NG. When combined with enable_agentro_access, also creates Role/RoleBinding granting the agentro group pods/portforward in this namespace."
+  description = "Create the redis-insights Kubernetes namespace with scheduler.alpha annotation pinning to admin NG."
   type        = bool
   default     = false
 }
