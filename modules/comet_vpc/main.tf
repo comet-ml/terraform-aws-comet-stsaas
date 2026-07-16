@@ -3,7 +3,10 @@ data "aws_availability_zones" "available" {}
 locals {
   resource_name = "comet-${var.environment}"
   vpc_cidr      = var.vpc_cidr
-  azs           = slice(data.aws_availability_zones.available.names, 0, 3)
+  # Use up to 3 AZs, but never more than the region actually exposes. slice() is
+  # not lenient: end_index > list length errors, which broke 2-AZ regions like
+  # us-west-1 (only us-west-1a/1c). min() keeps 3+-AZ regions unchanged. (DND-1358)
+  azs = slice(data.aws_availability_zones.available.names, 0, min(3, length(data.aws_availability_zones.available.names)))
 
   # When EKS is enabled, set subnet tags for AWS Load Balancer Controller auto-discovery.
   eks_public_subnet_tags  = var.eks_enabled ? { "kubernetes.io/role/elb" = "1" } : {}
