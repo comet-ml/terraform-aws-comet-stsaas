@@ -363,10 +363,6 @@ module "comet_eks" {
   enable_ci_runners_eks_api_access    = var.enable_ci_runners_eks_api_access
   ci_runners_cidr                     = var.ci_runners_cidr
 
-  # Agentro EKS access + RBAC (DND-809)
-  enable_agentro_access = var.enable_agentro_access
-  agentro_role_arn      = var.agentro_role_arn
-
   # Namespace nodegroup pinning
   enable_namespace_nodegroup_pinning = var.enable_namespace_nodegroup_pinning
   app_namespace                      = var.app_namespace
