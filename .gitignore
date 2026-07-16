@@ -1,6 +1,11 @@
 # Local .terraform directories
 **/.terraform/*
 
+# Provider lock file — this repo is a reusable module, not a root config.
+# The consuming root (e.g. comet-devops) owns the authoritative lock; a lock
+# committed here is ignored by Terraform when the module is used.
+.terraform.lock.hcl
+
 # .tfstate files
 *.tfstate
 *.tfstate.*
