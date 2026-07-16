@@ -98,10 +98,6 @@ locals {
   }
 }
 
-data "aws_iam_policy" "ebs_csi_policy" {
-  arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
-}
-
 # IAM policy for additional S3 bucket access (only created if additional_s3_bucket_arns is provided)
 resource "aws_iam_policy" "additional_s3_bucket_policy" {
   count = local.has_additional_s3_buckets ? 1 : 0
@@ -380,14 +376,18 @@ module "eks" {
 
 
 module "irsa-ebs-csi" {
-  source  = "terraform-aws-modules/iam/aws//modules/iam-assumable-role-with-oidc"
-  version = "4.7.0"
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.39"
 
-  create_role                   = true
-  role_name                     = "AmazonEKSTFEBSCSIRole-${module.eks.cluster_name}"
-  provider_url                  = module.eks.oidc_provider
-  role_policy_arns              = [data.aws_iam_policy.ebs_csi_policy.arn]
-  oidc_fully_qualified_subjects = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
+  role_name             = "AmazonEKSTFEBSCSIRole-${module.eks.cluster_name}"
+  attach_ebs_csi_policy = true
+
+  oidc_providers = {
+    ex = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:ebs-csi-controller-sa"]
+    }
+  }
 }
 
 resource "time_sleep" "wait_for_cluster_access" {
@@ -399,7 +399,7 @@ resource "time_sleep" "wait_for_cluster_access" {
 
 module "eks_blueprints_addons" {
   source  = "aws-ia/eks-blueprints-addons/aws"
-  version = "1.9.1"
+  version = "~> 1.24"
 
   cluster_name      = module.eks.cluster_name
   cluster_endpoint  = module.eks.cluster_endpoint
@@ -614,25 +614,24 @@ resource "helm_release" "external_secrets_crds" {
   create_namespace = true
 
   # Only install CRDs, disable everything else
-  set {
-    name  = "installCRDs"
-    value = "true"
-  }
-
-  set {
-    name  = "webhook.create"
-    value = "false"
-  }
-
-  set {
-    name  = "certController.create"
-    value = "false"
-  }
-
-  set {
-    name  = "createOperator"
-    value = "false"
-  }
+  set = [
+    {
+      name  = "installCRDs"
+      value = "true"
+    },
+    {
+      name  = "webhook.create"
+      value = "false"
+    },
+    {
+      name  = "certController.create"
+      value = "false"
+    },
+    {
+      name  = "createOperator"
+      value = "false"
+    },
+  ]
 
   wait    = true
   timeout = 300
@@ -661,54 +660,48 @@ resource "helm_release" "external_secrets" {
   timeout       = 600 # 10 minutes to allow webhook to become ready
 
   # CRDs already installed, skip to avoid conflicts
-  set {
-    name  = "installCRDs"
-    value = "false"
-  }
-
-  # Match values from comet-devops values.yaml
-  set {
-    name  = "replicaCount"
-    value = "1"
-  }
-
-  set {
-    name  = "serviceAccount.create"
-    value = "true"
-  }
-
-  set {
-    name  = "serviceAccount.automount"
-    value = "true"
-  }
-
-  # IRSA annotation from values-dply.yaml pattern
-  set {
-    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = module.external_secrets_irsa_role[0].iam_role_arn
-  }
-
-  # Webhook configuration from values.yaml
-  set {
-    name  = "webhook.create"
-    value = "true"
-  }
-
-  set {
-    name  = "webhook.replicaCount"
-    value = "1"
-  }
-
-  # CertController configuration from values.yaml
-  set {
-    name  = "certController.create"
-    value = "true"
-  }
-
-  set {
-    name  = "certController.replicaCount"
-    value = "1"
-  }
+  set = [
+    {
+      name  = "installCRDs"
+      value = "false"
+    },
+    # Match values from comet-devops values.yaml
+    {
+      name  = "replicaCount"
+      value = "1"
+    },
+    {
+      name  = "serviceAccount.create"
+      value = "true"
+    },
+    {
+      name  = "serviceAccount.automount"
+      value = "true"
+    },
+    # IRSA annotation from values-dply.yaml pattern
+    {
+      name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+      value = module.external_secrets_irsa_role[0].iam_role_arn
+    },
+    # Webhook configuration from values.yaml
+    {
+      name  = "webhook.create"
+      value = "true"
+    },
+    {
+      name  = "webhook.replicaCount"
+      value = "1"
+    },
+    # CertController configuration from values.yaml
+    {
+      name  = "certController.create"
+      value = "true"
+    },
+    {
+      name  = "certController.replicaCount"
+      value = "1"
+    },
+  ]
 
   depends_on = [
     module.eks,
@@ -1345,33 +1338,31 @@ resource "helm_release" "karpenter_stsaas" {
   repository_password = var.karpenter_helm_password
 
   # Cluster identity — also forwarded to the Karpenter subchart
-  set {
-    name  = "clusterName"
-    value = var.eks_cluster_name
-  }
-
-  # EC2 instance profile for all Karpenter-provisioned nodes
-  set {
-    name  = "nodeInstanceProfile"
-    value = aws_iam_instance_profile.karpenter_node[0].name
-  }
-
-  # Karpenter controller IRSA
-  set {
-    name  = "karpenter.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = module.karpenter_irsa[0].iam_role_arn
-  }
-
-  # Karpenter controller settings (passed through to subchart)
-  set {
-    name  = "karpenter.settings.clusterName"
-    value = var.eks_cluster_name
-  }
-
-  set {
-    name  = "karpenter.settings.interruptionQueue"
-    value = aws_sqs_queue.karpenter_interruption[0].name
-  }
+  set = [
+    {
+      name  = "clusterName"
+      value = var.eks_cluster_name
+    },
+    # EC2 instance profile for all Karpenter-provisioned nodes
+    {
+      name  = "nodeInstanceProfile"
+      value = aws_iam_instance_profile.karpenter_node[0].name
+    },
+    # Karpenter controller IRSA
+    {
+      name  = "karpenter.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+      value = module.karpenter_irsa[0].iam_role_arn
+    },
+    # Karpenter controller settings (passed through to subchart)
+    {
+      name  = "karpenter.settings.clusterName"
+      value = var.eks_cluster_name
+    },
+    {
+      name  = "karpenter.settings.interruptionQueue"
+      value = aws_sqs_queue.karpenter_interruption[0].name
+    },
+  ]
 
   # EC2 instance tags — merge common_tags (Terraform=true, Environment, etc.) with any
   # extra tags so Karpenter-provisioned nodes are tagged consistently with all other resources
