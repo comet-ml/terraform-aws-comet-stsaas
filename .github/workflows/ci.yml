@@ -1,0 +1,95 @@
+name: CI
+
+# Terraform hygiene + security checks. Set these jobs as required status
+# checks in branch protection (Settings → Branches) so PRs can't merge red.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    name: pre-commit (fmt, validate, secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # gitleaks (secrets hook) needs full history to scan all commits on a PR.
+      - name: Fetch full history
+        run: git fetch --prune --unshallow || true
+
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
+
+  validate:
+    name: terraform validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+
+      # Root module. init -backend=false installs providers without touching
+      # remote state; validate then checks the full config against real schemas.
+      - name: Validate root
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+  tflint:
+    name: tflint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v6
+        with:
+          tflint_version: latest
+
+      - name: Init TFLint
+        run: tflint --init
+
+      # Lint the root module and every child module.
+      - name: Run TFLint
+        run: |
+          tflint --chdir=. --recursive
+
+  trivy:
+    name: trivy (IaC security scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run Trivy config scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: .
+          format: table
+          # Fail the job on medium+ misconfigurations. Raise to CRITICAL,HIGH
+          # once the initial findings are triaged/baselined.
+          severity: CRITICAL,HIGH,MEDIUM
+          exit-code: "1"
