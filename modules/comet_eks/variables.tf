@@ -866,4 +866,3 @@ variable "enable_redis_insights_ns" {
   type        = bool
   default     = false
 }
-
