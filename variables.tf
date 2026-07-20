@@ -594,9 +594,15 @@ variable "eks_aws_load_balancer_controller" {
 }
 
 variable "eks_cert_manager" {
-  description = "Enables cert-manager in the EKS cluster"
+  description = "Enables cert-manager in the EKS cluster (native EKS managed add-on, no IAM required)"
   type        = bool
   default     = false
+}
+
+variable "eks_cert_manager_addon_version" {
+  description = "cert-manager EKS add-on version (e.g. v1.21.0-eksbuild.2). Null lets EKS pick the default for the cluster version."
+  type        = string
+  default     = null
 }
 
 variable "eks_aws_cloudwatch_metrics" {
@@ -606,9 +612,15 @@ variable "eks_aws_cloudwatch_metrics" {
 }
 
 variable "eks_external_dns" {
-  description = "Enables ExternalDNS in the EKS cluster"
+  description = "Enables ExternalDNS in the EKS cluster (native EKS managed add-on, using EKS Pod Identity for Route53 access)"
   type        = bool
   default     = false
+}
+
+variable "eks_external_dns_addon_version" {
+  description = "external-dns EKS add-on version (e.g. v0.21.0-eksbuild.6). Null lets EKS pick the default for the cluster version."
+  type        = string
+  default     = null
 }
 
 variable "eks_external_dns_r53_zones" {

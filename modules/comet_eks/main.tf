@@ -397,6 +397,60 @@ resource "time_sleep" "wait_for_cluster_access" {
   create_duration = "60s"
 }
 
+# external-dns Pod Identity role. The external-dns EKS add-on authenticates via
+# Pod Identity (not IRSA), so it needs a role trusted by pods.eks.amazonaws.com
+# with Route53 permissions scoped to the configured hosted zones.
+data "aws_iam_policy_document" "external_dns_assume" {
+  count = var.eks_external_dns ? 1 : 0
+
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole", "sts:TagSession"]
+    principals {
+      type        = "Service"
+      identifiers = ["pods.eks.amazonaws.com"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "external_dns" {
+  count = var.eks_external_dns ? 1 : 0
+
+  # Change records only on the specific hosted zones external-dns manages.
+  statement {
+    effect    = "Allow"
+    actions   = ["route53:ChangeResourceRecordSets"]
+    resources = var.eks_external_dns_r53_zones
+  }
+
+  # Discovery of zones/records is list/read and not zone-scopable.
+  statement {
+    effect    = "Allow"
+    actions   = ["route53:ListHostedZones", "route53:ListResourceRecordSets", "route53:ListTagsForResource"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role" "external_dns" {
+  count = var.eks_external_dns ? 1 : 0
+
+  name               = "${var.environment}-external-dns"
+  assume_role_policy = data.aws_iam_policy_document.external_dns_assume[0].json
+
+  tags = merge(var.common_tags, {
+    Name        = "${var.environment}-external-dns"
+    Description = "Pod Identity role for the external-dns EKS add-on (Route53)"
+  })
+}
+
+resource "aws_iam_role_policy" "external_dns" {
+  count = var.eks_external_dns ? 1 : 0
+
+  name   = "route53-access"
+  role   = aws_iam_role.external_dns[0].id
+  policy = data.aws_iam_policy_document.external_dns[0].json
+}
+
 module "eks_blueprints_addons" {
   source  = "aws-ia/eks-blueprints-addons/aws"
   version = "~> 1.24"
@@ -423,14 +477,45 @@ module "eks_blueprints_addons" {
           addon_version = var.eks_metrics_server_addon_version
         } : {}
       )
+    } : {},
+    # cert-manager as a native EKS managed add-on (no IAM required). Replaces the
+    # eks_blueprints_addons helm release; installs via the EKS control-plane API
+    # (works on private clusters with no data-plane access).
+    var.eks_cert_manager ? {
+      cert-manager = merge(
+        {},
+        var.eks_cert_manager_addon_version != null ? {
+          addon_version = var.eks_cert_manager_addon_version
+        } : {}
+      )
+    } : {},
+    # external-dns as a native EKS managed add-on. Uses EKS Pod Identity (not
+    # IRSA) for Route53 access — see the pod identity agent add-on + association
+    # below. Replaces the eks_blueprints_addons helm release.
+    var.eks_external_dns ? {
+      external-dns = merge(
+        {
+          pod_identity_association = [{
+            role_arn        = aws_iam_role.external_dns[0].arn
+            service_account = "external-dns"
+          }]
+        },
+        var.eks_external_dns_addon_version != null ? {
+          addon_version = var.eks_external_dns_addon_version
+        } : {}
+      )
+    } : {},
+    # Pod Identity agent — required for any add-on/workload using EKS Pod Identity
+    # (currently external-dns). Enabled whenever external-dns is on.
+    var.eks_external_dns ? {
+      eks-pod-identity-agent = {}
     } : {}
   )
 
+  # aws_load_balancer_controller stays a helm release — no native EKS add-on
+  # exists for it. cert-manager and external-dns moved to eks_addons above.
   enable_aws_load_balancer_controller = var.eks_aws_load_balancer_controller
-  enable_cert_manager                 = var.eks_cert_manager
   enable_aws_cloudwatch_metrics       = var.eks_aws_cloudwatch_metrics
-  enable_external_dns                 = var.eks_external_dns
-  external_dns_route53_zone_arns      = var.eks_external_dns_r53_zones
 
   depends_on = [time_sleep.wait_for_cluster_access]
 }
