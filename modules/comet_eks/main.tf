@@ -164,6 +164,15 @@ module "eks" {
   vpc_id     = var.vpc_id
   subnet_ids = var.eks_private_subnets
 
+  # EKS Auto Mode. When enabled, the control plane provisions nodes via the
+  # built-in node pools and the upstream module auto-creates/wires the Auto Mode
+  # node IAM role (so node_role_arn is intentionally omitted). Left null when
+  # disabled so nothing changes for managed-node-group / Karpenter deployments.
+  compute_config = var.enable_auto_mode ? {
+    enabled    = true
+    node_pools = var.auto_mode_node_pools
+  } : null
+
   # Bake the Karpenter discovery tag directly into the node SG so it is never
   # dropped when Terraform modifies the security group during subsequent applies.
   node_security_group_tags = var.enable_karpenter ? {

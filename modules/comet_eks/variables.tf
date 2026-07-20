@@ -621,6 +621,39 @@ variable "enable_karpenter" {
   description = "Enable Karpenter prerequisites: discovery tags on subnets and node security group, SQS interruption queue, EventBridge rules, node IAM role/instance profile, and controller IRSA role. Outputs can be consumed by a separate Karpenter Helm release."
   type        = bool
   default     = false
+
+  validation {
+    condition     = !(var.enable_karpenter && var.enable_auto_mode)
+    error_message = "enable_karpenter and enable_auto_mode are mutually exclusive: EKS Auto Mode provisions nodes natively, so Karpenter must be disabled when Auto Mode is on."
+  }
+}
+
+variable "enable_auto_mode" {
+  description = <<-EOT
+    Enable EKS Auto Mode. When true, the EKS control plane provisions nodes
+    natively via the built-in node pools in `auto_mode_node_pools` — no Karpenter
+    and no eks_managed_node_groups required. The upstream module auto-creates and
+    wires the Auto Mode node IAM role. Auto Mode also provides block storage, load
+    balancing, and networking natively, which makes the EBS CSI IRSA/addon, the
+    ALB controller, and the gp3 StorageClass redundant (migrate those separately;
+    re-point the default StorageClass before removing EBS CSI). Mutually exclusive
+    with enable_karpenter.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "auto_mode_node_pools" {
+  description = <<-EOT
+    Built-in EKS Auto Mode node pools to enable (control-plane managed, no
+    manifests required). Common values: "system", "general-purpose". Only used
+    when enable_auto_mode = true. Custom NodePool/NodeClass CRDs (taints, limits,
+    instance shaping) are NOT created here — they are cluster-side objects and
+    should be managed via GitOps (e.g. ArgoCD), especially for private-endpoint
+    clusters the Terraform runner cannot reach.
+  EOT
+  type        = list(string)
+  default     = ["system", "general-purpose"]
 }
 
 variable "karpenter_via_helm_release" {

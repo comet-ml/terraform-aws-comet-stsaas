@@ -337,6 +337,10 @@ module "comet_eks" {
   grafana_admin_user      = var.grafana_admin_user
   grafana_admin_password  = var.grafana_admin_password
 
+  # EKS Auto Mode (mutually exclusive with Karpenter)
+  enable_auto_mode     = var.eks_enable_auto_mode
+  auto_mode_node_pools = var.eks_auto_mode_node_pools
+
   # Karpenter prerequisites
   enable_karpenter           = var.eks_enable_karpenter
   karpenter_via_helm_release = var.eks_karpenter_via_helm_release

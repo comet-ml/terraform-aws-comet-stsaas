@@ -103,6 +103,18 @@ variable "eks_enable_karpenter" {
   default     = false
 }
 
+variable "eks_enable_auto_mode" {
+  description = "Enable EKS Auto Mode: the control plane provisions nodes natively via the built-in node pools (see eks_auto_mode_node_pools). No Karpenter or managed node groups required. Mutually exclusive with eks_enable_karpenter. Auto Mode also provides block storage / load balancing / networking natively — see docs/auto-mode-migration-plan.md before removing the EBS CSI role, ALB controller, or gp3 StorageClass."
+  type        = bool
+  default     = false
+}
+
+variable "eks_auto_mode_node_pools" {
+  description = "Built-in EKS Auto Mode node pools to enable when eks_enable_auto_mode = true. Common values: \"system\", \"general-purpose\". Custom NodePool/NodeClass CRDs are managed via GitOps (ArgoCD), not this module."
+  type        = list(string)
+  default     = ["system", "general-purpose"]
+}
+
 variable "eks_karpenter_via_helm_release" {
   description = <<-EOT
     When true, install the Karpenter Helm chart via an in-module helm_release.
