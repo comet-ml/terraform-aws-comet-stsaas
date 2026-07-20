@@ -27,11 +27,11 @@ provider "kubernetes" {
 
 # Helm provider using exec-based auth to avoid chicken-and-egg problem
 provider "helm" {
-  kubernetes {
+  kubernetes = {
     host                   = var.enable_eks ? module.comet_eks[0].cluster_endpoint : null
     cluster_ca_certificate = var.enable_eks ? base64decode(module.comet_eks[0].cluster_certificate_authority_data) : null
 
-    exec {
+    exec = {
       api_version = "client.authentication.k8s.io/v1beta1"
       command     = "aws"
       args        = ["eks", "get-token", "--cluster-name", var.enable_eks ? module.comet_eks[0].cluster_name : "", "--region", var.region]

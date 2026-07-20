@@ -1,0 +1,119 @@
+name: CI
+
+# Terraform hygiene + security checks. Set these jobs as required status
+# checks in branch protection (Settings → Branches) so PRs can't merge red.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    name: pre-commit (fmt, validate, secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # gitleaks (secrets hook) needs full history to scan all commits on a PR.
+      - name: Fetch full history
+        run: git fetch --prune --unshallow || true
+
+      # Run pre-commit manually rather than via pre-commit/action@v3.0.1 — that
+      # action pins a Node-20-era actions/cache and emits a deprecation warning.
+      # This uses actions/cache@v6 (Node 24) directly for the hook-env cache.
+      - name: Cache pre-commit environments
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: pre-commit-${{ runner.os }}-
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files --show-diff-on-failure
+
+  validate:
+    name: terraform validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+
+      # Root module. init -backend=false installs providers without touching
+      # remote state; validate then checks the full config against real schemas.
+      - name: Validate root
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+  tflint:
+    name: tflint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v6
+        with:
+          tflint_version: latest
+
+      - name: Init TFLint
+        run: tflint --init
+
+      # Lint the root module and every child module. Report-only for now:
+      # the repo has pre-existing warnings (unused locals, missing
+      # required_version in submodules, provider version constraints) that are
+      # tracked for a follow-up cleanup. Remove `|| true` to make it blocking
+      # once those are resolved.
+      - name: Run TFLint
+        run: |
+          tflint --chdir=. --recursive || true
+
+  trivy:
+    name: trivy (IaC security scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run Trivy config scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: .
+          format: table
+          severity: CRITICAL,HIGH,MEDIUM
+          # Skip the provider/module cache — scanning downloaded third-party
+          # modules (AWS eks/vpc/alb/iam) and their example manifests produces
+          # noise for code we don't own.
+          skip-dirs: "**/.terraform"
+          # Report-only for now. The scan surfaces ~19 real findings in our own
+          # modules (S3 public-access/encryption, ALB SG rules, elasticache
+          # at-rest encryption) that need proper triage — some are intentional
+          # (internet-facing ALB) or opinionated (customer-managed KMS). Set to
+          # "1" to make it blocking once those are addressed/baselined.
+          exit-code: "0"
