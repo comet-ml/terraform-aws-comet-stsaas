@@ -426,11 +426,14 @@ module "eks_blueprints_addons" {
     } : {}
   )
 
-  enable_aws_load_balancer_controller = var.eks_aws_load_balancer_controller
-  enable_cert_manager                 = var.eks_cert_manager
-  enable_aws_cloudwatch_metrics       = var.eks_aws_cloudwatch_metrics
-  enable_external_dns                 = var.eks_external_dns
-  external_dns_route53_zone_arns      = var.eks_external_dns_r53_zones
+  # aws_load_balancer_controller is NOT installed here — the Helm chart is deployed
+  # per stsaas customer via ArgoCD (comet-gitops). This module only creates its IRSA
+  # role (module.aws_load_balancer_controller_irsa_role) and exposes the ARN as an
+  # output for the ArgoCD Application to wire onto the controller ServiceAccount.
+  enable_cert_manager            = var.eks_cert_manager
+  enable_aws_cloudwatch_metrics  = var.eks_aws_cloudwatch_metrics
+  enable_external_dns            = var.eks_external_dns
+  external_dns_route53_zone_arns = var.eks_external_dns_r53_zones
 
   depends_on = [time_sleep.wait_for_cluster_access]
 }
@@ -544,6 +547,39 @@ module "cluster_autoscaler_irsa_role" {
     {
       Name        = "${var.environment}-cluster-autoscaler"
       Description = "IRSA role for Cluster Autoscaler to manage EKS-managed ASGs"
+    }
+  )
+}
+
+#########################################
+#### AWS Load Balancer Controller IRSA Role ####
+#########################################
+# IAM only. The AWS Load Balancer Controller Helm chart itself is deployed
+# out-of-band per stsaas customer via ArgoCD (comet-gitops) — there is no native
+# EKS add-on for it. This role is exposed via the aws_load_balancer_controller_role_arn
+# output; the ArgoCD Application annotates the controller ServiceAccount
+# (kube-system:aws-load-balancer-controller) with it.
+module "aws_load_balancer_controller_irsa_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.39"
+
+  count = var.eks_aws_load_balancer_controller ? 1 : 0
+
+  role_name                              = "${var.environment}-aws-load-balancer-controller"
+  attach_load_balancer_controller_policy = true
+
+  oidc_providers = {
+    ex = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
+    }
+  }
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name        = "${var.environment}-aws-load-balancer-controller"
+      Description = "IRSA role for the AWS Load Balancer Controller (deployed via ArgoCD)"
     }
   )
 }
