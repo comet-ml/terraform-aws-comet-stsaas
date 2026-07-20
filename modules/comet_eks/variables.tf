@@ -288,6 +288,43 @@ variable "eks_metrics_server_addon_version" {
   default     = null
 }
 
+# Observability add-ons (native EKS managed add-ons, no IAM required).
+variable "eks_enable_kube_state_metrics" {
+  description = "Enable the kube-state-metrics EKS managed add-on (cluster object state metrics for Prometheus)."
+  type        = bool
+  default     = false
+}
+
+variable "eks_kube_state_metrics_addon_version" {
+  description = "Pinned kube-state-metrics add-on version. Null uses the AWS default for the cluster version."
+  type        = string
+  default     = null
+}
+
+variable "eks_enable_prometheus_node_exporter" {
+  description = "Enable the prometheus-node-exporter EKS managed add-on (per-node hardware/OS metrics for Prometheus)."
+  type        = bool
+  default     = false
+}
+
+variable "eks_prometheus_node_exporter_addon_version" {
+  description = "Pinned prometheus-node-exporter add-on version. Null uses the AWS default for the cluster version."
+  type        = string
+  default     = null
+}
+
+variable "eks_enable_node_monitoring_agent" {
+  description = "Enable the eks-node-monitoring-agent EKS managed add-on (node health monitoring / auto-repair signals)."
+  type        = bool
+  default     = false
+}
+
+variable "eks_node_monitoring_agent_addon_version" {
+  description = "Pinned eks-node-monitoring-agent add-on version. Null uses the AWS default for the cluster version."
+  type        = string
+  default     = null
+}
+
 variable "eks_enable_cluster_autoscaler" {
   description = "Enables the Cluster Autoscaler IRSA role and ASG auto-discovery tags. The cluster-autoscaler Helm release itself is deployed out-of-band (ArgoCD AppSet). Toggling this creates the IAM role and tags the EKS-managed ASGs so the autoscaler can discover and scale them."
   type        = bool

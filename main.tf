@@ -240,6 +240,12 @@ module "comet_eks" {
   eks_external_dns_r53_zones                   = var.eks_external_dns_r53_zones
   eks_enable_metrics_server                    = var.eks_enable_metrics_server
   eks_metrics_server_addon_version             = var.eks_metrics_server_addon_version
+  eks_enable_kube_state_metrics                = var.eks_enable_kube_state_metrics
+  eks_kube_state_metrics_addon_version         = var.eks_kube_state_metrics_addon_version
+  eks_enable_prometheus_node_exporter          = var.eks_enable_prometheus_node_exporter
+  eks_prometheus_node_exporter_addon_version   = var.eks_prometheus_node_exporter_addon_version
+  eks_enable_node_monitoring_agent             = var.eks_enable_node_monitoring_agent
+  eks_node_monitoring_agent_addon_version      = var.eks_node_monitoring_agent_addon_version
   eks_enable_cluster_autoscaler                = var.eks_enable_cluster_autoscaler
 
   s3_enabled              = var.enable_s3

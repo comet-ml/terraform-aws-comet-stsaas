@@ -478,6 +478,31 @@ module "eks_blueprints_addons" {
         } : {}
       )
     } : {},
+    # Observability add-ons (all native EKS managed add-ons, no IAM required).
+    var.eks_enable_kube_state_metrics ? {
+      kube-state-metrics = merge(
+        {},
+        var.eks_kube_state_metrics_addon_version != null ? {
+          addon_version = var.eks_kube_state_metrics_addon_version
+        } : {}
+      )
+    } : {},
+    var.eks_enable_prometheus_node_exporter ? {
+      prometheus-node-exporter = merge(
+        {},
+        var.eks_prometheus_node_exporter_addon_version != null ? {
+          addon_version = var.eks_prometheus_node_exporter_addon_version
+        } : {}
+      )
+    } : {},
+    var.eks_enable_node_monitoring_agent ? {
+      eks-node-monitoring-agent = merge(
+        {},
+        var.eks_node_monitoring_agent_addon_version != null ? {
+          addon_version = var.eks_node_monitoring_agent_addon_version
+        } : {}
+      )
+    } : {},
     # cert-manager as a native EKS managed add-on (no IAM required). Replaces the
     # eks_blueprints_addons helm release; installs via the EKS control-plane API
     # (works on private clusters with no data-plane access).
