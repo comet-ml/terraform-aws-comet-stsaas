@@ -641,6 +641,18 @@ variable "enable_auto_mode" {
   EOT
   type        = bool
   default     = false
+
+  validation {
+    condition = !(var.enable_auto_mode && (
+      var.enable_admin_node_group ||
+      var.enable_comet_node_group ||
+      var.enable_druid_node_group ||
+      var.enable_airflow_node_group ||
+      var.enable_clickhouse_node_group ||
+      length(var.additional_node_groups) > 0
+    ))
+    error_message = "enable_auto_mode replaces managed node groups: disable enable_admin/comet/druid/airflow/clickhouse_node_group and clear additional_node_groups when Auto Mode is on."
+  }
 }
 
 variable "auto_mode_node_pools" {
