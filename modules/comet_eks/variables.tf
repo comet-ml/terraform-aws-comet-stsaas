@@ -444,12 +444,42 @@ variable "byo_s3_irsa_roles" {
     ])
     error_message = "Each byo_s3_irsa_roles entry must set at least one bucket_arn and one namespace_service_account."
   }
+  # Each bucket_arn must be an exact bucket ARN: arn:aws:s3:::<bucket>. No globs
+  # (arn:aws:s3:::* would reintroduce the over-broad grant this feature removes)
+  # and no trailing /* (main.tf appends /* itself -> would yield <bucket>/*/*).
+  validation {
+    condition = alltrue(flatten([
+      for k, v in var.byo_s3_irsa_roles : [
+        for arn in v.bucket_arns : can(regex("^arn:aws:s3:::[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", arn))
+      ]
+    ]))
+    error_message = "byo_s3_irsa_roles[*].bucket_arns entries must be an exact bucket ARN 'arn:aws:s3:::<bucket>' (no wildcards, no trailing /*, no object key)."
+  }
+  # Each entry must be "<namespace>:<sa-name>" (the format the upstream IRSA
+  # module expands into system:serviceaccount:<ns>:<sa>). A malformed subject
+  # silently produces a trust condition no pod can satisfy.
+  validation {
+    condition = alltrue(flatten([
+      for k, v in var.byo_s3_irsa_roles : [
+        for s in v.namespace_service_accounts : can(regex("^[a-z0-9][a-z0-9.-]*:[a-z0-9][a-z0-9.-]*$", s))
+      ]
+    ]))
+    error_message = "byo_s3_irsa_roles[*].namespace_service_accounts entries must be '<namespace>:<sa-name>' (both non-empty, lowercase DNS-safe, exactly one colon)."
+  }
   validation {
     condition = alltrue([
       for k, v in var.byo_s3_irsa_roles :
       v.role_name_override == null ? true : can(regex("^[a-zA-Z0-9+=,.@_-]{1,64}$", v.role_name_override))
     ])
     error_message = "byo_s3_irsa_roles[*].role_name_override must match ^[a-zA-Z0-9+=,.@_-]{1,64}$."
+  }
+  # IAM customer-managed policy name: 1-128 chars from [a-zA-Z0-9+=,.@_-].
+  validation {
+    condition = alltrue([
+      for k, v in var.byo_s3_irsa_roles :
+      v.policy_name_override == null ? true : can(regex("^[a-zA-Z0-9+=,.@_-]{1,128}$", v.policy_name_override))
+    ])
+    error_message = "byo_s3_irsa_roles[*].policy_name_override must match ^[a-zA-Z0-9+=,.@_-]{1,128}$."
   }
 }
 
