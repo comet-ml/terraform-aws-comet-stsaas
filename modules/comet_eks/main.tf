@@ -3,6 +3,52 @@ locals {
   volume_encrypted             = false
   volume_delete_on_termination = true
 
+  # Under Auto Mode, pin schedulable add-ons onto the built-in `system` node
+  # pool. That pool is labeled karpenter.sh/nodepool=system and tainted
+  # CriticalAddonsOnly=true:NoSchedule, so pinning needs BOTH a nodeSelector for
+  # the label and a toleration for the taint. DaemonSets (vpc-cni, kube-proxy)
+  # are intentionally NOT pinned — they must run on every node.
+  #
+  # Two payload shapes are derived from one source of truth:
+  #   - auto_mode_addon_config: JSON string for native addon configuration_values
+  #   - auto_mode_addon_values: YAML string for Helm controller `values`
+  # Both are empty when Auto Mode is off, so nothing changes for MNG/Karpenter.
+  auto_mode_addon_node_selector = { "karpenter.sh/nodepool" = "system" }
+  auto_mode_addon_tolerations = [{
+    key      = "CriticalAddonsOnly"
+    operator = "Exists"
+    effect   = "NoSchedule"
+  }]
+
+  # Native managed addons take a JSON string. coredns/metrics-server accept
+  # top-level nodeSelector/tolerations; the EBS CSI driver nests them under
+  # `controller` (the controller Deployment; its node DaemonSet is unaffected).
+  auto_mode_addon_config = var.enable_auto_mode ? jsonencode({
+    nodeSelector = local.auto_mode_addon_node_selector
+    tolerations  = local.auto_mode_addon_tolerations
+  }) : null
+  auto_mode_ebs_csi_config = var.enable_auto_mode ? jsonencode({
+    controller = {
+      nodeSelector = local.auto_mode_addon_node_selector
+      tolerations  = local.auto_mode_addon_tolerations
+    }
+  }) : null
+
+  # Helm controllers take a YAML values doc with top-level nodeSelector/tolerations.
+  auto_mode_addon_values = var.enable_auto_mode ? [yamlencode({
+    nodeSelector = local.auto_mode_addon_node_selector
+    tolerations  = local.auto_mode_addon_tolerations
+  })] : []
+
+  # external-dns is special: the blueprints module defaults its values to
+  # ["provider: aws"], so overriding values would drop that. Fold it back in
+  # when Auto Mode is on; keep the module default (empty override) when off.
+  auto_mode_external_dns_values = var.enable_auto_mode ? [yamlencode({
+    provider     = "aws"
+    nodeSelector = local.auto_mode_addon_node_selector
+    tolerations  = local.auto_mode_addon_tolerations
+  })] : []
+
   # Gates for in-module helm_release installs. Dedup'd so the 4 external-secrets
   # resources and the karpenter helm_release all share a single source of truth.
   install_external_secrets_via_helm = var.enable_external_secrets && var.external_secrets_via_helm_release
@@ -188,18 +234,27 @@ module "eks" {
   # below to avoid an eks -> irsa -> eks dependency cycle.
   addons = merge(
     {
+      # vpc-cni and kube-proxy are DaemonSets — not pinned to the system pool.
       # vpc-cni must be ready before nodes join, so provision it before compute.
       vpc-cni    = { before_compute = true }
-      coredns    = {}
       kube-proxy = {}
+      # coredns is a schedulable Deployment — pin to the system pool under Auto Mode.
+      coredns = local.auto_mode_addon_config != null ? {
+        configuration_values = local.auto_mode_addon_config
+      } : {}
     },
     # metrics-server is required for HPA and `kubectl top`. It runs in
     # kube-system and listens on port 10251; node SG rule above lets the
-    # kube-apiserver reach it.
+    # kube-apiserver reach it. Schedulable Deployment — pinned under Auto Mode.
     var.eks_enable_metrics_server ? {
-      metrics-server = var.eks_metrics_server_addon_version != null ? {
-        addon_version = var.eks_metrics_server_addon_version
-      } : {}
+      metrics-server = merge(
+        var.eks_metrics_server_addon_version != null ? {
+          addon_version = var.eks_metrics_server_addon_version
+        } : {},
+        local.auto_mode_addon_config != null ? {
+          configuration_values = local.auto_mode_addon_config
+        } : {}
+      )
     } : {}
   )
 
@@ -471,6 +526,10 @@ resource "aws_eks_addon" "ebs_csi" {
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
 
+  # Pin the controller Deployment to the system pool under Auto Mode. The node
+  # DaemonSet (ebs-csi-node) is unaffected — it must run on every node.
+  configuration_values = local.auto_mode_ebs_csi_config
+
   tags = var.common_tags
 }
 
@@ -486,12 +545,25 @@ module "eks_blueprints_addons" {
   # Native EKS managed addons (coredns/vpc-cni/kube-proxy/metrics-server) now
   # live on module.eks.addons; aws-ebs-csi-driver is the standalone resource
   # above. This module now only manages the Helm-based controllers below.
+  #
+  # Under Auto Mode, each controller's Helm values carry the system-pool
+  # nodeSelector + toleration (local.auto_mode_addon_values). Empty otherwise.
 
+  # The controller objects are only passed under Auto Mode (to inject the
+  # system-pool values); when Auto Mode is off we pass {} so the blueprints
+  # module keeps its own value defaults (notably external_dns' "provider: aws").
   enable_aws_load_balancer_controller = var.eks_aws_load_balancer_controller
-  enable_cert_manager                 = var.eks_cert_manager
-  enable_aws_cloudwatch_metrics       = var.eks_aws_cloudwatch_metrics
-  enable_external_dns                 = var.eks_external_dns
-  external_dns_route53_zone_arns      = var.eks_external_dns_r53_zones
+  aws_load_balancer_controller        = var.enable_auto_mode ? { values = local.auto_mode_addon_values } : {}
+
+  enable_cert_manager = var.eks_cert_manager
+  cert_manager        = var.enable_auto_mode ? { values = local.auto_mode_addon_values } : {}
+
+  enable_aws_cloudwatch_metrics = var.eks_aws_cloudwatch_metrics
+  aws_cloudwatch_metrics        = var.enable_auto_mode ? { values = local.auto_mode_addon_values } : {}
+
+  enable_external_dns            = var.eks_external_dns
+  external_dns_route53_zone_arns = var.eks_external_dns_r53_zones
+  external_dns                   = var.enable_auto_mode ? { values = local.auto_mode_external_dns_values } : {}
 
   depends_on = [time_sleep.wait_for_cluster_access]
 }
