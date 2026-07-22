@@ -181,6 +181,28 @@ module "eks" {
     "karpenter.sh/discovery" = var.eks_cluster_name
   } : {}
 
+  # Native EKS managed addons. These are plain aws_eks_addon passthroughs, so
+  # they live on the eks module directly rather than in a separate addons wrapper.
+  # aws-ebs-csi-driver is intentionally NOT here — it needs the IRSA role, which
+  # depends on this module's OIDC output, so it is a standalone aws_eks_addon
+  # below to avoid an eks -> irsa -> eks dependency cycle.
+  addons = merge(
+    {
+      # vpc-cni must be ready before nodes join, so provision it before compute.
+      vpc-cni    = { before_compute = true }
+      coredns    = {}
+      kube-proxy = {}
+    },
+    # metrics-server is required for HPA and `kubectl top`. It runs in
+    # kube-system and listens on port 10251; node SG rule above lets the
+    # kube-apiserver reach it.
+    var.eks_enable_metrics_server ? {
+      metrics-server = var.eks_metrics_server_addon_version != null ? {
+        addon_version = var.eks_metrics_server_addon_version
+      } : {}
+    } : {}
+  )
+
   eks_managed_node_groups = merge(
     # Karpenter Node Group — created when Karpenter is enabled.
     # Dedicated to the Karpenter controller only; tainted so no other pods schedule here.
@@ -408,6 +430,50 @@ resource "time_sleep" "wait_for_cluster_access" {
   create_duration = "60s"
 }
 
+# State migration: native addons moved out of the eks_blueprints_addons module.
+# coredns/kube-proxy/metrics-server now live on module.eks.addons (aws_eks_addon.this),
+# vpc-cni is provisioned before_compute (aws_eks_addon.before_compute), and
+# aws-ebs-csi-driver is the standalone resource below. These moved blocks make
+# the transition a no-op on existing clusters instead of destroy/recreate.
+moved {
+  from = module.eks_blueprints_addons.aws_eks_addon.this["coredns"]
+  to   = module.eks.aws_eks_addon.this["coredns"]
+}
+
+moved {
+  from = module.eks_blueprints_addons.aws_eks_addon.this["kube-proxy"]
+  to   = module.eks.aws_eks_addon.this["kube-proxy"]
+}
+
+moved {
+  from = module.eks_blueprints_addons.aws_eks_addon.this["vpc-cni"]
+  to   = module.eks.aws_eks_addon.before_compute["vpc-cni"]
+}
+
+moved {
+  from = module.eks_blueprints_addons.aws_eks_addon.this["metrics-server"]
+  to   = module.eks.aws_eks_addon.this["metrics-server"]
+}
+
+moved {
+  from = module.eks_blueprints_addons.aws_eks_addon.this["aws-ebs-csi-driver"]
+  to   = aws_eks_addon.ebs_csi
+}
+
+# aws-ebs-csi-driver managed addon. Standalone (not in module.eks.addons)
+# because its IRSA role depends on the eks module's OIDC output — putting it
+# inside the module would create an eks -> irsa-ebs-csi -> eks cycle.
+resource "aws_eks_addon" "ebs_csi" {
+  cluster_name             = module.eks.cluster_name
+  addon_name               = "aws-ebs-csi-driver"
+  service_account_role_arn = module.irsa-ebs-csi.iam_role_arn
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  tags = var.common_tags
+}
+
 module "eks_blueprints_addons" {
   source  = "aws-ia/eks-blueprints-addons/aws"
   version = "~> 1.24"
@@ -417,25 +483,9 @@ module "eks_blueprints_addons" {
   oidc_provider_arn = module.eks.oidc_provider_arn
   cluster_version   = module.eks.cluster_version
 
-  eks_addons = merge(
-    {
-      coredns            = {}
-      vpc-cni            = {}
-      kube-proxy         = {}
-      aws-ebs-csi-driver = { service_account_role_arn = module.irsa-ebs-csi.iam_role_arn }
-    },
-    # metrics-server is required for HPA and `kubectl top`. It runs in
-    # kube-system and listens on port 10251; node SG rule above lets the
-    # kube-apiserver reach it.
-    var.eks_enable_metrics_server ? {
-      metrics-server = merge(
-        {},
-        var.eks_metrics_server_addon_version != null ? {
-          addon_version = var.eks_metrics_server_addon_version
-        } : {}
-      )
-    } : {}
-  )
+  # Native EKS managed addons (coredns/vpc-cni/kube-proxy/metrics-server) now
+  # live on module.eks.addons; aws-ebs-csi-driver is the standalone resource
+  # above. This module now only manages the Helm-based controllers below.
 
   enable_aws_load_balancer_controller = var.eks_aws_load_balancer_controller
   enable_cert_manager                 = var.eks_cert_manager
