@@ -828,6 +828,89 @@ module "loki_irsa_role" {
   )
 }
 
+################################################################
+#### BYO-S3 IRSA Roles (customer-supplied bucket) - DND-1423 ###
+################################################################
+# One IRSA role + scoped customer-managed policy per byo_s3_irsa_roles entry.
+# Generalizes the out-of-band ZooxS3Access pattern: a set of ServiceAccounts
+# gets scoped access to a customer's own S3 bucket. The upstream IRSA module
+# builds the OIDC web-identity trust (:sub/:aud) from namespace_service_accounts.
+locals {
+  # Default action set matches the live ClickHouse-backup S3 usage.
+  byo_s3_default_actions = [
+    "s3:GetObject",
+    "s3:PutObject",
+    "s3:DeleteObject",
+    "s3:ListBucket",
+    "s3:AbortMultipartUpload",
+    "s3:ListMultipartUploadParts",
+    "s3:ListBucketMultipartUploads",
+  ]
+}
+
+data "aws_iam_policy_document" "byo_s3" {
+  for_each = var.byo_s3_irsa_roles
+
+  statement {
+    effect  = "Allow"
+    actions = coalesce(each.value.actions, local.byo_s3_default_actions)
+    # Scoped to the supplied bucket(s) - bucket ARN (for ListBucket) + objects.
+    resources = flatten([
+      for arn in each.value.bucket_arns : [arn, "${arn}/*"]
+    ])
+  }
+}
+
+resource "aws_iam_policy" "byo_s3" {
+  for_each = var.byo_s3_irsa_roles
+
+  # name when adopting an existing policy in place; name_prefix otherwise.
+  name        = each.value.policy_name_override
+  name_prefix = each.value.policy_name_override == null ? "${var.environment}-byo-s3-${each.key}-" : null
+  description = "BYO-S3 access for ${each.key} on ${var.environment} cluster (DND-1423)"
+  policy      = data.aws_iam_policy_document.byo_s3[each.key].json
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = coalesce(each.value.policy_name_override, "${var.environment}-byo-s3-${each.key}")
+    }
+  )
+}
+
+module "byo_s3_irsa_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.39"
+
+  for_each = var.byo_s3_irsa_roles
+
+  role_name = coalesce(each.value.role_name_override, "${var.environment}-byo-s3-${each.key}")
+
+  role_policy_arns = {
+    byo_s3 = aws_iam_policy.byo_s3[each.key].arn
+  }
+
+  oidc_providers = {
+    ex = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = each.value.namespace_service_accounts
+    }
+  }
+
+  depends_on = [
+    module.eks,
+    aws_iam_policy.byo_s3
+  ]
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name        = coalesce(each.value.role_name_override, "${var.environment}-byo-s3-${each.key}")
+      Description = "IRSA role granting listed ServiceAccounts scoped access to a customer-supplied S3 bucket"
+    }
+  )
+}
+
 ##################################################
 #### CloudWatch Exporter IRSA Role and Policy ####
 ##################################################
