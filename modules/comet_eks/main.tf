@@ -56,22 +56,27 @@ locals {
   # boundary, etc.). Passing those keys explicitly — with their own default
   # types — keeps each object a heterogeneous OBJECT (not a typed map), so the
   # module's lookups type-check. Empty {} when Auto Mode is off.
-  auto_mode_controller_config = var.enable_auto_mode ? {
+  # Both ternary branches must share the same object shape (Terraform requires
+  # consistent conditional result types), so the "off" branch mirrors the keys
+  # with empty values instead of a bare {}. An empty `values` list means no
+  # override, so the blueprints module keeps its own defaults when Auto Mode
+  # is off.
+  auto_mode_controller_config = {
     values                        = local.auto_mode_addon_values
     role_policies                 = {}
     role_permissions_boundary_arn = null
     policy_statements             = []
     source_policy_documents       = []
     override_policy_documents     = []
-  } : {}
-  auto_mode_external_dns_config = var.enable_auto_mode ? {
-    values                        = local.auto_mode_external_dns_values
+  }
+  auto_mode_external_dns_config = {
+    values                        = var.enable_auto_mode ? local.auto_mode_external_dns_values : []
     role_policies                 = {}
     role_permissions_boundary_arn = null
     policy_statements             = []
     source_policy_documents       = []
     override_policy_documents     = []
-  } : {}
+  }
 
   # Gates for in-module helm_release installs. Dedup'd so the 4 external-secrets
   # resources and the karpenter helm_release all share a single source of truth.
