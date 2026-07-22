@@ -49,6 +49,30 @@ locals {
     tolerations  = local.auto_mode_addon_tolerations
   })] : []
 
+  # The blueprints controller config vars are typed `any` and the module reads
+  # them with a mix of try() and lookup(). A single-key object like
+  # { values = [...] } collapses to map(list(string)), which breaks the module's
+  # lookup() calls whose defaults are strings/maps (role_policies, permissions
+  # boundary, etc.). Passing those keys explicitly — with their own default
+  # types — keeps each object a heterogeneous OBJECT (not a typed map), so the
+  # module's lookups type-check. Empty {} when Auto Mode is off.
+  auto_mode_controller_config = var.enable_auto_mode ? {
+    values                        = local.auto_mode_addon_values
+    role_policies                 = {}
+    role_permissions_boundary_arn = null
+    policy_statements             = []
+    source_policy_documents       = []
+    override_policy_documents     = []
+  } : {}
+  auto_mode_external_dns_config = var.enable_auto_mode ? {
+    values                        = local.auto_mode_external_dns_values
+    role_policies                 = {}
+    role_permissions_boundary_arn = null
+    policy_statements             = []
+    source_policy_documents       = []
+    override_policy_documents     = []
+  } : {}
+
   # Gates for in-module helm_release installs. Dedup'd so the 4 external-secrets
   # resources and the karpenter helm_release all share a single source of truth.
   install_external_secrets_via_helm = var.enable_external_secrets && var.external_secrets_via_helm_release
@@ -570,17 +594,17 @@ module "eks_blueprints_addons" {
   # system-pool values); when Auto Mode is off we pass {} so the blueprints
   # module keeps its own value defaults (notably external_dns' "provider: aws").
   enable_aws_load_balancer_controller = var.eks_aws_load_balancer_controller
-  aws_load_balancer_controller        = var.enable_auto_mode ? { values = local.auto_mode_addon_values } : {}
+  aws_load_balancer_controller        = local.auto_mode_controller_config
 
   enable_cert_manager = var.eks_cert_manager
-  cert_manager        = var.enable_auto_mode ? { values = local.auto_mode_addon_values } : {}
+  cert_manager        = local.auto_mode_controller_config
 
   enable_aws_cloudwatch_metrics = var.eks_aws_cloudwatch_metrics
-  aws_cloudwatch_metrics        = var.enable_auto_mode ? { values = local.auto_mode_addon_values } : {}
+  aws_cloudwatch_metrics        = local.auto_mode_controller_config
 
   enable_external_dns            = var.eks_external_dns
   external_dns_route53_zone_arns = var.eks_external_dns_r53_zones
-  external_dns                   = var.enable_auto_mode ? { values = local.auto_mode_external_dns_values } : {}
+  external_dns                   = local.auto_mode_external_dns_config
 
   depends_on = [time_sleep.wait_for_cluster_access]
 }
