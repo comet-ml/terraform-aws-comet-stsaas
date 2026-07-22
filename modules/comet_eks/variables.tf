@@ -630,29 +630,19 @@ variable "enable_karpenter" {
 
 variable "enable_auto_mode" {
   description = <<-EOT
-    Enable EKS Auto Mode. When true, the EKS control plane provisions nodes
-    natively via the built-in node pools in `auto_mode_node_pools` — no Karpenter
-    and no eks_managed_node_groups required. The upstream module auto-creates and
-    wires the Auto Mode node IAM role. Auto Mode also provides block storage, load
-    balancing, and networking natively, which makes the EBS CSI IRSA/addon, the
-    ALB controller, and the gp3 StorageClass redundant (migrate those separately;
-    re-point the default StorageClass before removing EBS CSI). Mutually exclusive
-    with enable_karpenter.
+    Enable EKS Auto Mode. When true, the EKS control plane can provision nodes
+    natively via the built-in node pools in `auto_mode_node_pools`. Auto Mode is
+    designed to COEXIST with managed node groups: the enabled MNGs (admin, comet,
+    etc.) continue to run, and Auto Mode node pools provision additional capacity
+    alongside them. Use MNGs for pinned/system workloads and Auto Mode for
+    elastic capacity. The upstream module auto-creates and wires the Auto Mode
+    node IAM role. Auto Mode also provides block storage, load balancing, and
+    networking natively (the EBS CSI IRSA/addon, ALB controller, and gp3
+    StorageClass can be migrated away separately). Mutually exclusive with
+    enable_karpenter.
   EOT
   type        = bool
   default     = false
-
-  validation {
-    condition = !(var.enable_auto_mode && (
-      var.enable_admin_node_group ||
-      var.enable_comet_node_group ||
-      var.enable_druid_node_group ||
-      var.enable_airflow_node_group ||
-      var.enable_clickhouse_node_group ||
-      length(var.additional_node_groups) > 0
-    ))
-    error_message = "enable_auto_mode replaces managed node groups: disable enable_admin/comet/druid/airflow/clickhouse_node_group and clear additional_node_groups when Auto Mode is on."
-  }
 }
 
 variable "auto_mode_node_pools" {

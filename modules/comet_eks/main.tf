@@ -221,8 +221,7 @@ module "eks" {
     # Admin Node Group — always created when enabled. Required for system workloads (cert-manager, LBC,
     # external-secrets, etc.) before Karpenter bootstraps, and for infra isolation in production.
     # When Karpenter is enabled, uses smaller instance types since these nodes only run system pods.
-    # Suppressed under Auto Mode, which provisions all nodes natively.
-    var.enable_admin_node_group && !var.enable_auto_mode ? {
+    var.enable_admin_node_group ? {
       admin = merge(local.eks_managed_node_group_defaults, {
         name           = var.eks_admin_name
         instance_types = var.enable_karpenter ? var.eks_admin_karpenter_instance_types : var.eks_admin_instance_types
@@ -251,8 +250,8 @@ module "eks" {
         var.eks_admin_ami_type != null ? { ami_type = var.eks_admin_ami_type } : {},
       var.eks_admin_subnet_ids != null ? { subnet_ids = var.eks_admin_subnet_ids } : {})
     } : {},
-    # Comet Node Group — disabled when Karpenter or Auto Mode is enabled (both provision comet nodes)
-    (var.enable_comet_node_group && !var.enable_karpenter && !var.enable_auto_mode) ? {
+    # Comet Node Group — disabled when Karpenter is enabled (Karpenter provisions comet nodes)
+    (var.enable_comet_node_group && !var.enable_karpenter) ? {
       comet = merge(local.eks_managed_node_group_defaults, {
         name            = var.eks_comet_name
         use_name_prefix = var.eks_comet_use_name_prefix
@@ -283,8 +282,8 @@ module "eks" {
         var.eks_comet_ami_type != null ? { ami_type = var.eks_comet_ami_type } : {},
       var.eks_comet_subnet_ids != null ? { subnet_ids = var.eks_comet_subnet_ids } : {})
     } : {},
-    # Druid Node Group — disabled when Karpenter or Auto Mode is enabled
-    (var.enable_druid_node_group && var.enable_mpm_infra && !var.enable_karpenter && !var.enable_auto_mode) ? {
+    # Druid Node Group — disabled when Karpenter is enabled
+    (var.enable_druid_node_group && var.enable_mpm_infra && !var.enable_karpenter) ? {
       druid = merge(local.eks_managed_node_group_defaults, {
         name           = var.eks_druid_name
         instance_types = var.eks_druid_instance_types
@@ -311,8 +310,8 @@ module "eks" {
         },
       var.eks_druid_subnet_ids != null ? { subnet_ids = var.eks_druid_subnet_ids } : {})
     } : {},
-    # Airflow Node Group — disabled when Karpenter or Auto Mode is enabled
-    (var.enable_airflow_node_group && var.enable_mpm_infra && !var.enable_karpenter && !var.enable_auto_mode) ? {
+    # Airflow Node Group — disabled when Karpenter is enabled
+    (var.enable_airflow_node_group && var.enable_mpm_infra && !var.enable_karpenter) ? {
       airflow = merge(local.eks_managed_node_group_defaults, {
         name           = var.eks_airflow_name
         instance_types = var.eks_airflow_instance_types
@@ -339,8 +338,8 @@ module "eks" {
         },
       var.eks_airflow_subnet_ids != null ? { subnet_ids = var.eks_airflow_subnet_ids } : {})
     } : {},
-    # ClickHouse Node Group — requires explicit opt-in AND Karpenter/Auto Mode must be disabled
-    (var.enable_clickhouse_node_group && !var.enable_karpenter && !var.enable_auto_mode) ? {
+    # ClickHouse Node Group — requires explicit opt-in AND Karpenter must be disabled
+    (var.enable_clickhouse_node_group && !var.enable_karpenter) ? {
       clickhouse = merge(local.eks_managed_node_group_defaults, {
         name            = var.eks_clickhouse_name
         use_name_prefix = var.eks_clickhouse_use_name_prefix
@@ -372,8 +371,8 @@ module "eks" {
         var.eks_clickhouse_ami_type != null ? { ami_type = var.eks_clickhouse_ami_type } : {},
       var.eks_clickhouse_subnet_ids != null ? { subnet_ids = var.eks_clickhouse_subnet_ids } : {})
     } : {},
-    # Additional custom node groups — suppressed under Auto Mode.
-    var.enable_auto_mode ? {} : {
+    # Additional custom node groups
+    {
       for k, v in var.additional_node_groups : k => merge(
         local.eks_managed_node_group_defaults,
         v,

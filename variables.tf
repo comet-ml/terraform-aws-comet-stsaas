@@ -104,7 +104,7 @@ variable "eks_enable_karpenter" {
 }
 
 variable "eks_enable_auto_mode" {
-  description = "Enable EKS Auto Mode: the control plane provisions nodes natively via the built-in node pools (see eks_auto_mode_node_pools). No Karpenter or managed node groups required. Mutually exclusive with eks_enable_karpenter. Auto Mode also provides block storage / load balancing / networking natively — see docs/auto-mode-migration-plan.md before removing the EBS CSI role, ALB controller, or gp3 StorageClass."
+  description = "Enable EKS Auto Mode: the control plane provisions nodes natively via the built-in node pools (see eks_auto_mode_node_pools). Coexists with managed node groups — enabled MNGs keep running and Auto Mode adds elastic capacity alongside them. Mutually exclusive with eks_enable_karpenter. Auto Mode also provides block storage / load balancing / networking natively — see docs/auto-mode-migration-plan.md before removing the EBS CSI role, ALB controller, or gp3 StorageClass."
   type        = bool
   default     = false
 }
