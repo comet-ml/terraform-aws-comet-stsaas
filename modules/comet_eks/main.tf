@@ -194,7 +194,7 @@ resource "aws_iam_policy" "additional_s3_bucket_policy" {
 
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "~> 21.23.0"
+  version = "~> 21.24.0"
 
   name                    = var.eks_cluster_name
   kubernetes_version      = var.eks_cluster_version
@@ -244,9 +244,20 @@ module "eks" {
       # vpc-cni must be ready before nodes join, so provision it before compute.
       vpc-cni    = { before_compute = true }
       kube-proxy = {}
-      # coredns is a schedulable Deployment — pin to the system pool under Auto Mode.
-      coredns = local.auto_mode_addon_config != null ? {
-        configuration_values = local.auto_mode_addon_config
+      # coredns is a schedulable Deployment — pin to the system pool under Auto
+      # Mode via a nodeSelector on the built-in `system` pool label plus a
+      # toleration for its CriticalAddonsOnly taint.
+      coredns = var.enable_auto_mode ? {
+        configuration_values = jsonencode({
+          nodeSelector = {
+            "karpenter.sh/nodepool" = "system"
+          }
+          tolerations = [{
+            key      = "CriticalAddonsOnly"
+            operator = "Exists"
+            effect   = "NoSchedule"
+          }]
+        })
       } : {}
     },
     # metrics-server is required for HPA and `kubectl top`. It runs in
