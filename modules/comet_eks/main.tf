@@ -104,9 +104,15 @@ locals {
       # is left AWS-managed) instead of bumping to the latest on every apply —
       # lets AMI rolls be scheduled separately from other terraform changes.
       use_latest_ami_release_version = var.eks_mng_use_latest_ami_release_version
-      # When pinned, don't auto-promote new launch-template versions to default,
-      # so the node groups (which then track "$Default") don't roll on benign LT
-      # changes (e.g. tag-only version bumps). Deliberate rolls bump the default.
+      # Node groups always point at the launch template's numeric default_version
+      # (launch_template_version = null in each entry below), NOT the "$Latest"/
+      # "$Default" aliases. Passing an alias makes terraform store the literal
+      # string in config while AWS resolves it to a number, so every plan shows a
+      # spurious `version = "N" -> "$Latest"` diff that never converges. Pointing
+      # at default_version (a concrete number) keeps plans clean. This knob only
+      # controls whether default_version auto-advances: when pinned, new LT
+      # versions are NOT promoted to default, so node groups don't roll on benign
+      # LT changes (e.g. tag-only bumps); deliberate rolls bump the default.
       update_launch_template_default_version = !var.eks_mng_pin_launch_template_version
       # Set platform based on AMI type - AL2023 uses nodeadm, AL2 uses bootstrap.sh
       platform = startswith(var.eks_mng_ami_type, "AL2023") ? "al2023" : "linux"
@@ -291,7 +297,7 @@ module "eks" {
           }
         }
         tags_propagate_at_launch     = true
-        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
+        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
       })
     } : {},
@@ -321,7 +327,7 @@ module "eks" {
           nodegroup_name = "admin"
         }
         tags_propagate_at_launch     = true
-        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
+        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
         },
         var.eks_admin_ami_type != null ? { ami_type = var.eks_admin_ami_type } : {},
@@ -353,7 +359,7 @@ module "eks" {
           nodegroup_name = "comet"
         }
         tags_propagate_at_launch     = true
-        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
+        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
         },
         var.eks_comet_ami_type != null ? { ami_type = var.eks_comet_ami_type } : {},
@@ -382,7 +388,7 @@ module "eks" {
           nodegroup_name = "druid"
         }
         tags_propagate_at_launch     = true
-        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
+        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
         },
       var.eks_druid_subnet_ids != null ? { subnet_ids = var.eks_druid_subnet_ids } : {})
@@ -410,7 +416,7 @@ module "eks" {
           nodegroup_name = "airflow"
         }
         tags_propagate_at_launch     = true
-        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
+        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
         },
       var.eks_airflow_subnet_ids != null ? { subnet_ids = var.eks_airflow_subnet_ids } : {})
@@ -442,7 +448,7 @@ module "eks" {
         }
         taints                       = var.eks_clickhouse_taints
         tags_propagate_at_launch     = true
-        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
+        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
         },
         var.eks_clickhouse_ami_type != null ? { ami_type = var.eks_clickhouse_ami_type } : {},
