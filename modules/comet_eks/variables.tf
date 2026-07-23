@@ -412,6 +412,77 @@ variable "loki_s3_bucket_arn" {
   default     = null
 }
 
+# DND-1423: Bring-your-own-S3 IRSA roles. When a customer supplies their own S3
+# bucket (e.g. ClickHouse remote backups), the pods that touch it need an IAM
+# role assumable via IRSA and a policy scoped to that bucket. Each map entry
+# provisions one such role + customer-managed policy + attachment. This
+# generalizes roles previously created out-of-band during BYO-S3 onboarding
+# (e.g. Zoox's ZooxS3Access) so the trusted ServiceAccounts are codified and
+# reviewable. The map key is a short logical name used in resource naming.
+variable "byo_s3_irsa_roles" {
+  description = "Map of bring-your-own-S3 IRSA roles. Each entry grants the listed Kubernetes ServiceAccounts (via IRSA web-identity) scoped access to a customer-supplied S3 bucket. Empty by default (feature off)."
+  type = map(object({
+    # ARNs of the customer-supplied bucket(s). Permissions are scoped to these
+    # (bucket + bucket/*) - do NOT pass arn:aws:s3:::* here.
+    bucket_arns = list(string)
+    # ServiceAccounts allowed to assume the role, as "<namespace>:<sa-name>".
+    namespace_service_accounts = list(string)
+    # Optional S3 action set. Null => the ClickHouse-backup default action set.
+    actions = optional(list(string))
+    # Optional overrides to adopt an existing out-of-band role/policy in place
+    # (e.g. role_name_override="ZooxS3Access") via terraform import without
+    # recreating it (recreation would change the ARN and break IRSA annotations).
+    role_name_override   = optional(string)
+    policy_name_override = optional(string)
+  }))
+  default = {}
+
+  validation {
+    condition = alltrue([
+      for k, v in var.byo_s3_irsa_roles :
+      length(v.bucket_arns) > 0 && length(v.namespace_service_accounts) > 0
+    ])
+    error_message = "Each byo_s3_irsa_roles entry must set at least one bucket_arn and one namespace_service_account."
+  }
+  # Each bucket_arn must be an exact bucket ARN: arn:aws:s3:::<bucket>. No globs
+  # (arn:aws:s3:::* would reintroduce the over-broad grant this feature removes)
+  # and no trailing /* (main.tf appends /* itself -> would yield <bucket>/*/*).
+  validation {
+    condition = alltrue(flatten([
+      for k, v in var.byo_s3_irsa_roles : [
+        for arn in v.bucket_arns : can(regex("^arn:aws:s3:::[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", arn))
+      ]
+    ]))
+    error_message = "byo_s3_irsa_roles[*].bucket_arns entries must be an exact bucket ARN 'arn:aws:s3:::<bucket>' (no wildcards, no trailing /*, no object key)."
+  }
+  # Each entry must be "<namespace>:<sa-name>" (the format the upstream IRSA
+  # module expands into system:serviceaccount:<ns>:<sa>). A malformed subject
+  # silently produces a trust condition no pod can satisfy.
+  validation {
+    condition = alltrue(flatten([
+      for k, v in var.byo_s3_irsa_roles : [
+        for s in v.namespace_service_accounts : can(regex("^[a-z0-9][a-z0-9.-]*:[a-z0-9][a-z0-9.-]*$", s))
+      ]
+    ]))
+    error_message = "byo_s3_irsa_roles[*].namespace_service_accounts entries must be '<namespace>:<sa-name>' (both non-empty, lowercase DNS-safe, exactly one colon)."
+  }
+  validation {
+    condition = alltrue([
+      for k, v in var.byo_s3_irsa_roles :
+      v.role_name_override == null ? true : can(regex("^[a-zA-Z0-9+=,.@_-]{1,64}$", v.role_name_override))
+    ])
+    error_message = "byo_s3_irsa_roles[*].role_name_override must match ^[a-zA-Z0-9+=,.@_-]{1,64}$."
+  }
+  # IAM customer-managed policy name: 1-128 chars from [a-zA-Z0-9+=,.@_-].
+  validation {
+    condition = alltrue([
+      for k, v in var.byo_s3_irsa_roles :
+      v.policy_name_override == null ? true : can(regex("^[a-zA-Z0-9+=,.@_-]{1,128}$", v.policy_name_override))
+    ])
+    error_message = "byo_s3_irsa_roles[*].policy_name_override must match ^[a-zA-Z0-9+=,.@_-]{1,128}$."
+  }
+}
+
 variable "enable_monitoring_setup" {
   description = "Enable monitoring namespace and Grafana credentials secret"
   type        = bool

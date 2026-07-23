@@ -327,6 +327,9 @@ module "comet_eks" {
   loki_s3_bucket_arn          = var.enable_s3 && var.enable_loki_bucket ? module.comet_s3[0].comet_loki_bucket_arn : null
   loki_iam_role_name_override = var.loki_iam_role_name_override
 
+  # DND-1423: Bring-your-own-S3 IRSA roles (customer-supplied buckets)
+  byo_s3_irsa_roles = var.byo_s3_irsa_roles
+
   # CloudWatch Exporter IRSA for scraping AWS managed service metrics
   enable_cloudwatch_exporter                 = var.enable_cloudwatch_exporter
   cloudwatch_exporter_iam_role_name_override = var.cloudwatch_exporter_iam_role_name_override

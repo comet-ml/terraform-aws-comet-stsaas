@@ -77,6 +77,21 @@ variable "loki_iam_role_name_override" {
   }
 }
 
+# DND-1423: Bring-your-own-S3 IRSA roles (see modules/comet_eks/variables.tf for
+# the full schema). Empty by default => feature off. Set an entry per customer
+# BYO bucket that pods must reach via IRSA (e.g. ClickHouse remote backups).
+variable "byo_s3_irsa_roles" {
+  description = "Map of bring-your-own-S3 IRSA roles. Each entry grants listed Kubernetes ServiceAccounts (via IRSA) scoped access to a customer-supplied S3 bucket. Empty by default."
+  type = map(object({
+    bucket_arns                = list(string)
+    namespace_service_accounts = list(string)
+    actions                    = optional(list(string))
+    role_name_override         = optional(string)
+    policy_name_override       = optional(string)
+  }))
+  default = {}
+}
+
 variable "external_secrets_iam_role_name_override" {
   description = "Override the External Secrets IRSA role name. Null keeps the computed <environment>-external-secrets name."
   type        = string
