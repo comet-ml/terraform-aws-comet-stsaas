@@ -1300,7 +1300,11 @@ resource "kubernetes_namespace" "monitoring" {
 }
 
 resource "kubernetes_secret" "monitoring" {
-  count = var.enable_monitoring_setup ? 1 : 0
+  # Set manage_monitoring_secret = false where the monitoring Secret is owned by
+  # External Secrets Operator (ExternalSecret with creationPolicy: Owner). Letting
+  # Terraform also manage it causes a reconcile fight: TF strips ESO's labels and
+  # replaces the whole data map (dropping ESO-only keys) on every apply.
+  count = var.enable_monitoring_setup && var.manage_monitoring_secret ? 1 : 0
 
   metadata {
     name      = "monitoring"

@@ -343,10 +343,11 @@ module "comet_eks" {
   cloudwatch_exporter_iam_role_name_override = var.cloudwatch_exporter_iam_role_name_override
 
   # Monitoring namespace and Grafana credentials
-  enable_monitoring_setup = var.enable_monitoring_setup
-  monitoring_namespace    = var.monitoring_namespace
-  grafana_admin_user      = var.grafana_admin_user
-  grafana_admin_password  = var.grafana_admin_password
+  enable_monitoring_setup  = var.enable_monitoring_setup
+  manage_monitoring_secret = var.manage_monitoring_secret
+  monitoring_namespace     = var.monitoring_namespace
+  grafana_admin_user       = var.grafana_admin_user
+  grafana_admin_password   = var.grafana_admin_password
 
   # EKS Auto Mode (mutually exclusive with Karpenter)
   enable_auto_mode     = var.eks_enable_auto_mode
