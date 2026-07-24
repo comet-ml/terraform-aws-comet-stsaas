@@ -106,6 +106,14 @@ resource "aws_rds_cluster" "cometml-db-cluster" {
       Name = "cometml-rds-cluster-${var.environment}"
     }
   )
+
+  lifecycle {
+    # final_snapshot_identifier is built from timestamp(), which re-evaluates on
+    # every plan and would otherwise show a spurious perpetual diff (and drag
+    # dependents to "known after apply"). It only matters at destroy time as the
+    # snapshot name, so ignore in-place changes and keep the value first stored.
+    ignore_changes = [final_snapshot_identifier]
+  }
 }
 
 resource "aws_rds_cluster_parameter_group" "cometml-cluster-pg" {
