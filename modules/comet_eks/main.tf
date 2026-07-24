@@ -727,15 +727,14 @@ module "eks_blueprints_addons" {
   # Under Auto Mode, each controller's Helm values carry the system-pool
   # nodeSelector + toleration (local.auto_mode_addon_values). Empty otherwise.
 
-  # Only ALB controller and cloudwatch-metrics remain Helm releases here:
-  # cert-manager and external-dns moved to native EKS add-ons (module.eks.addons),
-  # and no native add-on exists for the ALB controller. The controller config
-  # objects inject the system-pool nodeSelector/toleration under Auto Mode;
-  # local.auto_mode_controller_config is {} when Auto Mode is off so the
-  # blueprints module keeps its own defaults.
-  enable_aws_load_balancer_controller = var.eks_aws_load_balancer_controller
-  aws_load_balancer_controller        = local.auto_mode_controller_config
-
+  # cert-manager and external-dns moved to native EKS add-ons (module.eks.addons).
+  # The ALB controller is NOT installed here either — its Helm chart is deployed
+  # per stsaas customer via ArgoCD (comet-gitops); this module only creates its
+  # IRSA role (module.aws_load_balancer_controller_irsa_role) and exposes the ARN
+  # as an output for the ArgoCD Application to wire onto the controller
+  # ServiceAccount. So cloudwatch-metrics is the only Helm release left here.
+  # Its controller config object injects the system-pool nodeSelector/toleration
+  # under Auto Mode; local.auto_mode_controller_config is a no-op when off.
   enable_aws_cloudwatch_metrics = var.eks_aws_cloudwatch_metrics
   aws_cloudwatch_metrics        = local.auto_mode_controller_config
 
@@ -851,6 +850,39 @@ module "cluster_autoscaler_irsa_role" {
     {
       Name        = "${var.environment}-cluster-autoscaler"
       Description = "IRSA role for Cluster Autoscaler to manage EKS-managed ASGs"
+    }
+  )
+}
+
+#########################################
+#### AWS Load Balancer Controller IRSA Role ####
+#########################################
+# IAM only. The AWS Load Balancer Controller Helm chart itself is deployed
+# out-of-band per stsaas customer via ArgoCD (comet-gitops) — there is no native
+# EKS add-on for it. This role is exposed via the aws_load_balancer_controller_role_arn
+# output; the ArgoCD Application annotates the controller ServiceAccount
+# (kube-system:aws-load-balancer-controller) with it.
+module "aws_load_balancer_controller_irsa_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.39"
+
+  count = var.eks_aws_load_balancer_controller ? 1 : 0
+
+  role_name                              = "${var.environment}-aws-load-balancer-controller"
+  attach_load_balancer_controller_policy = true
+
+  oidc_providers = {
+    ex = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
+    }
+  }
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name        = "${var.environment}-aws-load-balancer-controller"
+      Description = "IRSA role for the AWS Load Balancer Controller (deployed via ArgoCD)"
     }
   )
 }
