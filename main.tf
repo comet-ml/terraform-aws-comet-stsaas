@@ -233,11 +233,19 @@ module "comet_eks" {
   eks_mng_disk_size                            = var.eks_mng_disk_size
   eks_aws_load_balancer_controller             = var.eks_aws_load_balancer_controller
   eks_cert_manager                             = var.eks_cert_manager
+  eks_cert_manager_addon_version               = var.eks_cert_manager_addon_version
   eks_aws_cloudwatch_metrics                   = var.eks_aws_cloudwatch_metrics
   eks_external_dns                             = var.eks_external_dns
+  eks_external_dns_addon_version               = var.eks_external_dns_addon_version
   eks_external_dns_r53_zones                   = var.eks_external_dns_r53_zones
   eks_enable_metrics_server                    = var.eks_enable_metrics_server
   eks_metrics_server_addon_version             = var.eks_metrics_server_addon_version
+  eks_enable_kube_state_metrics                = var.eks_enable_kube_state_metrics
+  eks_kube_state_metrics_addon_version         = var.eks_kube_state_metrics_addon_version
+  eks_enable_prometheus_node_exporter          = var.eks_enable_prometheus_node_exporter
+  eks_prometheus_node_exporter_addon_version   = var.eks_prometheus_node_exporter_addon_version
+  eks_enable_node_monitoring_agent             = var.eks_enable_node_monitoring_agent
+  eks_node_monitoring_agent_addon_version      = var.eks_node_monitoring_agent_addon_version
   eks_enable_cluster_autoscaler                = var.eks_enable_cluster_autoscaler
 
   s3_enabled              = var.enable_s3
@@ -327,6 +335,9 @@ module "comet_eks" {
   loki_s3_bucket_arn          = var.enable_s3 && var.enable_loki_bucket ? module.comet_s3[0].comet_loki_bucket_arn : null
   loki_iam_role_name_override = var.loki_iam_role_name_override
 
+  # DND-1423: Bring-your-own-S3 IRSA roles (customer-supplied buckets)
+  byo_s3_irsa_roles = var.byo_s3_irsa_roles
+
   # CloudWatch Exporter IRSA for scraping AWS managed service metrics
   enable_cloudwatch_exporter                 = var.enable_cloudwatch_exporter
   cloudwatch_exporter_iam_role_name_override = var.cloudwatch_exporter_iam_role_name_override
@@ -336,6 +347,10 @@ module "comet_eks" {
   monitoring_namespace    = var.monitoring_namespace
   grafana_admin_user      = var.grafana_admin_user
   grafana_admin_password  = var.grafana_admin_password
+
+  # EKS Auto Mode (mutually exclusive with Karpenter)
+  enable_auto_mode     = var.eks_enable_auto_mode
+  auto_mode_node_pools = var.eks_auto_mode_node_pools
 
   # Karpenter prerequisites
   enable_karpenter           = var.eks_enable_karpenter

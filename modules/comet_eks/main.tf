@@ -3,6 +3,99 @@ locals {
   volume_encrypted             = false
   volume_delete_on_termination = true
 
+  # Under Auto Mode, pin schedulable add-ons onto the built-in `system` node
+  # pool. That pool is labeled karpenter.sh/nodepool=system and tainted
+  # CriticalAddonsOnly=true:NoSchedule, so pinning needs BOTH a nodeSelector for
+  # the label and a toleration for the taint. DaemonSets (vpc-cni, kube-proxy)
+  # are intentionally NOT pinned — they must run on every node.
+  #
+  # The nodeSelector/toleration below feed both native-addon configuration_values
+  # (via auto_mode_pin, merged into each addon's HA config) and the Helm
+  # controller `values` (auto_mode_addon_values). All are empty/no-op when Auto
+  # Mode is off, so nothing changes for MNG/Karpenter deployments.
+  auto_mode_addon_node_selector = { "karpenter.sh/nodepool" = "system" }
+  auto_mode_addon_tolerations = [{
+    key      = "CriticalAddonsOnly"
+    operator = "Exists"
+    effect   = "NoSchedule"
+  }]
+
+  # Auto Mode pinning fragment (nodeSelector + toleration), merged into each
+  # addon's config below. Empty map when Auto Mode is off so it adds nothing.
+  # Built via merge so the "off" case is {} without tripping Terraform's
+  # conditional-result-type check (a bare ? {...} : {} has mismatched types).
+  auto_mode_pin = merge(
+    var.enable_auto_mode ? { nodeSelector = local.auto_mode_addon_node_selector } : {},
+    var.enable_auto_mode ? { tolerations = local.auto_mode_addon_tolerations } : {},
+  )
+
+  # HA settings for schedulable control-plane addons. coredns and the EBS CSI
+  # controller already ship a PDB + anti-affinity by default; metrics-server
+  # ships a single replica with none. We set these explicitly on all three so
+  # HA is visible in code rather than implicit (and overrides the addon's own
+  # PDB rather than creating a conflicting second one).
+  #
+  # Spreading uses topologySpreadConstraints with whenUnsatisfiable=ScheduleAnyway
+  # (soft) so pods still schedule on a single-node pool (e.g. a 1-node Auto Mode
+  # `system` pool) instead of going Pending — HA when nodes exist, no deadlock
+  # when they don't.
+  addon_ha_replicas = 2
+  addon_ha_pdb      = { maxUnavailable = 1 }
+  addon_ha_topology_spread = [{
+    maxSkew           = 1
+    topologyKey       = "kubernetes.io/hostname"
+    whenUnsatisfiable = "ScheduleAnyway"
+  }]
+
+  # coredns/metrics-server accept HA + pinning at the top level. metrics-server
+  # uses `replicas`; coredns uses `replicaCount`. Both accept podDisruptionBudget
+  # and topologySpreadConstraints.
+  coredns_config = jsonencode(merge(local.auto_mode_pin, {
+    replicaCount              = local.addon_ha_replicas
+    podDisruptionBudget       = local.addon_ha_pdb
+    topologySpreadConstraints = local.addon_ha_topology_spread
+  }))
+  metrics_server_config = jsonencode(merge(local.auto_mode_pin, {
+    replicas                  = local.addon_ha_replicas
+    podDisruptionBudget       = local.addon_ha_pdb
+    topologySpreadConstraints = local.addon_ha_topology_spread
+  }))
+
+  # EBS CSI nests everything under `controller` (the controller Deployment; the
+  # node DaemonSet is unaffected).
+  auto_mode_ebs_csi_config = jsonencode({
+    controller = merge(local.auto_mode_pin, {
+      replicaCount              = local.addon_ha_replicas
+      podDisruptionBudget       = local.addon_ha_pdb
+      topologySpreadConstraints = local.addon_ha_topology_spread
+    })
+  })
+
+  # Helm controllers take a YAML values doc with top-level nodeSelector/tolerations.
+  auto_mode_addon_values = var.enable_auto_mode ? [yamlencode({
+    nodeSelector = local.auto_mode_addon_node_selector
+    tolerations  = local.auto_mode_addon_tolerations
+  })] : []
+
+  # The blueprints controller config vars are typed `any` and the module reads
+  # them with a mix of try() and lookup(). A single-key object like
+  # { values = [...] } collapses to map(list(string)), which breaks the module's
+  # lookup() calls whose defaults are strings/maps (role_policies, permissions
+  # boundary, etc.). Passing those keys explicitly — with their own default
+  # types — keeps each object a heterogeneous OBJECT (not a typed map), so the
+  # module's lookups type-check. An empty `values` list (Auto Mode off) means no
+  # override, so the blueprints module keeps its own defaults.
+  # Used by the ALB controller and cloudwatch-metrics Helm releases below;
+  # cert-manager and external-dns are native add-ons and don't use this.
+  auto_mode_controller_config = {
+    values                        = local.auto_mode_addon_values
+    role_policies                 = {}
+    role_permissions_boundary_arn = null
+    policy_statements             = []
+    source_policy_documents       = []
+    override_policy_documents     = []
+  }
+
   # Gates for in-module helm_release installs. Dedup'd so the 4 external-secrets
   # resources and the karpenter helm_release all share a single source of truth.
   install_external_secrets_via_helm = var.enable_external_secrets && var.external_secrets_via_helm_release
@@ -58,9 +151,15 @@ locals {
       # is left AWS-managed) instead of bumping to the latest on every apply —
       # lets AMI rolls be scheduled separately from other terraform changes.
       use_latest_ami_release_version = var.eks_mng_use_latest_ami_release_version
-      # When pinned, don't auto-promote new launch-template versions to default,
-      # so the node groups (which then track "$Default") don't roll on benign LT
-      # changes (e.g. tag-only version bumps). Deliberate rolls bump the default.
+      # Node groups always point at the launch template's numeric default_version
+      # (launch_template_version = null in each entry below), NOT the "$Latest"/
+      # "$Default" aliases. Passing an alias makes terraform store the literal
+      # string in config while AWS resolves it to a number, so every plan shows a
+      # spurious `version = "N" -> "$Latest"` diff that never converges. Pointing
+      # at default_version (a concrete number) keeps plans clean. This knob only
+      # controls whether default_version auto-advances: when pinned, new LT
+      # versions are NOT promoted to default, so node groups don't roll on benign
+      # LT changes (e.g. tag-only bumps); deliberate rolls bump the default.
       update_launch_template_default_version = !var.eks_mng_pin_launch_template_version
       # Set platform based on AMI type - AL2023 uses nodeadm, AL2 uses bootstrap.sh
       platform = startswith(var.eks_mng_ami_type, "AL2023") ? "al2023" : "linux"
@@ -142,7 +241,7 @@ resource "aws_iam_policy" "additional_s3_bucket_policy" {
 
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "~> 21.23.0"
+  version = "~> 21.24.0"
 
   name                    = var.eks_cluster_name
   kubernetes_version      = var.eks_cluster_version
@@ -164,11 +263,123 @@ module "eks" {
   vpc_id     = var.vpc_id
   subnet_ids = var.eks_private_subnets
 
+  # EKS Auto Mode. When enabled, the control plane provisions nodes via the
+  # built-in node pools and the upstream module auto-creates/wires the Auto Mode
+  # node IAM role (so node_role_arn is intentionally omitted). The block is
+  # always sent — enabled = false explicitly disables Auto Mode so a cluster that
+  # previously had it on can be turned back off (a bare null would omit the
+  # argument and leave the last-applied config in place).
+  compute_config = {
+    enabled    = var.enable_auto_mode
+    node_pools = var.enable_auto_mode ? var.auto_mode_node_pools : []
+  }
+
   # Bake the Karpenter discovery tag directly into the node SG so it is never
   # dropped when Terraform modifies the security group during subsequent applies.
   node_security_group_tags = var.enable_karpenter ? {
     "karpenter.sh/discovery" = var.eks_cluster_name
   } : {}
+
+  # Native EKS managed addons. These are plain aws_eks_addon passthroughs, so
+  # they live on the eks module directly rather than in a separate addons wrapper.
+  # aws-ebs-csi-driver is intentionally NOT here — it needs the IRSA role, which
+  # depends on this module's OIDC output, so it is a standalone aws_eks_addon
+  # below to avoid an eks -> irsa -> eks dependency cycle.
+  addons = merge(
+    {
+      # vpc-cni and kube-proxy are DaemonSets — not pinned to the system pool.
+      # vpc-cni must be ready before nodes join, so provision it before compute.
+      vpc-cni    = { before_compute = true }
+      kube-proxy = {}
+      # coredns is a schedulable Deployment — HA (2 replicas + PDB + soft
+      # topology spread) plus system-pool pinning under Auto Mode. See the
+      # coredns_config local.
+      coredns = {
+        configuration_values = local.coredns_config
+      }
+    },
+    # metrics-server is required for HPA and `kubectl top`. It runs in
+    # kube-system and listens on port 10251; node SG rule above lets the
+    # kube-apiserver reach it. Schedulable Deployment — HA + pinned under Auto
+    # Mode (metrics_server_config local).
+    var.eks_enable_metrics_server ? {
+      metrics-server = merge(
+        var.eks_metrics_server_addon_version != null ? {
+          addon_version = var.eks_metrics_server_addon_version
+        } : {},
+        {
+          configuration_values = local.metrics_server_config
+        }
+      )
+    } : {},
+    # cert-manager as a native EKS managed add-on (no IAM required). Replaces the
+    # eks_blueprints_addons helm release; installs via the EKS control-plane API
+    # (works on private clusters with no data-plane access). Schedulable
+    # Deployment — HA (2 replicas + PDB + soft spread) + Auto Mode pinning, same
+    # shape as coredns (both use replicaCount). See coredns_config local.
+    var.eks_cert_manager ? {
+      cert-manager = merge(
+        var.eks_cert_manager_addon_version != null ? {
+          addon_version = var.eks_cert_manager_addon_version
+        } : {},
+        {
+          configuration_values = local.coredns_config
+        }
+      )
+    } : {},
+    # external-dns as a native EKS managed add-on. Uses EKS Pod Identity (not
+    # IRSA) for Route53 access — see the external_dns IAM role above and the
+    # pod-identity-agent add-on below. Replaces the eks_blueprints_addons helm
+    # release. external-dns is single-replica by design (leader election) — its
+    # addon schema exposes no replicaCount/PDB — so it takes system-pool pinning
+    # only (auto_mode_pin), not the full HA config.
+    var.eks_external_dns ? {
+      external-dns = merge(
+        {
+          pod_identity_association = [{
+            role_arn        = aws_iam_role.external_dns[0].arn
+            service_account = "external-dns"
+          }]
+        },
+        var.eks_external_dns_addon_version != null ? {
+          addon_version = var.eks_external_dns_addon_version
+        } : {},
+        length(local.auto_mode_pin) > 0 ? {
+          configuration_values = jsonencode(local.auto_mode_pin)
+        } : {}
+      )
+    } : {},
+    # Pod Identity agent — required for any add-on/workload using EKS Pod Identity
+    # (currently external-dns). Enabled whenever external-dns is on.
+    var.eks_external_dns ? {
+      eks-pod-identity-agent = {}
+    } : {},
+    # Observability add-ons (native EKS managed add-ons, no IAM required).
+    # kube-state-metrics is a schedulable Deployment — HA (replicas + PDB +
+    # spread) + pinning, same shape as metrics-server (both use `replicas`).
+    var.eks_enable_kube_state_metrics ? {
+      kube-state-metrics = merge(
+        var.eks_kube_state_metrics_addon_version != null ? {
+          addon_version = var.eks_kube_state_metrics_addon_version
+        } : {},
+        {
+          configuration_values = local.metrics_server_config
+        }
+      )
+    } : {},
+    var.eks_enable_prometheus_node_exporter ? {
+      # DaemonSet — runs on every node, so not pinned to the system pool.
+      prometheus-node-exporter = var.eks_prometheus_node_exporter_addon_version != null ? {
+        addon_version = var.eks_prometheus_node_exporter_addon_version
+      } : {}
+    } : {},
+    var.eks_enable_node_monitoring_agent ? {
+      # DaemonSet — runs on every node, so not pinned to the system pool.
+      eks-node-monitoring-agent = var.eks_node_monitoring_agent_addon_version != null ? {
+        addon_version = var.eks_node_monitoring_agent_addon_version
+      } : {}
+    } : {}
+  )
 
   eks_managed_node_groups = merge(
     # Karpenter Node Group — created when Karpenter is enabled.
@@ -203,7 +414,7 @@ module "eks" {
           }
         }
         tags_propagate_at_launch     = true
-        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
+        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
       })
     } : {},
@@ -233,7 +444,7 @@ module "eks" {
           nodegroup_name = "admin"
         }
         tags_propagate_at_launch     = true
-        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
+        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
         },
         var.eks_admin_ami_type != null ? { ami_type = var.eks_admin_ami_type } : {},
@@ -265,7 +476,7 @@ module "eks" {
           nodegroup_name = "comet"
         }
         tags_propagate_at_launch     = true
-        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
+        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
         },
         var.eks_comet_ami_type != null ? { ami_type = var.eks_comet_ami_type } : {},
@@ -294,7 +505,7 @@ module "eks" {
           nodegroup_name = "druid"
         }
         tags_propagate_at_launch     = true
-        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
+        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
         },
       var.eks_druid_subnet_ids != null ? { subnet_ids = var.eks_druid_subnet_ids } : {})
@@ -322,7 +533,7 @@ module "eks" {
           nodegroup_name = "airflow"
         }
         tags_propagate_at_launch     = true
-        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
+        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
         },
       var.eks_airflow_subnet_ids != null ? { subnet_ids = var.eks_airflow_subnet_ids } : {})
@@ -354,7 +565,7 @@ module "eks" {
         }
         taints                       = var.eks_clickhouse_taints
         tags_propagate_at_launch     = true
-        launch_template_version      = var.eks_mng_pin_launch_template_version ? "$Default" : "$Latest"
+        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
         },
         var.eks_clickhouse_ami_type != null ? { ami_type = var.eks_clickhouse_ami_type } : {},
@@ -397,6 +608,108 @@ resource "time_sleep" "wait_for_cluster_access" {
   create_duration = "60s"
 }
 
+# State migration: native addons moved out of the eks_blueprints_addons module.
+# coredns/kube-proxy/metrics-server now live on module.eks.addons (aws_eks_addon.this),
+# vpc-cni is provisioned before_compute (aws_eks_addon.before_compute), and
+# aws-ebs-csi-driver is the standalone resource below. These moved blocks make
+# the transition a no-op on existing clusters instead of destroy/recreate.
+moved {
+  from = module.eks_blueprints_addons.aws_eks_addon.this["coredns"]
+  to   = module.eks.aws_eks_addon.this["coredns"]
+}
+
+moved {
+  from = module.eks_blueprints_addons.aws_eks_addon.this["kube-proxy"]
+  to   = module.eks.aws_eks_addon.this["kube-proxy"]
+}
+
+moved {
+  from = module.eks_blueprints_addons.aws_eks_addon.this["vpc-cni"]
+  to   = module.eks.aws_eks_addon.before_compute["vpc-cni"]
+}
+
+moved {
+  from = module.eks_blueprints_addons.aws_eks_addon.this["metrics-server"]
+  to   = module.eks.aws_eks_addon.this["metrics-server"]
+}
+
+moved {
+  from = module.eks_blueprints_addons.aws_eks_addon.this["aws-ebs-csi-driver"]
+  to   = aws_eks_addon.ebs_csi
+}
+
+# aws-ebs-csi-driver managed addon. Standalone (not in module.eks.addons)
+# because its IRSA role depends on the eks module's OIDC output — putting it
+# inside the module would create an eks -> irsa-ebs-csi -> eks cycle.
+resource "aws_eks_addon" "ebs_csi" {
+  cluster_name             = module.eks.cluster_name
+  addon_name               = "aws-ebs-csi-driver"
+  service_account_role_arn = module.irsa-ebs-csi.iam_role_arn
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  # Pin the controller Deployment to the system pool under Auto Mode. The node
+  # DaemonSet (ebs-csi-node) is unaffected — it must run on every node.
+  configuration_values = local.auto_mode_ebs_csi_config
+
+  tags = var.common_tags
+}
+
+# external-dns Pod Identity role. The external-dns EKS add-on authenticates via
+# Pod Identity (not IRSA), so it needs a role trusted by pods.eks.amazonaws.com
+# with Route53 permissions scoped to the configured hosted zones.
+data "aws_iam_policy_document" "external_dns_assume" {
+  count = var.eks_external_dns ? 1 : 0
+
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole", "sts:TagSession"]
+    principals {
+      type        = "Service"
+      identifiers = ["pods.eks.amazonaws.com"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "external_dns" {
+  count = var.eks_external_dns ? 1 : 0
+
+  # Change records only on the specific hosted zones external-dns manages.
+  statement {
+    effect    = "Allow"
+    actions   = ["route53:ChangeResourceRecordSets"]
+    resources = var.eks_external_dns_r53_zones
+  }
+
+  # Discovery of zones/records is list/read and not zone-scopable.
+  statement {
+    effect    = "Allow"
+    actions   = ["route53:ListHostedZones", "route53:ListResourceRecordSets", "route53:ListTagsForResource"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role" "external_dns" {
+  count = var.eks_external_dns ? 1 : 0
+
+  name               = "${var.environment}-external-dns"
+  assume_role_policy = data.aws_iam_policy_document.external_dns_assume[0].json
+
+  tags = merge(var.common_tags, {
+    Name        = "${var.environment}-external-dns"
+    Description = "Pod Identity role for the external-dns EKS add-on - Route53"
+  })
+}
+
+resource "aws_iam_role_policy" "external_dns" {
+  count = var.eks_external_dns ? 1 : 0
+
+  name   = "route53-access"
+  role   = aws_iam_role.external_dns[0].id
+  policy = data.aws_iam_policy_document.external_dns[0].json
+}
+
 module "eks_blueprints_addons" {
   source  = "aws-ia/eks-blueprints-addons/aws"
   version = "~> 1.24"
@@ -406,34 +719,24 @@ module "eks_blueprints_addons" {
   oidc_provider_arn = module.eks.oidc_provider_arn
   cluster_version   = module.eks.cluster_version
 
-  eks_addons = merge(
-    {
-      coredns            = {}
-      vpc-cni            = {}
-      kube-proxy         = {}
-      aws-ebs-csi-driver = { service_account_role_arn = module.irsa-ebs-csi.iam_role_arn }
-    },
-    # metrics-server is required for HPA and `kubectl top`. It runs in
-    # kube-system and listens on port 10251; node SG rule above lets the
-    # kube-apiserver reach it.
-    var.eks_enable_metrics_server ? {
-      metrics-server = merge(
-        {},
-        var.eks_metrics_server_addon_version != null ? {
-          addon_version = var.eks_metrics_server_addon_version
-        } : {}
-      )
-    } : {}
-  )
+  # Native EKS managed addons (coredns/vpc-cni/kube-proxy/metrics-server, plus
+  # cert-manager/external-dns/observability) now live on module.eks.addons;
+  # aws-ebs-csi-driver is the standalone resource above. This module now only
+  # manages the Helm-based controllers below.
+  #
+  # Under Auto Mode, each controller's Helm values carry the system-pool
+  # nodeSelector + toleration (local.auto_mode_addon_values). Empty otherwise.
 
-  # aws_load_balancer_controller is NOT installed here — the Helm chart is deployed
-  # per stsaas customer via ArgoCD (comet-gitops). This module only creates its IRSA
-  # role (module.aws_load_balancer_controller_irsa_role) and exposes the ARN as an
-  # output for the ArgoCD Application to wire onto the controller ServiceAccount.
-  enable_cert_manager            = var.eks_cert_manager
-  enable_aws_cloudwatch_metrics  = var.eks_aws_cloudwatch_metrics
-  enable_external_dns            = var.eks_external_dns
-  external_dns_route53_zone_arns = var.eks_external_dns_r53_zones
+  # cert-manager and external-dns moved to native EKS add-ons (module.eks.addons).
+  # The ALB controller is NOT installed here either — its Helm chart is deployed
+  # per stsaas customer via ArgoCD (comet-gitops); this module only creates its
+  # IRSA role (module.aws_load_balancer_controller_irsa_role) and exposes the ARN
+  # as an output for the ArgoCD Application to wire onto the controller
+  # ServiceAccount. So cloudwatch-metrics is the only Helm release left here.
+  # Its controller config object injects the system-pool nodeSelector/toleration
+  # under Auto Mode; local.auto_mode_controller_config is a no-op when off.
+  enable_aws_cloudwatch_metrics = var.eks_aws_cloudwatch_metrics
+  aws_cloudwatch_metrics        = local.auto_mode_controller_config
 
   depends_on = [time_sleep.wait_for_cluster_access]
 }
@@ -860,6 +1163,89 @@ module "loki_irsa_role" {
     {
       Name        = "${var.environment}-loki"
       Description = "IRSA role for Loki to access S3 bucket for log storage"
+    }
+  )
+}
+
+################################################################
+#### BYO-S3 IRSA Roles (customer-supplied bucket) - DND-1423 ###
+################################################################
+# One IRSA role + scoped customer-managed policy per byo_s3_irsa_roles entry.
+# Generalizes the out-of-band ZooxS3Access pattern: a set of ServiceAccounts
+# gets scoped access to a customer's own S3 bucket. The upstream IRSA module
+# builds the OIDC web-identity trust (:sub/:aud) from namespace_service_accounts.
+locals {
+  # Default action set matches the live ClickHouse-backup S3 usage.
+  byo_s3_default_actions = [
+    "s3:GetObject",
+    "s3:PutObject",
+    "s3:DeleteObject",
+    "s3:ListBucket",
+    "s3:AbortMultipartUpload",
+    "s3:ListMultipartUploadParts",
+    "s3:ListBucketMultipartUploads",
+  ]
+}
+
+data "aws_iam_policy_document" "byo_s3" {
+  for_each = var.byo_s3_irsa_roles
+
+  statement {
+    effect  = "Allow"
+    actions = coalesce(each.value.actions, local.byo_s3_default_actions)
+    # Scoped to the supplied bucket(s) - bucket ARN (for ListBucket) + objects.
+    resources = flatten([
+      for arn in each.value.bucket_arns : [arn, "${arn}/*"]
+    ])
+  }
+}
+
+resource "aws_iam_policy" "byo_s3" {
+  for_each = var.byo_s3_irsa_roles
+
+  # name when adopting an existing policy in place; name_prefix otherwise.
+  name        = each.value.policy_name_override
+  name_prefix = each.value.policy_name_override == null ? "${var.environment}-byo-s3-${each.key}-" : null
+  description = "BYO-S3 access for ${each.key} on ${var.environment} cluster (DND-1423)"
+  policy      = data.aws_iam_policy_document.byo_s3[each.key].json
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = coalesce(each.value.policy_name_override, "${var.environment}-byo-s3-${each.key}")
+    }
+  )
+}
+
+module "byo_s3_irsa_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.39"
+
+  for_each = var.byo_s3_irsa_roles
+
+  role_name = coalesce(each.value.role_name_override, "${var.environment}-byo-s3-${each.key}")
+
+  role_policy_arns = {
+    byo_s3 = aws_iam_policy.byo_s3[each.key].arn
+  }
+
+  oidc_providers = {
+    ex = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = each.value.namespace_service_accounts
+    }
+  }
+
+  depends_on = [
+    module.eks,
+    aws_iam_policy.byo_s3
+  ]
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name        = coalesce(each.value.role_name_override, "${var.environment}-byo-s3-${each.key}")
+      Description = "IRSA role granting listed ServiceAccounts scoped access to a customer-supplied S3 bucket"
     }
   )
 }

@@ -195,7 +195,7 @@ variable "eks_mng_use_latest_ami_release_version" {
 }
 
 variable "eks_mng_pin_launch_template_version" {
-  description = "When false (default), node groups track the latest launch-template version (launch_template_version=\"$Latest\", default auto-updated), so any LT change rolls the nodes. Set true to track \"$Default\" and stop auto-promoting new LT versions to default, so benign LT changes (e.g. tag-only version bumps) do NOT roll the nodes. Trade-off: deliberate LT changes (AMI/instance type) then require a separate default-version bump to take effect."
+  description = "When false (default), the launch-template default_version auto-advances to the newest version, so any LT change rolls the nodes. Set true to stop auto-promoting new LT versions to default, so benign LT changes (e.g. tag-only version bumps) do NOT roll the nodes. Trade-off: deliberate LT changes (AMI/instance type) then require a separate default-version bump to take effect. Either way node groups reference the numeric default_version (not the \"$Latest\"/\"$Default\" aliases) so plans stay clean."
   type        = bool
   default     = false
 }
@@ -245,8 +245,14 @@ variable "eks_aws_load_balancer_controller" {
 }
 
 variable "eks_cert_manager" {
-  description = "Enables cert-manager in the EKS cluster"
+  description = "Enables cert-manager in the EKS cluster (as a native EKS managed add-on)"
   type        = bool
+}
+
+variable "eks_cert_manager_addon_version" {
+  description = "cert-manager EKS add-on version (e.g. v1.21.0-eksbuild.2). Null lets EKS pick the default for the cluster version."
+  type        = string
+  default     = null
 }
 
 variable "eks_aws_cloudwatch_metrics" {
@@ -255,8 +261,14 @@ variable "eks_aws_cloudwatch_metrics" {
 }
 
 variable "eks_external_dns" {
-  description = "Enables ExternalDNS in the EKS cluster"
+  description = "Enables ExternalDNS in the EKS cluster (as a native EKS managed add-on, using EKS Pod Identity for Route53 access)"
   type        = bool
+}
+
+variable "eks_external_dns_addon_version" {
+  description = "external-dns EKS add-on version (e.g. v0.21.0-eksbuild.6). Null lets EKS pick the default for the cluster version."
+  type        = string
+  default     = null
 }
 
 variable "eks_external_dns_r53_zones" {
@@ -272,6 +284,43 @@ variable "eks_enable_metrics_server" {
 
 variable "eks_metrics_server_addon_version" {
   description = "Pinned version of the metrics-server EKS managed addon. Set to null to use the AWS default for the cluster's Kubernetes version."
+  type        = string
+  default     = null
+}
+
+# Observability add-ons (native EKS managed add-ons, no IAM required).
+variable "eks_enable_kube_state_metrics" {
+  description = "Enable the kube-state-metrics EKS managed add-on (cluster object state metrics for Prometheus)."
+  type        = bool
+  default     = false
+}
+
+variable "eks_kube_state_metrics_addon_version" {
+  description = "Pinned kube-state-metrics add-on version. Null uses the AWS default for the cluster version."
+  type        = string
+  default     = null
+}
+
+variable "eks_enable_prometheus_node_exporter" {
+  description = "Enable the prometheus-node-exporter EKS managed add-on (per-node hardware/OS metrics for Prometheus)."
+  type        = bool
+  default     = false
+}
+
+variable "eks_prometheus_node_exporter_addon_version" {
+  description = "Pinned prometheus-node-exporter add-on version. Null uses the AWS default for the cluster version."
+  type        = string
+  default     = null
+}
+
+variable "eks_enable_node_monitoring_agent" {
+  description = "Enable the eks-node-monitoring-agent EKS managed add-on (node health monitoring / auto-repair signals)."
+  type        = bool
+  default     = false
+}
+
+variable "eks_node_monitoring_agent_addon_version" {
+  description = "Pinned eks-node-monitoring-agent add-on version. Null uses the AWS default for the cluster version."
   type        = string
   default     = null
 }
@@ -410,6 +459,77 @@ variable "loki_s3_bucket_arn" {
   description = "ARN of the S3 bucket for Loki log storage"
   type        = string
   default     = null
+}
+
+# DND-1423: Bring-your-own-S3 IRSA roles. When a customer supplies their own S3
+# bucket (e.g. ClickHouse remote backups), the pods that touch it need an IAM
+# role assumable via IRSA and a policy scoped to that bucket. Each map entry
+# provisions one such role + customer-managed policy + attachment. This
+# generalizes roles previously created out-of-band during BYO-S3 onboarding
+# (e.g. Zoox's ZooxS3Access) so the trusted ServiceAccounts are codified and
+# reviewable. The map key is a short logical name used in resource naming.
+variable "byo_s3_irsa_roles" {
+  description = "Map of bring-your-own-S3 IRSA roles. Each entry grants the listed Kubernetes ServiceAccounts (via IRSA web-identity) scoped access to a customer-supplied S3 bucket. Empty by default (feature off)."
+  type = map(object({
+    # ARNs of the customer-supplied bucket(s). Permissions are scoped to these
+    # (bucket + bucket/*) - do NOT pass arn:aws:s3:::* here.
+    bucket_arns = list(string)
+    # ServiceAccounts allowed to assume the role, as "<namespace>:<sa-name>".
+    namespace_service_accounts = list(string)
+    # Optional S3 action set. Null => the ClickHouse-backup default action set.
+    actions = optional(list(string))
+    # Optional overrides to adopt an existing out-of-band role/policy in place
+    # (e.g. role_name_override="ZooxS3Access") via terraform import without
+    # recreating it (recreation would change the ARN and break IRSA annotations).
+    role_name_override   = optional(string)
+    policy_name_override = optional(string)
+  }))
+  default = {}
+
+  validation {
+    condition = alltrue([
+      for k, v in var.byo_s3_irsa_roles :
+      length(v.bucket_arns) > 0 && length(v.namespace_service_accounts) > 0
+    ])
+    error_message = "Each byo_s3_irsa_roles entry must set at least one bucket_arn and one namespace_service_account."
+  }
+  # Each bucket_arn must be an exact bucket ARN: arn:aws:s3:::<bucket>. No globs
+  # (arn:aws:s3:::* would reintroduce the over-broad grant this feature removes)
+  # and no trailing /* (main.tf appends /* itself -> would yield <bucket>/*/*).
+  validation {
+    condition = alltrue(flatten([
+      for k, v in var.byo_s3_irsa_roles : [
+        for arn in v.bucket_arns : can(regex("^arn:aws:s3:::[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", arn))
+      ]
+    ]))
+    error_message = "byo_s3_irsa_roles[*].bucket_arns entries must be an exact bucket ARN 'arn:aws:s3:::<bucket>' (no wildcards, no trailing /*, no object key)."
+  }
+  # Each entry must be "<namespace>:<sa-name>" (the format the upstream IRSA
+  # module expands into system:serviceaccount:<ns>:<sa>). A malformed subject
+  # silently produces a trust condition no pod can satisfy.
+  validation {
+    condition = alltrue(flatten([
+      for k, v in var.byo_s3_irsa_roles : [
+        for s in v.namespace_service_accounts : can(regex("^[a-z0-9][a-z0-9.-]*:[a-z0-9][a-z0-9.-]*$", s))
+      ]
+    ]))
+    error_message = "byo_s3_irsa_roles[*].namespace_service_accounts entries must be '<namespace>:<sa-name>' (both non-empty, lowercase DNS-safe, exactly one colon)."
+  }
+  validation {
+    condition = alltrue([
+      for k, v in var.byo_s3_irsa_roles :
+      v.role_name_override == null ? true : can(regex("^[a-zA-Z0-9+=,.@_-]{1,64}$", v.role_name_override))
+    ])
+    error_message = "byo_s3_irsa_roles[*].role_name_override must match ^[a-zA-Z0-9+=,.@_-]{1,64}$."
+  }
+  # IAM customer-managed policy name: 1-128 chars from [a-zA-Z0-9+=,.@_-].
+  validation {
+    condition = alltrue([
+      for k, v in var.byo_s3_irsa_roles :
+      v.policy_name_override == null ? true : can(regex("^[a-zA-Z0-9+=,.@_-]{1,128}$", v.policy_name_override))
+    ])
+    error_message = "byo_s3_irsa_roles[*].policy_name_override must match ^[a-zA-Z0-9+=,.@_-]{1,128}$."
+  }
 }
 
 variable "enable_monitoring_setup" {
@@ -621,6 +741,41 @@ variable "enable_karpenter" {
   description = "Enable Karpenter prerequisites: discovery tags on subnets and node security group, SQS interruption queue, EventBridge rules, node IAM role/instance profile, and controller IRSA role. Outputs can be consumed by a separate Karpenter Helm release."
   type        = bool
   default     = false
+
+  validation {
+    condition     = !(var.enable_karpenter && var.enable_auto_mode)
+    error_message = "enable_karpenter and enable_auto_mode are mutually exclusive: EKS Auto Mode provisions nodes natively, so Karpenter must be disabled when Auto Mode is on."
+  }
+}
+
+variable "enable_auto_mode" {
+  description = <<-EOT
+    Enable EKS Auto Mode. When true, the EKS control plane can provision nodes
+    natively via the built-in node pools in `auto_mode_node_pools`. Auto Mode is
+    designed to COEXIST with managed node groups: the enabled MNGs (admin, comet,
+    etc.) continue to run, and Auto Mode node pools provision additional capacity
+    alongside them. Use MNGs for pinned/system workloads and Auto Mode for
+    elastic capacity. The upstream module auto-creates and wires the Auto Mode
+    node IAM role. Auto Mode also provides block storage, load balancing, and
+    networking natively (the EBS CSI IRSA/addon, ALB controller, and gp3
+    StorageClass can be migrated away separately). Mutually exclusive with
+    enable_karpenter.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "auto_mode_node_pools" {
+  description = <<-EOT
+    Built-in EKS Auto Mode node pools to enable (control-plane managed, no
+    manifests required). Common values: "system", "general-purpose". Only used
+    when enable_auto_mode = true. Custom NodePool/NodeClass CRDs (taints, limits,
+    instance shaping) are NOT created here — they are cluster-side objects and
+    should be managed via GitOps (e.g. ArgoCD), especially for private-endpoint
+    clusters the Terraform runner cannot reach.
+  EOT
+  type        = list(string)
+  default     = ["system", "general-purpose"]
 }
 
 variable "karpenter_via_helm_release" {
