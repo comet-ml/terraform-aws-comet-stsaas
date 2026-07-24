@@ -698,7 +698,7 @@ resource "aws_iam_role" "external_dns" {
 
   tags = merge(var.common_tags, {
     Name        = "${var.environment}-external-dns"
-    Description = "Pod Identity role for the external-dns EKS add-on (Route53)"
+    Description = "Pod Identity role for the external-dns EKS add-on - Route53"
   })
 }
 
