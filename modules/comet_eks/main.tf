@@ -40,37 +40,18 @@ locals {
     tolerations  = local.auto_mode_addon_tolerations
   })] : []
 
-  # external-dns is special: the blueprints module defaults its values to
-  # ["provider: aws"], so overriding values would drop that. Fold it back in
-  # when Auto Mode is on; keep the module default (empty override) when off.
-  auto_mode_external_dns_values = var.enable_auto_mode ? [yamlencode({
-    provider     = "aws"
-    nodeSelector = local.auto_mode_addon_node_selector
-    tolerations  = local.auto_mode_addon_tolerations
-  })] : []
-
   # The blueprints controller config vars are typed `any` and the module reads
   # them with a mix of try() and lookup(). A single-key object like
   # { values = [...] } collapses to map(list(string)), which breaks the module's
   # lookup() calls whose defaults are strings/maps (role_policies, permissions
   # boundary, etc.). Passing those keys explicitly — with their own default
   # types — keeps each object a heterogeneous OBJECT (not a typed map), so the
-  # module's lookups type-check. Empty {} when Auto Mode is off.
-  # Both ternary branches must share the same object shape (Terraform requires
-  # consistent conditional result types), so the "off" branch mirrors the keys
-  # with empty values instead of a bare {}. An empty `values` list means no
-  # override, so the blueprints module keeps its own defaults when Auto Mode
-  # is off.
+  # module's lookups type-check. An empty `values` list (Auto Mode off) means no
+  # override, so the blueprints module keeps its own defaults.
+  # Used by the ALB controller and cloudwatch-metrics Helm releases below;
+  # cert-manager and external-dns are native add-ons and don't use this.
   auto_mode_controller_config = {
     values                        = local.auto_mode_addon_values
-    role_policies                 = {}
-    role_permissions_boundary_arn = null
-    policy_statements             = []
-    source_policy_documents       = []
-    override_policy_documents     = []
-  }
-  auto_mode_external_dns_config = {
-    values                        = var.enable_auto_mode ? local.auto_mode_external_dns_values : []
     role_policies                 = {}
     role_permissions_boundary_arn = null
     policy_statements             = []
@@ -301,6 +282,68 @@ module "eks" {
           configuration_values = local.auto_mode_addon_config
         } : {}
       )
+    } : {},
+    # cert-manager as a native EKS managed add-on (no IAM required). Replaces the
+    # eks_blueprints_addons helm release; installs via the EKS control-plane API
+    # (works on private clusters with no data-plane access).
+    var.eks_cert_manager ? {
+      cert-manager = merge(
+        var.eks_cert_manager_addon_version != null ? {
+          addon_version = var.eks_cert_manager_addon_version
+        } : {},
+        local.auto_mode_addon_config != null ? {
+          configuration_values = local.auto_mode_addon_config
+        } : {}
+      )
+    } : {},
+    # external-dns as a native EKS managed add-on. Uses EKS Pod Identity (not
+    # IRSA) for Route53 access — see the external_dns IAM role above and the
+    # pod-identity-agent add-on below. Replaces the eks_blueprints_addons helm
+    # release. pod_identity_association carries the auth; configuration_values
+    # carries any Auto Mode system-pool pinning.
+    var.eks_external_dns ? {
+      external-dns = merge(
+        {
+          pod_identity_association = [{
+            role_arn        = aws_iam_role.external_dns[0].arn
+            service_account = "external-dns"
+          }]
+        },
+        var.eks_external_dns_addon_version != null ? {
+          addon_version = var.eks_external_dns_addon_version
+        } : {},
+        local.auto_mode_addon_config != null ? {
+          configuration_values = local.auto_mode_addon_config
+        } : {}
+      )
+    } : {},
+    # Pod Identity agent — required for any add-on/workload using EKS Pod Identity
+    # (currently external-dns). Enabled whenever external-dns is on.
+    var.eks_external_dns ? {
+      eks-pod-identity-agent = {}
+    } : {},
+    # Observability add-ons (all native EKS managed add-ons, no IAM required).
+    var.eks_enable_kube_state_metrics ? {
+      kube-state-metrics = merge(
+        var.eks_kube_state_metrics_addon_version != null ? {
+          addon_version = var.eks_kube_state_metrics_addon_version
+        } : {},
+        local.auto_mode_addon_config != null ? {
+          configuration_values = local.auto_mode_addon_config
+        } : {}
+      )
+    } : {},
+    var.eks_enable_prometheus_node_exporter ? {
+      # DaemonSet — runs on every node, so not pinned to the system pool.
+      prometheus-node-exporter = var.eks_prometheus_node_exporter_addon_version != null ? {
+        addon_version = var.eks_prometheus_node_exporter_addon_version
+      } : {}
+    } : {},
+    var.eks_enable_node_monitoring_agent ? {
+      # DaemonSet — runs on every node, so not pinned to the system pool.
+      eks-node-monitoring-agent = var.eks_node_monitoring_agent_addon_version != null ? {
+        addon_version = var.eks_node_monitoring_agent_addon_version
+      } : {}
     } : {}
   )
 
@@ -579,6 +622,60 @@ resource "aws_eks_addon" "ebs_csi" {
   tags = var.common_tags
 }
 
+# external-dns Pod Identity role. The external-dns EKS add-on authenticates via
+# Pod Identity (not IRSA), so it needs a role trusted by pods.eks.amazonaws.com
+# with Route53 permissions scoped to the configured hosted zones.
+data "aws_iam_policy_document" "external_dns_assume" {
+  count = var.eks_external_dns ? 1 : 0
+
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole", "sts:TagSession"]
+    principals {
+      type        = "Service"
+      identifiers = ["pods.eks.amazonaws.com"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "external_dns" {
+  count = var.eks_external_dns ? 1 : 0
+
+  # Change records only on the specific hosted zones external-dns manages.
+  statement {
+    effect    = "Allow"
+    actions   = ["route53:ChangeResourceRecordSets"]
+    resources = var.eks_external_dns_r53_zones
+  }
+
+  # Discovery of zones/records is list/read and not zone-scopable.
+  statement {
+    effect    = "Allow"
+    actions   = ["route53:ListHostedZones", "route53:ListResourceRecordSets", "route53:ListTagsForResource"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role" "external_dns" {
+  count = var.eks_external_dns ? 1 : 0
+
+  name               = "${var.environment}-external-dns"
+  assume_role_policy = data.aws_iam_policy_document.external_dns_assume[0].json
+
+  tags = merge(var.common_tags, {
+    Name        = "${var.environment}-external-dns"
+    Description = "Pod Identity role for the external-dns EKS add-on (Route53)"
+  })
+}
+
+resource "aws_iam_role_policy" "external_dns" {
+  count = var.eks_external_dns ? 1 : 0
+
+  name   = "route53-access"
+  role   = aws_iam_role.external_dns[0].id
+  policy = data.aws_iam_policy_document.external_dns[0].json
+}
+
 module "eks_blueprints_addons" {
   source  = "aws-ia/eks-blueprints-addons/aws"
   version = "~> 1.24"
@@ -588,28 +685,25 @@ module "eks_blueprints_addons" {
   oidc_provider_arn = module.eks.oidc_provider_arn
   cluster_version   = module.eks.cluster_version
 
-  # Native EKS managed addons (coredns/vpc-cni/kube-proxy/metrics-server) now
-  # live on module.eks.addons; aws-ebs-csi-driver is the standalone resource
-  # above. This module now only manages the Helm-based controllers below.
+  # Native EKS managed addons (coredns/vpc-cni/kube-proxy/metrics-server, plus
+  # cert-manager/external-dns/observability) now live on module.eks.addons;
+  # aws-ebs-csi-driver is the standalone resource above. This module now only
+  # manages the Helm-based controllers below.
   #
   # Under Auto Mode, each controller's Helm values carry the system-pool
   # nodeSelector + toleration (local.auto_mode_addon_values). Empty otherwise.
 
-  # The controller objects are only passed under Auto Mode (to inject the
-  # system-pool values); when Auto Mode is off we pass {} so the blueprints
-  # module keeps its own value defaults (notably external_dns' "provider: aws").
+  # Only ALB controller and cloudwatch-metrics remain Helm releases here:
+  # cert-manager and external-dns moved to native EKS add-ons (module.eks.addons),
+  # and no native add-on exists for the ALB controller. The controller config
+  # objects inject the system-pool nodeSelector/toleration under Auto Mode;
+  # local.auto_mode_controller_config is {} when Auto Mode is off so the
+  # blueprints module keeps its own defaults.
   enable_aws_load_balancer_controller = var.eks_aws_load_balancer_controller
   aws_load_balancer_controller        = local.auto_mode_controller_config
 
-  enable_cert_manager = var.eks_cert_manager
-  cert_manager        = local.auto_mode_controller_config
-
   enable_aws_cloudwatch_metrics = var.eks_aws_cloudwatch_metrics
   aws_cloudwatch_metrics        = local.auto_mode_controller_config
-
-  enable_external_dns            = var.eks_external_dns
-  external_dns_route53_zone_arns = var.eks_external_dns_r53_zones
-  external_dns                   = local.auto_mode_external_dns_config
 
   depends_on = [time_sleep.wait_for_cluster_access]
 }
