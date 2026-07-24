@@ -538,6 +538,12 @@ variable "enable_monitoring_setup" {
   default     = false
 }
 
+variable "manage_monitoring_secret" {
+  description = "When true (default), Terraform creates/manages the monitoring Grafana credentials Secret. Set false when External Secrets Operator owns that Secret (ExternalSecret with creationPolicy: Owner) so Terraform does not fight ESO over its labels and data. Only takes effect when enable_monitoring_setup = true."
+  type        = bool
+  default     = true
+}
+
 variable "monitoring_namespace" {
   description = "Kubernetes namespace for monitoring resources"
   type        = string
