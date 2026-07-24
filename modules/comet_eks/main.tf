@@ -9,10 +9,10 @@ locals {
   # the label and a toleration for the taint. DaemonSets (vpc-cni, kube-proxy)
   # are intentionally NOT pinned — they must run on every node.
   #
-  # Two payload shapes are derived from one source of truth:
-  #   - auto_mode_addon_config: JSON string for native addon configuration_values
-  #   - auto_mode_addon_values: YAML string for Helm controller `values`
-  # Both are empty when Auto Mode is off, so nothing changes for MNG/Karpenter.
+  # The nodeSelector/toleration below feed both native-addon configuration_values
+  # (via auto_mode_pin, merged into each addon's HA config) and the Helm
+  # controller `values` (auto_mode_addon_values). All are empty/no-op when Auto
+  # Mode is off, so nothing changes for MNG/Karpenter deployments.
   auto_mode_addon_node_selector = { "karpenter.sh/nodepool" = "system" }
   auto_mode_addon_tolerations = [{
     key      = "CriticalAddonsOnly"
@@ -20,19 +20,56 @@ locals {
     effect   = "NoSchedule"
   }]
 
-  # Native managed addons take a JSON string. coredns/metrics-server accept
-  # top-level nodeSelector/tolerations; the EBS CSI driver nests them under
-  # `controller` (the controller Deployment; its node DaemonSet is unaffected).
-  auto_mode_addon_config = var.enable_auto_mode ? jsonencode({
-    nodeSelector = local.auto_mode_addon_node_selector
-    tolerations  = local.auto_mode_addon_tolerations
-  }) : null
-  auto_mode_ebs_csi_config = var.enable_auto_mode ? jsonencode({
-    controller = {
-      nodeSelector = local.auto_mode_addon_node_selector
-      tolerations  = local.auto_mode_addon_tolerations
-    }
-  }) : null
+  # Auto Mode pinning fragment (nodeSelector + toleration), merged into each
+  # addon's config below. Empty map when Auto Mode is off so it adds nothing.
+  # Built via merge so the "off" case is {} without tripping Terraform's
+  # conditional-result-type check (a bare ? {...} : {} has mismatched types).
+  auto_mode_pin = merge(
+    var.enable_auto_mode ? { nodeSelector = local.auto_mode_addon_node_selector } : {},
+    var.enable_auto_mode ? { tolerations = local.auto_mode_addon_tolerations } : {},
+  )
+
+  # HA settings for schedulable control-plane addons. coredns and the EBS CSI
+  # controller already ship a PDB + anti-affinity by default; metrics-server
+  # ships a single replica with none. We set these explicitly on all three so
+  # HA is visible in code rather than implicit (and overrides the addon's own
+  # PDB rather than creating a conflicting second one).
+  #
+  # Spreading uses topologySpreadConstraints with whenUnsatisfiable=ScheduleAnyway
+  # (soft) so pods still schedule on a single-node pool (e.g. a 1-node Auto Mode
+  # `system` pool) instead of going Pending — HA when nodes exist, no deadlock
+  # when they don't.
+  addon_ha_replicas = 2
+  addon_ha_pdb      = { maxUnavailable = 1 }
+  addon_ha_topology_spread = [{
+    maxSkew           = 1
+    topologyKey       = "kubernetes.io/hostname"
+    whenUnsatisfiable = "ScheduleAnyway"
+  }]
+
+  # coredns/metrics-server accept HA + pinning at the top level. metrics-server
+  # uses `replicas`; coredns uses `replicaCount`. Both accept podDisruptionBudget
+  # and topologySpreadConstraints.
+  coredns_config = jsonencode(merge(local.auto_mode_pin, {
+    replicaCount              = local.addon_ha_replicas
+    podDisruptionBudget       = local.addon_ha_pdb
+    topologySpreadConstraints = local.addon_ha_topology_spread
+  }))
+  metrics_server_config = jsonencode(merge(local.auto_mode_pin, {
+    replicas                  = local.addon_ha_replicas
+    podDisruptionBudget       = local.addon_ha_pdb
+    topologySpreadConstraints = local.addon_ha_topology_spread
+  }))
+
+  # EBS CSI nests everything under `controller` (the controller Deployment; the
+  # node DaemonSet is unaffected).
+  auto_mode_ebs_csi_config = jsonencode({
+    controller = merge(local.auto_mode_pin, {
+      replicaCount              = local.addon_ha_replicas
+      podDisruptionBudget       = local.addon_ha_pdb
+      topologySpreadConstraints = local.addon_ha_topology_spread
+    })
+  })
 
   # Helm controllers take a YAML values doc with top-level nodeSelector/tolerations.
   auto_mode_addon_values = var.enable_auto_mode ? [yamlencode({
@@ -254,53 +291,48 @@ module "eks" {
       # vpc-cni must be ready before nodes join, so provision it before compute.
       vpc-cni    = { before_compute = true }
       kube-proxy = {}
-      # coredns is a schedulable Deployment — pin to the system pool under Auto
-      # Mode via a nodeSelector on the built-in `system` pool label plus a
-      # toleration for its CriticalAddonsOnly taint.
-      coredns = var.enable_auto_mode ? {
-        configuration_values = jsonencode({
-          nodeSelector = {
-            "karpenter.sh/nodepool" = "system"
-          }
-          tolerations = [{
-            key      = "CriticalAddonsOnly"
-            operator = "Exists"
-            effect   = "NoSchedule"
-          }]
-        })
-      } : {}
+      # coredns is a schedulable Deployment — HA (2 replicas + PDB + soft
+      # topology spread) plus system-pool pinning under Auto Mode. See the
+      # coredns_config local.
+      coredns = {
+        configuration_values = local.coredns_config
+      }
     },
     # metrics-server is required for HPA and `kubectl top`. It runs in
     # kube-system and listens on port 10251; node SG rule above lets the
-    # kube-apiserver reach it. Schedulable Deployment — pinned under Auto Mode.
+    # kube-apiserver reach it. Schedulable Deployment — HA + pinned under Auto
+    # Mode (metrics_server_config local).
     var.eks_enable_metrics_server ? {
       metrics-server = merge(
         var.eks_metrics_server_addon_version != null ? {
           addon_version = var.eks_metrics_server_addon_version
         } : {},
-        local.auto_mode_addon_config != null ? {
-          configuration_values = local.auto_mode_addon_config
-        } : {}
+        {
+          configuration_values = local.metrics_server_config
+        }
       )
     } : {},
     # cert-manager as a native EKS managed add-on (no IAM required). Replaces the
     # eks_blueprints_addons helm release; installs via the EKS control-plane API
-    # (works on private clusters with no data-plane access).
+    # (works on private clusters with no data-plane access). Schedulable
+    # Deployment — HA (2 replicas + PDB + soft spread) + Auto Mode pinning, same
+    # shape as coredns (both use replicaCount). See coredns_config local.
     var.eks_cert_manager ? {
       cert-manager = merge(
         var.eks_cert_manager_addon_version != null ? {
           addon_version = var.eks_cert_manager_addon_version
         } : {},
-        local.auto_mode_addon_config != null ? {
-          configuration_values = local.auto_mode_addon_config
-        } : {}
+        {
+          configuration_values = local.coredns_config
+        }
       )
     } : {},
     # external-dns as a native EKS managed add-on. Uses EKS Pod Identity (not
     # IRSA) for Route53 access — see the external_dns IAM role above and the
     # pod-identity-agent add-on below. Replaces the eks_blueprints_addons helm
-    # release. pod_identity_association carries the auth; configuration_values
-    # carries any Auto Mode system-pool pinning.
+    # release. external-dns is single-replica by design (leader election) — its
+    # addon schema exposes no replicaCount/PDB — so it takes system-pool pinning
+    # only (auto_mode_pin), not the full HA config.
     var.eks_external_dns ? {
       external-dns = merge(
         {
@@ -312,8 +344,8 @@ module "eks" {
         var.eks_external_dns_addon_version != null ? {
           addon_version = var.eks_external_dns_addon_version
         } : {},
-        local.auto_mode_addon_config != null ? {
-          configuration_values = local.auto_mode_addon_config
+        length(local.auto_mode_pin) > 0 ? {
+          configuration_values = jsonencode(local.auto_mode_pin)
         } : {}
       )
     } : {},
@@ -322,15 +354,17 @@ module "eks" {
     var.eks_external_dns ? {
       eks-pod-identity-agent = {}
     } : {},
-    # Observability add-ons (all native EKS managed add-ons, no IAM required).
+    # Observability add-ons (native EKS managed add-ons, no IAM required).
+    # kube-state-metrics is a schedulable Deployment — HA (replicas + PDB +
+    # spread) + pinning, same shape as metrics-server (both use `replicas`).
     var.eks_enable_kube_state_metrics ? {
       kube-state-metrics = merge(
         var.eks_kube_state_metrics_addon_version != null ? {
           addon_version = var.eks_kube_state_metrics_addon_version
         } : {},
-        local.auto_mode_addon_config != null ? {
-          configuration_values = local.auto_mode_addon_config
-        } : {}
+        {
+          configuration_values = local.metrics_server_config
+        }
       )
     } : {},
     var.eks_enable_prometheus_node_exporter ? {
