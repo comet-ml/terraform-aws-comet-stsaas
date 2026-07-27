@@ -656,6 +656,30 @@ resource "aws_eks_addon" "ebs_csi" {
   tags = var.common_tags
 }
 
+# EKS Auto Mode + managed node group coexistence.
+#
+# Auto Mode nodes attach the EKS-managed cluster primary security group, while
+# managed node groups use this module's node security group. Neither SG allows
+# the other by default, so cross-node-type pod traffic is dropped — e.g. a pod
+# on a managed node cannot reach coredns running on an Auto Mode node, breaking
+# DNS for the whole managed-node fleet. Allow all traffic both ways between the
+# two SGs. Only created while Auto Mode is enabled (i.e. during coexistence).
+resource "aws_vpc_security_group_ingress_rule" "auto_mode_cluster_from_node" {
+  count                        = var.enable_auto_mode ? 1 : 0
+  security_group_id            = module.eks.cluster_primary_security_group_id
+  referenced_security_group_id = module.eks.node_security_group_id
+  ip_protocol                  = "-1"
+  description                  = "auto-mode and managed node coexistence"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "auto_mode_node_from_cluster" {
+  count                        = var.enable_auto_mode ? 1 : 0
+  security_group_id            = module.eks.node_security_group_id
+  referenced_security_group_id = module.eks.cluster_primary_security_group_id
+  ip_protocol                  = "-1"
+  description                  = "auto-mode and managed node coexistence"
+}
+
 # external-dns Pod Identity role. The external-dns EKS add-on authenticates via
 # Pod Identity (not IRSA), so it needs a role trusted by pods.eks.amazonaws.com
 # with Route53 permissions scoped to the configured hosted zones.
