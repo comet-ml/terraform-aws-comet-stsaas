@@ -882,7 +882,7 @@ module "aws_load_balancer_controller_irsa_role" {
     var.common_tags,
     {
       Name        = "${var.environment}-aws-load-balancer-controller"
-      Description = "IRSA role for the AWS Load Balancer Controller (deployed via ArgoCD)"
+      Description = "IRSA role for the AWS Load Balancer Controller - deployed via ArgoCD"
     }
   )
 }
