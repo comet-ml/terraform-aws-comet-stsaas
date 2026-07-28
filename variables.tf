@@ -1131,7 +1131,11 @@ variable "rds_iam_db_auth" {
 variable "rds_backup_retention_period" {
   description = "Days specified for RDS snapshot retention period"
   type        = number
-  default     = 14
+  # DND-1485: STSaaS standard is a 7-day recovery window. The previous default (14)
+  # silently doubled Aurora continuous-backup storage/cost for every customer that
+  # migrated onto this module without an override (DND-1323). Default to 7 to match
+  # the fleet norm; customers wanting more set it explicitly.
+  default = 7
 }
 
 variable "rds_preferred_backup_window" {
