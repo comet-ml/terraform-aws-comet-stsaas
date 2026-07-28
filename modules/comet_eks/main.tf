@@ -151,15 +151,18 @@ locals {
       # is left AWS-managed) instead of bumping to the latest on every apply —
       # lets AMI rolls be scheduled separately from other terraform changes.
       use_latest_ami_release_version = var.eks_mng_use_latest_ami_release_version
-      # Node groups always point at the launch template's numeric default_version
-      # (launch_template_version = null in each entry below), NOT the "$Latest"/
-      # "$Default" aliases. Passing an alias makes terraform store the literal
-      # string in config while AWS resolves it to a number, so every plan shows a
-      # spurious `version = "N" -> "$Latest"` diff that never converges. Pointing
-      # at default_version (a concrete number) keeps plans clean. This knob only
-      # controls whether default_version auto-advances: when pinned, new LT
-      # versions are NOT promoted to default, so node groups don't roll on benign
-      # LT changes (e.g. tag-only bumps); deliberate rolls bump the default.
+      # Node groups always point at the launch template's numeric default_version,
+      # NOT the "$Latest"/"$Default" aliases. Passing an alias makes terraform
+      # store the literal string in config while AWS resolves it to a number, so
+      # every plan shows a spurious `version = "N" -> "$Latest"` diff that never
+      # converges. Pointing at default_version (a concrete number) keeps plans
+      # clean. Set here once in the shared defaults so every node group inherits
+      # it (rather than repeating it per entry).
+      launch_template_version = null
+      # This knob only controls whether default_version auto-advances: when
+      # pinned, new LT versions are NOT promoted to default, so node groups don't
+      # roll on benign LT changes (e.g. tag-only bumps); deliberate rolls bump the
+      # default.
       update_launch_template_default_version = !var.eks_mng_pin_launch_template_version
       # Set platform based on AMI type - AL2023 uses nodeadm, AL2 uses bootstrap.sh
       platform = startswith(var.eks_mng_ami_type, "AL2023") ? "al2023" : "linux"
@@ -414,7 +417,6 @@ module "eks" {
           }
         }
         tags_propagate_at_launch     = true
-        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
       })
     } : {},
@@ -444,7 +446,6 @@ module "eks" {
           nodegroup_name = "admin"
         }
         tags_propagate_at_launch     = true
-        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
         },
         var.eks_admin_ami_type != null ? { ami_type = var.eks_admin_ami_type } : {},
@@ -476,7 +477,6 @@ module "eks" {
           nodegroup_name = "comet"
         }
         tags_propagate_at_launch     = true
-        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
         },
         var.eks_comet_ami_type != null ? { ami_type = var.eks_comet_ami_type } : {},
@@ -505,7 +505,6 @@ module "eks" {
           nodegroup_name = "druid"
         }
         tags_propagate_at_launch     = true
-        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
         },
       var.eks_druid_subnet_ids != null ? { subnet_ids = var.eks_druid_subnet_ids } : {})
@@ -533,7 +532,6 @@ module "eks" {
           nodegroup_name = "airflow"
         }
         tags_propagate_at_launch     = true
-        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
         },
       var.eks_airflow_subnet_ids != null ? { subnet_ids = var.eks_airflow_subnet_ids } : {})
@@ -565,7 +563,6 @@ module "eks" {
         }
         taints                       = var.eks_clickhouse_taints
         tags_propagate_at_launch     = true
-        launch_template_version      = null # track numeric default_version, not "$Latest"/"$Default" (see node_group_defaults)
         iam_role_additional_policies = local.node_group_iam_policies
         },
         var.eks_clickhouse_ami_type != null ? { ami_type = var.eks_clickhouse_ami_type } : {},
@@ -611,8 +608,22 @@ resource "time_sleep" "wait_for_cluster_access" {
 # State migration: native addons moved out of the eks_blueprints_addons module.
 # coredns/kube-proxy/metrics-server now live on module.eks.addons (aws_eks_addon.this),
 # vpc-cni is provisioned before_compute (aws_eks_addon.before_compute), and
-# aws-ebs-csi-driver is the standalone resource below. These moved blocks make
-# the transition a no-op on existing clusters instead of destroy/recreate.
+# aws-ebs-csi-driver is the standalone resource below. Because these stay the
+# same resource TYPE (aws_eks_addon), the moved blocks make the transition a
+# no-op on existing clusters instead of destroy/recreate.
+#
+# NOTE: cert-manager and external-dns are NOT covered by moved blocks. On
+# brownfield clusters they were installed as Helm releases by
+# eks_blueprints_addons; here they become aws_eks_addon (module.eks.addons).
+# That is a resource-TYPE change (helm_release -> aws_eks_addon), which a moved
+# block cannot express. So for a cluster that already runs them via Helm, the
+# first apply will DESTROY the Helm release and CREATE the native add-on — not
+# a no-op. Sequence per environment before applying:
+#   1. `terraform plan` and confirm the only cert-manager/external-dns change is
+#      helm_release destroy + aws_eks_addon create (no other collateral).
+#   2. Optionally `terraform state rm` the old helm_release and
+#      `terraform import` the add-on to avoid a brief in-cluster gap; otherwise
+#      accept the short recreate window (cert issuance / DNS reconcile pauses).
 moved {
   from = module.eks_blueprints_addons.aws_eks_addon.this["coredns"]
   to   = module.eks.aws_eks_addon.this["coredns"]
@@ -765,13 +776,21 @@ module "eks_blueprints_addons" {
   depends_on = [time_sleep.wait_for_cluster_access]
 }
 
-# Wait for AWS Load Balancer Controller webhook to be ready before creating Services
-# This prevents race conditions where cert-manager or other addons try to create Services
-# before the ALB mutating webhook has registered its endpoints
+# Best-effort settle delay before this module creates Services/objects that a
+# webhook might mutate.
+#
+# The AWS Load Balancer Controller is now deployed out-of-band by ArgoCD, NOT by
+# this module, so its webhook readiness is OUTSIDE Terraform's dependency graph —
+# there is no in-graph resource to wait on. We therefore cannot truly gate on the
+# ALB webhook here; this is a fixed post-cluster-access delay only. Real ordering
+# for anything that depends on the ALB webhook must be enforced ArgoCD-side (sync
+# waves / health checks), not here. depends_on is on wait_for_cluster_access
+# (which this module DOES own), not on eks_blueprints_addons (which no longer
+# installs the controller).
 resource "time_sleep" "wait_for_alb_webhook" {
   count = var.eks_aws_load_balancer_controller ? 1 : 0
 
-  depends_on      = [module.eks_blueprints_addons]
+  depends_on      = [time_sleep.wait_for_cluster_access]
   create_duration = "60s"
 }
 
