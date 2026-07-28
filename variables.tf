@@ -118,6 +118,18 @@ variable "eks_enable_karpenter" {
   default     = false
 }
 
+variable "eks_enable_auto_mode" {
+  description = "Enable EKS Auto Mode: the control plane provisions nodes natively via the built-in node pools (see eks_auto_mode_node_pools). Coexists with managed node groups — enabled MNGs keep running and Auto Mode adds elastic capacity alongside them. Mutually exclusive with eks_enable_karpenter. Auto Mode also provides block storage / load balancing / networking natively — see docs/auto-mode-migration-plan.md before removing the EBS CSI role, ALB controller, or gp3 StorageClass."
+  type        = bool
+  default     = false
+}
+
+variable "eks_auto_mode_node_pools" {
+  description = "Built-in EKS Auto Mode node pools to enable when eks_enable_auto_mode = true. Common values: \"system\", \"general-purpose\". Custom NodePool/NodeClass CRDs are managed via GitOps (ArgoCD), not this module."
+  type        = list(string)
+  default     = ["system", "general-purpose"]
+}
+
 variable "eks_karpenter_via_helm_release" {
   description = <<-EOT
     When true, install the Karpenter Helm chart via an in-module helm_release.
@@ -143,6 +155,12 @@ variable "enable_cloudwatch_exporter" {
 
 variable "enable_monitoring_setup" {
   description = "Enable monitoring namespace and Grafana credentials secret in EKS (used by comet_eks module)"
+  type        = bool
+  default     = true
+}
+
+variable "manage_monitoring_secret" {
+  description = "When true (default), Terraform manages the monitoring Grafana credentials Secret. Set false when External Secrets Operator owns it (ExternalSecret with creationPolicy: Owner). Only applies when enable_monitoring_setup = true."
   type        = bool
   default     = true
 }
@@ -609,9 +627,15 @@ variable "eks_aws_load_balancer_controller" {
 }
 
 variable "eks_cert_manager" {
-  description = "Enables cert-manager in the EKS cluster"
+  description = "Enables cert-manager in the EKS cluster (native EKS managed add-on, no IAM required)"
   type        = bool
   default     = false
+}
+
+variable "eks_cert_manager_addon_version" {
+  description = "cert-manager EKS add-on version (e.g. v1.21.0-eksbuild.2). Null lets EKS pick the default for the cluster version."
+  type        = string
+  default     = null
 }
 
 variable "eks_aws_cloudwatch_metrics" {
@@ -621,9 +645,15 @@ variable "eks_aws_cloudwatch_metrics" {
 }
 
 variable "eks_external_dns" {
-  description = "Enables ExternalDNS in the EKS cluster"
+  description = "Enables ExternalDNS in the EKS cluster (native EKS managed add-on, using EKS Pod Identity for Route53 access)"
   type        = bool
   default     = false
+}
+
+variable "eks_external_dns_addon_version" {
+  description = "external-dns EKS add-on version (e.g. v0.21.0-eksbuild.6). Null lets EKS pick the default for the cluster version."
+  type        = string
+  default     = null
 }
 
 variable "eks_external_dns_r53_zones" {
@@ -642,6 +672,43 @@ variable "eks_enable_metrics_server" {
 
 variable "eks_metrics_server_addon_version" {
   description = "Pinned version of the metrics-server EKS managed addon. Set to null to use the AWS default for the cluster's Kubernetes version."
+  type        = string
+  default     = null
+}
+
+# Observability add-ons (native EKS managed add-ons, no IAM required).
+variable "eks_enable_kube_state_metrics" {
+  description = "Enable the kube-state-metrics EKS managed add-on (cluster object state metrics for Prometheus)."
+  type        = bool
+  default     = false
+}
+
+variable "eks_kube_state_metrics_addon_version" {
+  description = "Pinned kube-state-metrics add-on version. Null uses the AWS default for the cluster version."
+  type        = string
+  default     = null
+}
+
+variable "eks_enable_prometheus_node_exporter" {
+  description = "Enable the prometheus-node-exporter EKS managed add-on (per-node hardware/OS metrics for Prometheus)."
+  type        = bool
+  default     = false
+}
+
+variable "eks_prometheus_node_exporter_addon_version" {
+  description = "Pinned prometheus-node-exporter add-on version. Null uses the AWS default for the cluster version."
+  type        = string
+  default     = null
+}
+
+variable "eks_enable_node_monitoring_agent" {
+  description = "Enable the eks-node-monitoring-agent EKS managed add-on (node health monitoring / auto-repair signals)."
+  type        = bool
+  default     = false
+}
+
+variable "eks_node_monitoring_agent_addon_version" {
+  description = "Pinned eks-node-monitoring-agent add-on version. Null uses the AWS default for the cluster version."
   type        = string
   default     = null
 }

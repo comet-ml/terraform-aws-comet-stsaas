@@ -23,6 +23,32 @@ output "cluster_autoscaler_irsa_role_arn" {
   value       = var.eks_enable_cluster_autoscaler ? module.cluster_autoscaler_irsa_role[0].iam_role_arn : null
 }
 
+# AWS Load Balancer Controller — installed per customer via ArgoCD (comet-gitops).
+# Consume these in the ArgoCD Application / Helm values: annotate the controller
+# ServiceAccount (kube-system:aws-load-balancer-controller) with the role ARN, and
+# set clusterName / region / vpcId from the cluster facts below.
+output "aws_load_balancer_controller_irsa_role_arn" {
+  description = "ARN of the AWS Load Balancer Controller IRSA role. Annotate the kube-system/aws-load-balancer-controller ServiceAccount with this in the ArgoCD-managed Helm values (serviceAccount.annotations.\"eks.amazonaws.com/role-arn\")."
+  value       = var.eks_aws_load_balancer_controller ? module.aws_load_balancer_controller_irsa_role[0].iam_role_arn : null
+}
+
+output "aws_load_balancer_controller_irsa_role_name" {
+  description = "Name of the AWS Load Balancer Controller IRSA role."
+  value       = var.eks_aws_load_balancer_controller ? module.aws_load_balancer_controller_irsa_role[0].iam_role_name : null
+}
+
+# Cluster facts for the ArgoCD-managed controllers (ALB controller Helm values need
+# clusterName + region + vpcId).
+output "cluster_region" {
+  description = "AWS region of the EKS cluster (for controller Helm values, e.g. aws-load-balancer-controller region)."
+  value       = var.region
+}
+
+output "cluster_vpc_id" {
+  description = "VPC ID of the EKS cluster (for controller Helm values, e.g. aws-load-balancer-controller vpcId)."
+  value       = var.vpc_id
+}
+
 output "cluster_autoscaler_irsa_role_name" {
   description = "Name of the Cluster Autoscaler IRSA role"
   value       = var.eks_enable_cluster_autoscaler ? module.cluster_autoscaler_irsa_role[0].iam_role_name : null

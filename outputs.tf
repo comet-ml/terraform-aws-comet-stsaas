@@ -133,6 +133,28 @@ output "cluster_autoscaler_irsa_role_name" {
   value       = var.enable_eks && var.eks_enable_cluster_autoscaler ? module.comet_eks[0].cluster_autoscaler_irsa_role_name : null
 }
 
+# AWS Load Balancer Controller — deployed per stsaas customer via ArgoCD (comet-gitops).
+# Feed these into the customer's ArgoCD Application / Helm values.
+output "aws_load_balancer_controller_irsa_role_arn" {
+  description = "ARN of the AWS Load Balancer Controller IRSA role. Annotate the kube-system/aws-load-balancer-controller ServiceAccount with this in the ArgoCD-managed Helm values."
+  value       = var.enable_eks && var.eks_aws_load_balancer_controller ? module.comet_eks[0].aws_load_balancer_controller_irsa_role_arn : null
+}
+
+output "aws_load_balancer_controller_irsa_role_name" {
+  description = "Name of the AWS Load Balancer Controller IRSA role"
+  value       = var.enable_eks && var.eks_aws_load_balancer_controller ? module.comet_eks[0].aws_load_balancer_controller_irsa_role_name : null
+}
+
+output "eks_cluster_region" {
+  description = "AWS region of the EKS cluster (for ArgoCD-managed controller Helm values, e.g. aws-load-balancer-controller region)"
+  value       = var.enable_eks ? module.comet_eks[0].cluster_region : null
+}
+
+output "eks_cluster_vpc_id" {
+  description = "VPC ID of the EKS cluster (for ArgoCD-managed controller Helm values, e.g. aws-load-balancer-controller vpcId)"
+  value       = var.enable_eks ? module.comet_eks[0].cluster_vpc_id : null
+}
+
 output "external_secrets_irsa_role_arn" {
   description = "ARN of the External Secrets IRSA role for accessing AWS Secrets Manager"
   value       = var.enable_eks && var.eks_enable_external_secrets ? module.comet_eks[0].external_secrets_irsa_role_arn : null

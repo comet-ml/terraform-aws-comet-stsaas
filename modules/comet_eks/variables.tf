@@ -195,7 +195,7 @@ variable "eks_mng_use_latest_ami_release_version" {
 }
 
 variable "eks_mng_pin_launch_template_version" {
-  description = "When false (default), node groups track the latest launch-template version (launch_template_version=\"$Latest\", default auto-updated), so any LT change rolls the nodes. Set true to track \"$Default\" and stop auto-promoting new LT versions to default, so benign LT changes (e.g. tag-only version bumps) do NOT roll the nodes. Trade-off: deliberate LT changes (AMI/instance type) then require a separate default-version bump to take effect."
+  description = "When false (default), the launch-template default_version auto-advances to the newest version, so any LT change rolls the nodes. Set true to stop auto-promoting new LT versions to default, so benign LT changes (e.g. tag-only version bumps) do NOT roll the nodes. Trade-off: deliberate LT changes (AMI/instance type) then require a separate default-version bump to take effect. Either way node groups reference the numeric default_version (not the \"$Latest\"/\"$Default\" aliases) so plans stay clean."
   type        = bool
   default     = false
 }
@@ -245,8 +245,14 @@ variable "eks_aws_load_balancer_controller" {
 }
 
 variable "eks_cert_manager" {
-  description = "Enables cert-manager in the EKS cluster"
+  description = "Enables cert-manager in the EKS cluster (as a native EKS managed add-on)"
   type        = bool
+}
+
+variable "eks_cert_manager_addon_version" {
+  description = "cert-manager EKS add-on version (e.g. v1.21.0-eksbuild.2). Null lets EKS pick the default for the cluster version."
+  type        = string
+  default     = null
 }
 
 variable "eks_aws_cloudwatch_metrics" {
@@ -255,8 +261,14 @@ variable "eks_aws_cloudwatch_metrics" {
 }
 
 variable "eks_external_dns" {
-  description = "Enables ExternalDNS in the EKS cluster"
+  description = "Enables ExternalDNS in the EKS cluster (as a native EKS managed add-on, using EKS Pod Identity for Route53 access)"
   type        = bool
+}
+
+variable "eks_external_dns_addon_version" {
+  description = "external-dns EKS add-on version (e.g. v0.21.0-eksbuild.6). Null lets EKS pick the default for the cluster version."
+  type        = string
+  default     = null
 }
 
 variable "eks_external_dns_r53_zones" {
@@ -272,6 +284,43 @@ variable "eks_enable_metrics_server" {
 
 variable "eks_metrics_server_addon_version" {
   description = "Pinned version of the metrics-server EKS managed addon. Set to null to use the AWS default for the cluster's Kubernetes version."
+  type        = string
+  default     = null
+}
+
+# Observability add-ons (native EKS managed add-ons, no IAM required).
+variable "eks_enable_kube_state_metrics" {
+  description = "Enable the kube-state-metrics EKS managed add-on (cluster object state metrics for Prometheus)."
+  type        = bool
+  default     = false
+}
+
+variable "eks_kube_state_metrics_addon_version" {
+  description = "Pinned kube-state-metrics add-on version. Null uses the AWS default for the cluster version."
+  type        = string
+  default     = null
+}
+
+variable "eks_enable_prometheus_node_exporter" {
+  description = "Enable the prometheus-node-exporter EKS managed add-on (per-node hardware/OS metrics for Prometheus)."
+  type        = bool
+  default     = false
+}
+
+variable "eks_prometheus_node_exporter_addon_version" {
+  description = "Pinned prometheus-node-exporter add-on version. Null uses the AWS default for the cluster version."
+  type        = string
+  default     = null
+}
+
+variable "eks_enable_node_monitoring_agent" {
+  description = "Enable the eks-node-monitoring-agent EKS managed add-on (node health monitoring / auto-repair signals)."
+  type        = bool
+  default     = false
+}
+
+variable "eks_node_monitoring_agent_addon_version" {
+  description = "Pinned eks-node-monitoring-agent add-on version. Null uses the AWS default for the cluster version."
   type        = string
   default     = null
 }
@@ -489,6 +538,12 @@ variable "enable_monitoring_setup" {
   default     = false
 }
 
+variable "manage_monitoring_secret" {
+  description = "When true (default), Terraform creates/manages the monitoring Grafana credentials Secret. Set false when External Secrets Operator owns that Secret (ExternalSecret with creationPolicy: Owner) so Terraform does not fight ESO over its labels and data. Only takes effect when enable_monitoring_setup = true."
+  type        = bool
+  default     = true
+}
+
 variable "monitoring_namespace" {
   description = "Kubernetes namespace for monitoring resources"
   type        = string
@@ -692,6 +747,41 @@ variable "enable_karpenter" {
   description = "Enable Karpenter prerequisites: discovery tags on subnets and node security group, SQS interruption queue, EventBridge rules, node IAM role/instance profile, and controller IRSA role. Outputs can be consumed by a separate Karpenter Helm release."
   type        = bool
   default     = false
+
+  validation {
+    condition     = !(var.enable_karpenter && var.enable_auto_mode)
+    error_message = "enable_karpenter and enable_auto_mode are mutually exclusive: EKS Auto Mode provisions nodes natively, so Karpenter must be disabled when Auto Mode is on."
+  }
+}
+
+variable "enable_auto_mode" {
+  description = <<-EOT
+    Enable EKS Auto Mode. When true, the EKS control plane can provision nodes
+    natively via the built-in node pools in `auto_mode_node_pools`. Auto Mode is
+    designed to COEXIST with managed node groups: the enabled MNGs (admin, comet,
+    etc.) continue to run, and Auto Mode node pools provision additional capacity
+    alongside them. Use MNGs for pinned/system workloads and Auto Mode for
+    elastic capacity. The upstream module auto-creates and wires the Auto Mode
+    node IAM role. Auto Mode also provides block storage, load balancing, and
+    networking natively (the EBS CSI IRSA/addon, ALB controller, and gp3
+    StorageClass can be migrated away separately). Mutually exclusive with
+    enable_karpenter.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "auto_mode_node_pools" {
+  description = <<-EOT
+    Built-in EKS Auto Mode node pools to enable (control-plane managed, no
+    manifests required). Common values: "system", "general-purpose". Only used
+    when enable_auto_mode = true. Custom NodePool/NodeClass CRDs (taints, limits,
+    instance shaping) are NOT created here — they are cluster-side objects and
+    should be managed via GitOps (e.g. ArgoCD), especially for private-endpoint
+    clusters the Terraform runner cannot reach.
+  EOT
+  type        = list(string)
+  default     = ["system", "general-purpose"]
 }
 
 variable "karpenter_via_helm_release" {
