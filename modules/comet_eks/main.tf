@@ -287,7 +287,16 @@ module "eks" {
     {
       # vpc-cni and kube-proxy are DaemonSets — not pinned to the system pool.
       # vpc-cni must be ready before nodes join, so provision it before compute.
-      vpc-cni    = { before_compute = true }
+      # DND-1082: when eks_enable_network_policy is set, turn on the CNI's
+      # Kubernetes NetworkPolicy enforcement (enableNetworkPolicy=true runs the
+      # aws-eks-nodeagent). NetworkPolicy objects are created-but-ignored until
+      # this is on. Off leaves the addon at AWS defaults (enforcement disabled).
+      vpc-cni = merge(
+        { before_compute = true },
+        var.eks_enable_network_policy ? {
+          configuration_values = jsonencode({ enableNetworkPolicy = "true" })
+        } : {}
+      )
       kube-proxy = {}
       # coredns is a schedulable Deployment — HA (2 replicas + PDB + soft
       # topology spread) plus system-pool pinning under Auto Mode. See the
