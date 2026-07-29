@@ -321,8 +321,6 @@ module "comet_eks" {
 
   # External Secrets IRSA role and Helm chart
   enable_external_secrets                 = var.eks_enable_external_secrets
-  external_secrets_chart_version          = var.eks_external_secrets_chart_version
-  external_secrets_via_helm_release       = var.eks_external_secrets_via_helm_release
   external_secrets_iam_role_name_override = var.external_secrets_iam_role_name_override
   secretsmanager_environment              = var.secretsmanager_environment
 
@@ -354,8 +352,7 @@ module "comet_eks" {
   auto_mode_node_pools = var.eks_auto_mode_node_pools
 
   # Karpenter prerequisites
-  enable_karpenter           = var.eks_enable_karpenter
-  karpenter_via_helm_release = var.eks_karpenter_via_helm_release
+  enable_karpenter = var.eks_enable_karpenter
 
   # Karpenter Node Group (dedicated controller node group, created when enable_karpenter = true)
   eks_karpenter_node_instance_types  = var.eks_karpenter_node_instance_types
@@ -366,10 +363,7 @@ module "comet_eks" {
   eks_admin_karpenter_instance_types = var.eks_admin_karpenter_instance_types
 
   # Karpenter Helm chart
-  karpenter_chart_version = var.eks_karpenter_chart_version
-  karpenter_helm_username = var.eks_karpenter_helm_username
-  karpenter_helm_password = var.eks_karpenter_helm_password
-  karpenter_extra_tags    = var.eks_karpenter_extra_tags
+  karpenter_extra_tags = var.eks_karpenter_extra_tags
 
   # EKS API ingress — standardized fleet-wide access
   enable_argocd_management_eks_access = var.enable_argocd_management_eks_access

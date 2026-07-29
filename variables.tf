@@ -130,23 +130,6 @@ variable "eks_auto_mode_node_pools" {
   default     = ["system", "general-purpose"]
 }
 
-variable "eks_karpenter_via_helm_release" {
-  description = <<-EOT
-    When true, install the Karpenter Helm chart via an in-module helm_release.
-    When false (default), skip the helm_release and assume Karpenter is deployed
-    externally (e.g., ArgoCD). AWS-side prerequisites (IRSA, SQS, instance
-    profile, discovery tags) are created either way.
-
-    MIGRATION SAFETY: flipping true to false on a customer where the in-module
-    helm_release is currently in TF state will run `helm uninstall` on the next
-    apply, DELETING the Karpenter controller — autoscaling stops. Before
-    flipping, either adopt via ArgoCD or `terraform state rm` the helm_release.
-    See the comet_eks sub-module variable docs for the full migration sequence.
-  EOT
-  type        = bool
-  default     = false
-}
-
 variable "enable_cloudwatch_exporter" {
   description = "Enable CloudWatch Exporter IRSA role for scraping ElastiCache, RDS, and other AWS managed service metrics (used by comet_eks module)"
   type        = bool
@@ -903,26 +886,6 @@ variable "eks_admin_karpenter_instance_types" {
   default     = ["t3.medium", "t3a.medium"]
 }
 
-variable "eks_karpenter_chart_version" {
-  description = "Version of the comet-stsaas-karpenter Helm chart to install from helm.comet.com"
-  type        = string
-  default     = "0.1.0"
-}
-
-variable "eks_karpenter_helm_username" {
-  description = "Username for the helm.comet.com Helm repository"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "eks_karpenter_helm_password" {
-  description = "Password for the helm.comet.com Helm repository"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
 variable "eks_karpenter_extra_tags" {
   description = "Extra EC2 instance tags applied to all Karpenter-provisioned nodes (e.g. Environment)"
   type        = map(string)
@@ -945,30 +908,6 @@ variable "eks_enable_external_secrets" {
   description = "Enable External Secrets IRSA role and Helm chart for accessing AWS Secrets Manager from EKS"
   type        = bool
   default     = true
-}
-
-variable "eks_external_secrets_chart_version" {
-  description = "Helm chart version for external-secrets"
-  type        = string
-  default     = "2.2.0"
-}
-
-variable "eks_external_secrets_via_helm_release" {
-  description = <<-EOT
-    When true, install external-secrets (CRDs + operator + ClusterSecretStore) via
-    in-module helm_release resources. When false (default), skip the K8s-side
-    resources and assume external-secrets is deployed externally (e.g., ArgoCD).
-    The IRSA role is created either way.
-
-    MIGRATION SAFETY: flipping true to false on a customer where the in-module
-    helm_release is currently in TF state will run `helm uninstall` on the next
-    apply, DELETING the K8s resources. Before flipping, either adopt the
-    resources via ArgoCD (annotate them so the helm uninstall is a no-op) or
-    `terraform state rm` the helm_release. See the comet_eks sub-module variable
-    docs for the full migration sequence.
-  EOT
-  type        = bool
-  default     = false
 }
 
 variable "eks_storage_class_reclaim_policy" {
