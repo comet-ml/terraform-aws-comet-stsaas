@@ -239,6 +239,7 @@ module "comet_eks" {
   eks_external_dns_addon_version               = var.eks_external_dns_addon_version
   eks_external_dns_r53_zones                   = var.eks_external_dns_r53_zones
   eks_enable_metrics_server                    = var.eks_enable_metrics_server
+  eks_enable_network_policy                    = var.eks_enable_network_policy
   eks_metrics_server_addon_version             = var.eks_metrics_server_addon_version
   eks_enable_kube_state_metrics                = var.eks_enable_kube_state_metrics
   eks_kube_state_metrics_addon_version         = var.eks_kube_state_metrics_addon_version

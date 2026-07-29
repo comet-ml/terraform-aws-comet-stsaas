@@ -670,6 +670,12 @@ variable "eks_enable_metrics_server" {
   default     = true
 }
 
+variable "eks_enable_network_policy" {
+  description = "Enables Kubernetes NetworkPolicy enforcement in the VPC CNI managed addon (sets enableNetworkPolicy=true, which runs the aws-eks-nodeagent). Without it, NetworkPolicy objects are created but silently not enforced. Required for the opik-python-backend / PP-engine / Ollie-engine egress policies. Defaults to true — enforcement is a safe superset (policies only restrict pods they explicitly select; unselected pods stay fully open)."
+  type        = bool
+  default     = true
+}
+
 variable "eks_metrics_server_addon_version" {
   description = "Pinned version of the metrics-server EKS managed addon. Set to null to use the AWS default for the cluster's Kubernetes version."
   type        = string
