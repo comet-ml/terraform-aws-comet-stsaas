@@ -234,7 +234,6 @@ module "comet_eks" {
   eks_aws_load_balancer_controller             = var.eks_aws_load_balancer_controller
   eks_cert_manager                             = var.eks_cert_manager
   eks_cert_manager_addon_version               = var.eks_cert_manager_addon_version
-  eks_aws_cloudwatch_metrics                   = var.eks_aws_cloudwatch_metrics
   eks_external_dns                             = var.eks_external_dns
   eks_external_dns_addon_version               = var.eks_external_dns_addon_version
   eks_external_dns_r53_zones                   = var.eks_external_dns_r53_zones

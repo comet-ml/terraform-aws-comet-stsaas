@@ -77,25 +77,6 @@ locals {
     tolerations  = local.auto_mode_addon_tolerations
   })] : []
 
-  # The blueprints controller config vars are typed `any` and the module reads
-  # them with a mix of try() and lookup(). A single-key object like
-  # { values = [...] } collapses to map(list(string)), which breaks the module's
-  # lookup() calls whose defaults are strings/maps (role_policies, permissions
-  # boundary, etc.). Passing those keys explicitly — with their own default
-  # types — keeps each object a heterogeneous OBJECT (not a typed map), so the
-  # module's lookups type-check. An empty `values` list (Auto Mode off) means no
-  # override, so the blueprints module keeps its own defaults.
-  # Used by the ALB controller and cloudwatch-metrics Helm releases below;
-  # cert-manager and external-dns are native add-ons and don't use this.
-  auto_mode_controller_config = {
-    values                        = local.auto_mode_addon_values
-    role_policies                 = {}
-    role_permissions_boundary_arn = null
-    policy_statements             = []
-    source_policy_documents       = []
-    override_policy_documents     = []
-  }
-
   # Check if additional S3 bucket ARNs are provided
   has_additional_s3_buckets = var.additional_s3_bucket_arns != null && length(var.additional_s3_bucket_arns) > 0
 
@@ -749,37 +730,6 @@ resource "aws_iam_role_policy" "external_dns" {
   policy = data.aws_iam_policy_document.external_dns[0].json
 }
 
-module "eks_blueprints_addons" {
-  source  = "aws-ia/eks-blueprints-addons/aws"
-  version = "~> 1.24"
-
-  cluster_name      = module.eks.cluster_name
-  cluster_endpoint  = module.eks.cluster_endpoint
-  oidc_provider_arn = module.eks.oidc_provider_arn
-  cluster_version   = module.eks.cluster_version
-
-  # Native EKS managed addons (coredns/vpc-cni/kube-proxy/metrics-server, plus
-  # cert-manager/external-dns/observability) now live on module.eks.addons;
-  # aws-ebs-csi-driver is the standalone resource above. This module now only
-  # manages the Helm-based controllers below.
-  #
-  # Under Auto Mode, each controller's Helm values carry the system-pool
-  # nodeSelector + toleration (local.auto_mode_addon_values). Empty otherwise.
-
-  # cert-manager and external-dns moved to native EKS add-ons (module.eks.addons).
-  # The ALB controller is NOT installed here either — its Helm chart is deployed
-  # per stsaas customer via ArgoCD (comet-gitops); this module only creates its
-  # IRSA role (module.aws_load_balancer_controller_irsa_role) and exposes the ARN
-  # as an output for the ArgoCD Application to wire onto the controller
-  # ServiceAccount. So cloudwatch-metrics is the only Helm release left here.
-  # Its controller config object injects the system-pool nodeSelector/toleration
-  # under Auto Mode; local.auto_mode_controller_config is a no-op when off.
-  enable_aws_cloudwatch_metrics = var.eks_aws_cloudwatch_metrics
-  aws_cloudwatch_metrics        = local.auto_mode_controller_config
-
-  depends_on = [time_sleep.wait_for_cluster_access]
-}
-
 # Best-effort settle delay before this module creates Services/objects that a
 # webhook might mutate.
 #
@@ -1205,7 +1155,6 @@ resource "kubernetes_namespace" "monitoring" {
 
   depends_on = [
     module.eks,
-    module.eks_blueprints_addons,
     time_sleep.wait_for_alb_webhook
   ]
 }
