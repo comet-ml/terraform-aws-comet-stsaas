@@ -136,23 +136,11 @@ variable "enable_cloudwatch_exporter" {
   default     = false
 }
 
-variable "enable_monitoring_setup" {
-  description = "Enable monitoring namespace and Grafana credentials secret in EKS (used by comet_eks module)"
-  type        = bool
-  default     = true
-}
-
-variable "manage_monitoring_secret" {
-  description = "When true (default), Terraform manages the monitoring Grafana credentials Secret. Set false when External Secrets Operator owns it (ExternalSecret with creationPolicy: Owner). Only applies when enable_monitoring_setup = true."
-  type        = bool
-  default     = true
-}
-
-variable "monitoring_namespace" {
-  description = "Kubernetes namespace for monitoring resources"
-  type        = string
-  default     = "monitoring"
-}
+# Monitoring namespace/secret bootstrap moved out of the EKS module in v5.0.0
+# (namespace -> comet-infra chart; Secret -> External Secrets Operator). The
+# enable_monitoring_setup / manage_monitoring_secret / monitoring_namespace vars
+# were removed. grafana_admin_user / grafana_admin_password remain — they still
+# feed comet_secretsmanager (the AWS Secrets Manager secret ESO reads).
 
 variable "enable_secretsmanager" {
   description = "Toggles the comet_secretsmanager module for provisioning Comet Secrets Manager secrets. Requires enable_rds and enable_elasticache to be true."
@@ -910,22 +898,8 @@ variable "eks_enable_external_secrets" {
   default     = true
 }
 
-variable "eks_storage_class_reclaim_policy" {
-  description = "Reclaim policy for the gp3 and comet-generic StorageClasses. Use 'Retain' to preserve volumes after PVC deletion (recommended for production), or 'Delete' to automatically delete volumes. Note: StorageClass reclaimPolicy is immutable; existing deployments require StorageClass deletion and recreation."
-  type        = string
-  default     = "Retain"
-
-  validation {
-    condition     = contains(["Retain", "Delete"], var.eks_storage_class_reclaim_policy)
-    error_message = "Must be 'Retain' or 'Delete'."
-  }
-}
-
-variable "eks_create_comet_generic_storage_class" {
-  description = "Create the comet-generic StorageClass via this module. Set false when comet-generic is owned by the comet-ml Helm chart (Helm/ArgoCD) to avoid dual ownership. The gp3 StorageClass is always created by this module."
-  type        = bool
-  default     = true
-}
+# StorageClasses moved to the comet-infra umbrella chart (ArgoCD) in v5.0.0.
+# eks_storage_class_reclaim_policy / eks_create_comet_generic_storage_class removed.
 
 #### comet_elasticache ####
 variable "elasticache_allow_from_sg" {
@@ -1650,36 +1624,12 @@ variable "ci_runners_cidr" {
 }
 
 #####################
-#### Namespace nodegroup pinning
+#### Namespace nodegroup pinning + Redis Insights — REMOVED in v5.0.0
 #####################
-
-variable "enable_namespace_nodegroup_pinning" {
-  description = "Annotate the application namespace with nodegroup_name=comet and admin_pinned_namespaces with nodegroup_name=admin via scheduler.alpha. Skips kube-system + monitoring."
-  type        = bool
-  default     = false
-}
-
-variable "app_namespace" {
-  description = "Application namespace to pin to the comet node group. Defaults to the module environment (which matches the Helm chart's default namespace)."
-  type        = string
-  default     = null
-}
-
-variable "admin_pinned_namespaces" {
-  description = "Namespaces to pin to the admin node group. Defaults cover the cluster's add-on namespaces."
-  type        = list(string)
-  default     = ["cert-manager", "external-dns", "external-secrets"]
-}
-
-#####################
-#### Redis Insights namespace + agentro port-forward RBAC
-#####################
-
-variable "enable_redis_insights_ns" {
-  description = "Create the redis-insights Kubernetes namespace with scheduler.alpha annotation pinning to admin NG."
-  type        = bool
-  default     = false
-}
+# scheduler.alpha node-selector pinning (enable_namespace_nodegroup_pinning,
+# app_namespace, admin_pinned_namespaces) is obsolete under EKS Auto Mode. The
+# redis-insights namespace (enable_redis_insights_ns) moved to the agentro-role/rbac
+# local module. All four root vars removed with their comet_eks pass-throughs.
 
 #####################
 #### Redis VPN ingress (comet_elasticache passthrough)
