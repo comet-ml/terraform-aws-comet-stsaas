@@ -498,36 +498,10 @@ variable "byo_s3_irsa_roles" {
   }
 }
 
-variable "enable_monitoring_setup" {
-  description = "Enable monitoring namespace and Grafana credentials secret"
-  type        = bool
-  default     = false
-}
-
-variable "manage_monitoring_secret" {
-  description = "When true (default), Terraform creates/manages the monitoring Grafana credentials Secret. Set false when External Secrets Operator owns that Secret (ExternalSecret with creationPolicy: Owner) so Terraform does not fight ESO over its labels and data. Only takes effect when enable_monitoring_setup = true."
-  type        = bool
-  default     = true
-}
-
-variable "monitoring_namespace" {
-  description = "Kubernetes namespace for monitoring resources"
-  type        = string
-  default     = "monitoring"
-}
-
-variable "grafana_admin_user" {
-  description = "Grafana admin username"
-  type        = string
-  default     = "admin"
-}
-
-variable "grafana_admin_password" {
-  description = "Grafana admin password"
-  type        = string
-  sensitive   = true
-  default     = null
-}
+# Monitoring bootstrap (namespace + Grafana Secret) moved out of this module:
+# namespace -> comet-infra umbrella (ArgoCD); Secret -> External Secrets Operator.
+# Vars enable_monitoring_setup / manage_monitoring_secret / monitoring_namespace /
+# grafana_admin_user / grafana_admin_password removed in v5.0.0.
 
 # Druid Node Group Variables
 variable "eks_druid_name" {
@@ -797,22 +771,9 @@ variable "karpenter_extra_tags" {
   default     = {}
 }
 
-variable "storage_class_reclaim_policy" {
-  description = "Reclaim policy for the gp3 and comet-generic StorageClasses. Use 'Retain' to preserve volumes after PVC deletion (recommended for production), or 'Delete' to automatically delete volumes."
-  type        = string
-  default     = "Retain"
-
-  validation {
-    condition     = contains(["Retain", "Delete"], var.storage_class_reclaim_policy)
-    error_message = "Must be 'Retain' or 'Delete'."
-  }
-}
-
-variable "create_comet_generic_storage_class" {
-  description = "Create the comet-generic StorageClass. Set false when comet-generic is owned by the comet-ml Helm chart (Helm/ArgoCD), to avoid dual ownership. The gp3 StorageClass is always created by this module."
-  type        = bool
-  default     = true
-}
+# StorageClasses (gp3 + comet-generic) moved to the comet-infra umbrella chart
+# (ArgoCD). Vars storage_class_reclaim_policy / create_comet_generic_storage_class
+# removed in v5.0.0 — reclaim policy and comet-generic creation are chart values now.
 
 # Per-Node-Group Subnet Pinning
 # When set, restricts a specific node group to a subset of subnets (typically a
@@ -891,60 +852,10 @@ variable "ci_runners_cidr" {
 }
 
 #####################
-#### Namespace nodegroup pinning — scheduler.alpha annotations
+#### Namespace nodegroup pinning + Redis Insights — REMOVED in v5.0.0
 #####################
-
-variable "enable_namespace_nodegroup_pinning" {
-  description = <<-EOT
-    Annotate the application namespace with scheduler.alpha.kubernetes.io/node-selector=nodegroup_name=comet
-    and the admin_pinned_namespaces with nodegroup_name=admin. Skips kube-system and monitoring
-    (they host DaemonSets and need to schedule everywhere).
-
-    PREREQUISITE: kubernetes_annotations PATCHES an existing namespace — it does NOT create one.
-    The target namespaces must already exist before this toggle is enabled. The expected order is:
-
-      1. Apply terraform with enable_namespace_nodegroup_pinning = false
-      2. Run Helm (FRED-helm-apply / ArgoCD / chart install) — creates the namespaces
-      3. Apply terraform with enable_namespace_nodegroup_pinning = true
-
-    For brownfield customers (the typical migration path from a wrapper that already managed these
-    annotations), step 2 is already done; flipping the toggle on the next apply is safe.
-
-    For greenfield, attempting to apply with the toggle enabled before namespaces exist will fail
-    with "namespace ... not found" at apply time.
-  EOT
-  type        = bool
-  default     = false
-}
-
-variable "app_namespace" {
-  description = "Application namespace to pin to the comet node group. Defaults to the module environment (which matches the Helm chart's default namespace). Reserved namespaces (kube-system, kube-public, kube-node-lease, default, monitoring) are rejected — they host DaemonSets and must schedule freely."
-  type        = string
-  default     = null
-
-  validation {
-    condition     = var.app_namespace == null || !contains(["kube-system", "kube-public", "kube-node-lease", "default", "monitoring"], coalesce(var.app_namespace, "unset"))
-    error_message = "app_namespace cannot be a reserved Kubernetes namespace (kube-system, kube-public, kube-node-lease, default, monitoring). Those host DaemonSets and must schedule across all nodes."
-  }
-}
-
-variable "admin_pinned_namespaces" {
-  description = "Namespaces to pin to the admin node group via scheduler.alpha annotations. Skipped if the namespace does not yet exist (annotation patches an existing namespace; create the namespace via Helm or terraform first). Reserved namespaces (kube-system, kube-public, kube-node-lease, default, monitoring) are rejected."
-  type        = list(string)
-  default     = ["cert-manager", "external-dns", "external-secrets"]
-
-  validation {
-    condition     = length(setintersection(toset(var.admin_pinned_namespaces), toset(["kube-system", "kube-public", "kube-node-lease", "default", "monitoring"]))) == 0
-    error_message = "admin_pinned_namespaces cannot include reserved Kubernetes namespaces (kube-system, kube-public, kube-node-lease, default, monitoring). Those host DaemonSets and must schedule across all nodes."
-  }
-}
-
-#####################
-#### Redis Insights — operational debug surface
-#####################
-
-variable "enable_redis_insights_ns" {
-  description = "Create the redis-insights Kubernetes namespace with scheduler.alpha annotation pinning to admin NG."
-  type        = bool
-  default     = false
-}
+# The scheduler.alpha node-selector annotations (enable_namespace_nodegroup_pinning,
+# app_namespace, admin_pinned_namespaces) targeted legacy managed node groups and are
+# obsolete under EKS Auto Mode (NodePools/NodeClasses handle scheduling). The
+# redis-insights namespace (enable_redis_insights_ns) moved to the agentro-role/rbac
+# local module. All four variables were removed with the resources they fed.
