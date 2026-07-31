@@ -583,13 +583,6 @@ module "irsa-ebs-csi" {
   }
 }
 
-resource "time_sleep" "wait_for_cluster_access" {
-  count = var.eks_enable_cluster_creator_admin_permissions ? 1 : 0
-
-  depends_on      = [module.eks]
-  create_duration = "60s"
-}
-
 # State migration: native addons moved out of the eks_blueprints_addons module.
 # coredns/kube-proxy/metrics-server now live on module.eks.addons (aws_eks_addon.this),
 # vpc-cni is provisioned before_compute (aws_eks_addon.before_compute), and
