@@ -1068,6 +1068,26 @@ module "cloudwatch_exporter_irsa_role" {
 
 data "aws_caller_identity" "current" {}
 
+# Region consistency guard.
+#
+# This module no longer declares its own provider "aws" (the caller owns it), so
+# the provider's region comes from the wrapper. Several resources below still key
+# off var.region as a string — the Karpenter controller IAM policy scopes EC2 ARNs
+# to arn:aws:ec2:${var.region}:... and pins an aws:RequestedRegion == var.region
+# condition. If the caller's provider region diverges from var.region, Karpenter's
+# grants would target the wrong region and deny actions. Fail fast at plan time
+# instead. (.region is the aws provider v6 attribute; .name is deprecated.)
+data "aws_region" "current" {}
+
+resource "terraform_data" "region_consistency" {
+  lifecycle {
+    precondition {
+      condition     = data.aws_region.current.region == var.region
+      error_message = "The AWS provider region (${data.aws_region.current.region}) must match var.region (${var.region}). This module inherits the caller's provider — set the wrapper's provider \"aws\" { region = ... } to the same region you pass as region/eks region, or the Karpenter IAM ARNs and aws:RequestedRegion condition will target the wrong region."
+    }
+  }
+}
+
 # Tag private subnets for Karpenter node discovery
 resource "aws_ec2_tag" "karpenter_subnet" {
   for_each    = var.enable_karpenter ? toset(var.eks_private_subnets) : toset([])
