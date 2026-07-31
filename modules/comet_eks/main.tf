@@ -583,13 +583,6 @@ module "irsa-ebs-csi" {
   }
 }
 
-resource "time_sleep" "wait_for_cluster_access" {
-  count = var.eks_enable_cluster_creator_admin_permissions ? 1 : 0
-
-  depends_on      = [module.eks]
-  create_duration = "60s"
-}
-
 # State migration: native addons moved out of the eks_blueprints_addons module.
 # coredns/kube-proxy/metrics-server now live on module.eks.addons (aws_eks_addon.this),
 # vpc-cni is provisioned before_compute (aws_eks_addon.before_compute), and
@@ -730,93 +723,11 @@ resource "aws_iam_role_policy" "external_dns" {
   policy = data.aws_iam_policy_document.external_dns[0].json
 }
 
-# Best-effort settle delay before this module creates Services/objects that a
-# webhook might mutate.
-#
-# The AWS Load Balancer Controller is now deployed out-of-band by ArgoCD, NOT by
-# this module, so its webhook readiness is OUTSIDE Terraform's dependency graph —
-# there is no in-graph resource to wait on. We therefore cannot truly gate on the
-# ALB webhook here; this is a fixed post-cluster-access delay only. Real ordering
-# for anything that depends on the ALB webhook must be enforced ArgoCD-side (sync
-# waves / health checks), not here. depends_on is on wait_for_cluster_access
-# (which this module DOES own), not on eks_blueprints_addons (which no longer
-# installs the controller).
-resource "time_sleep" "wait_for_alb_webhook" {
-  count = var.eks_aws_load_balancer_controller ? 1 : 0
-
-  depends_on      = [time_sleep.wait_for_cluster_access]
-  create_duration = "60s"
-}
-
-locals {
-  # Build tag specifications for EBS CSI driver
-  # Each tag needs to be a separate tagSpecification_N parameter with format "key=value"
-  # Note: common_tags passed from root module already includes Terraform=true and Environment tags
-  common_tags_list = [for k, v in var.common_tags : "${k}=${v}"]
-
-  # Base tags for gp3 storage class (only StorageClass identifier, other tags come from common_tags)
-  gp3_base_tags  = ["StorageClass=gp3"]
-  gp3_all_tags   = concat(local.gp3_base_tags, local.common_tags_list)
-  gp3_tag_params = { for idx, tag in local.gp3_all_tags : "tagSpecification_${idx + 1}" => tag }
-
-  # Base tags for comet-generic storage class (only StorageClass identifier, other tags come from common_tags)
-  comet_generic_base_tags  = ["StorageClass=comet-generic"]
-  comet_generic_all_tags   = concat(local.comet_generic_base_tags, local.common_tags_list)
-  comet_generic_tag_params = { for idx, tag in local.comet_generic_all_tags : "tagSpecification_${idx + 1}" => tag }
-}
-
-resource "kubernetes_storage_class" "gp3" {
-  depends_on = [time_sleep.wait_for_cluster_access]
-
-  metadata {
-    name   = "gp3"
-    labels = var.common_tags
-    annotations = {
-      "storageclass.kubernetes.io/is-default-class" = "true"
-    }
-  }
-
-  storage_provisioner = "ebs.csi.aws.com"
-
-  parameters = merge(
-    {
-      type = "gp3"
-      # Optionally, set iops and throughput:
-      # iops       = "3000"
-      # throughput = "125"
-    },
-    local.gp3_tag_params
-  )
-
-  reclaim_policy         = var.storage_class_reclaim_policy
-  volume_binding_mode    = "WaitForFirstConsumer"
-  allow_volume_expansion = true
-}
-
-resource "kubernetes_storage_class" "comet_generic" {
-  # Some deployments have comet-generic created by the comet-ml Helm chart
-  # (Helm/ArgoCD-owned). Set create_comet_generic_storage_class=false there so
-  # this module does not fight the chart over ownership of the same SC.
-  count = var.create_comet_generic_storage_class ? 1 : 0
-
-  depends_on = [time_sleep.wait_for_cluster_access]
-
-  metadata {
-    name   = "comet-generic"
-    labels = var.common_tags
-  }
-
-  storage_provisioner = "ebs.csi.aws.com"
-
-  parameters = merge(
-    { type = "gp3" },
-    local.comet_generic_tag_params
-  )
-
-  reclaim_policy         = var.storage_class_reclaim_policy
-  volume_binding_mode    = "WaitForFirstConsumer"
-  allow_volume_expansion = true
-}
+# StorageClasses (gp3 default + comet-generic) moved to the comet-infra umbrella
+# chart (ArgoCD-owned) — see comet-devops-helm/charts/comet-infra. The former
+# wait_for_alb_webhook settle delay went with them; ordering for ALB-webhook
+# dependents is enforced ArgoCD-side (sync waves), not in Terraform. This module
+# no longer touches the Kubernetes API for storage classes.
 
 #########################################
 #### Cluster Autoscaler IRSA Role ####
@@ -1146,41 +1057,10 @@ module "cloudwatch_exporter_irsa_role" {
 #########################################
 #### Monitoring Namespace and Secrets ####
 #########################################
-resource "kubernetes_namespace" "monitoring" {
-  count = var.enable_monitoring_setup ? 1 : 0
-
-  metadata {
-    name = var.monitoring_namespace
-  }
-
-  depends_on = [
-    module.eks,
-    time_sleep.wait_for_alb_webhook
-  ]
-}
-
-resource "kubernetes_secret" "monitoring" {
-  # Set manage_monitoring_secret = false where the monitoring Secret is owned by
-  # External Secrets Operator (ExternalSecret with creationPolicy: Owner). Letting
-  # Terraform also manage it causes a reconcile fight: TF strips ESO's labels and
-  # replaces the whole data map (dropping ESO-only keys) on every apply.
-  count = var.enable_monitoring_setup && var.manage_monitoring_secret ? 1 : 0
-
-  metadata {
-    name      = "monitoring"
-    namespace = kubernetes_namespace.monitoring[0].metadata[0].name
-  }
-
-  data = {
-    grafana-admin-user     = var.grafana_admin_user
-    grafana-admin-password = var.grafana_admin_password
-  }
-
-  type      = "Opaque"
-  immutable = false
-
-  depends_on = [kubernetes_namespace.monitoring]
-}
+# The monitoring namespace moved to the comet-infra umbrella chart (ArgoCD-owned).
+# The monitoring Secret is owned by External Secrets Operator (ExternalSecret with
+# creationPolicy: Owner) — Terraform no longer creates it. Both are out of this
+# module so it never touches the Kubernetes API for monitoring bootstrap.
 
 #########################################
 #### Karpenter Prerequisites ####
@@ -1626,58 +1506,13 @@ resource "aws_vpc_security_group_ingress_rule" "eks_api" {
 #########################################
 #### Namespace nodegroup pinning ####
 #########################################
-# Annotates namespaces with scheduler.alpha.kubernetes.io/node-selector to route
-# every Pod admitted into the namespace onto a specific node group. Skips
-# kube-system + monitoring (they host DaemonSets and must schedule everywhere).
-# Patches in place — does NOT create the namespace; create via Helm first.
-
-resource "kubernetes_annotations" "app_ns_node_selector" {
-  count = var.enable_namespace_nodegroup_pinning ? 1 : 0
-
-  depends_on = [time_sleep.wait_for_cluster_access]
-
-  api_version = "v1"
-  kind        = "Namespace"
-  metadata {
-    name = coalesce(var.app_namespace, var.environment)
-  }
-  annotations = {
-    "scheduler.alpha.kubernetes.io/node-selector" = "nodegroup_name=comet"
-  }
-  force = true
-}
-
-resource "kubernetes_annotations" "admin_ns_node_selector" {
-  for_each = var.enable_namespace_nodegroup_pinning ? toset(var.admin_pinned_namespaces) : []
-
-  depends_on = [time_sleep.wait_for_cluster_access]
-
-  api_version = "v1"
-  kind        = "Namespace"
-  metadata {
-    name = each.value
-  }
-  annotations = {
-    "scheduler.alpha.kubernetes.io/node-selector" = "nodegroup_name=admin"
-  }
-  force = true
-}
+# DROPPED. The scheduler.alpha.kubernetes.io/node-selector annotations pinned
+# app/admin namespaces onto legacy managed node groups (nodegroup_name=…). Under
+# EKS Auto Mode, scheduling is handled by NodePools/NodeClasses (comet-infra), so
+# this in-cluster patching is obsolete and has been removed.
 
 #########################################
 #### Redis Insights namespace ####
 #########################################
-# Operational debug surface — provides a namespace for the redis-insights helm
-# chart (installed by FRED-helm-apply) pinned to the admin NG.
-
-resource "kubernetes_namespace" "redis_insights" {
-  count = var.enable_redis_insights_ns ? 1 : 0
-
-  depends_on = [time_sleep.wait_for_cluster_access]
-
-  metadata {
-    name = "redis-insights"
-    annotations = {
-      "scheduler.alpha.kubernetes.io/node-selector" = "nodegroup_name=admin"
-    }
-  }
-}
+# Moved to the agentro-role/rbac local module (comet-devops), which owns agentro's
+# in-cluster objects in one place. Not created by this module anymore.

@@ -324,10 +324,6 @@ module "comet_eks" {
   external_secrets_iam_role_name_override = var.external_secrets_iam_role_name_override
   secretsmanager_environment              = var.secretsmanager_environment
 
-  # Storage class configuration
-  storage_class_reclaim_policy       = var.eks_storage_class_reclaim_policy
-  create_comet_generic_storage_class = var.eks_create_comet_generic_storage_class
-
   # Loki IRSA for S3 access
   enable_loki                 = var.enable_loki_bucket
   loki_s3_bucket_arn          = var.enable_s3 && var.enable_loki_bucket ? module.comet_s3[0].comet_loki_bucket_arn : null
@@ -339,13 +335,6 @@ module "comet_eks" {
   # CloudWatch Exporter IRSA for scraping AWS managed service metrics
   enable_cloudwatch_exporter                 = var.enable_cloudwatch_exporter
   cloudwatch_exporter_iam_role_name_override = var.cloudwatch_exporter_iam_role_name_override
-
-  # Monitoring namespace and Grafana credentials
-  enable_monitoring_setup  = var.enable_monitoring_setup
-  manage_monitoring_secret = var.manage_monitoring_secret
-  monitoring_namespace     = var.monitoring_namespace
-  grafana_admin_user       = var.grafana_admin_user
-  grafana_admin_password   = var.grafana_admin_password
 
   # EKS Auto Mode (mutually exclusive with Karpenter)
   enable_auto_mode     = var.eks_enable_auto_mode
@@ -373,13 +362,6 @@ module "comet_eks" {
   enable_ci_runners_eks_api_access    = var.enable_ci_runners_eks_api_access
   ci_runners_cidr                     = var.ci_runners_cidr
 
-  # Namespace nodegroup pinning
-  enable_namespace_nodegroup_pinning = var.enable_namespace_nodegroup_pinning
-  app_namespace                      = var.app_namespace
-  admin_pinned_namespaces            = var.admin_pinned_namespaces
-
-  # Redis Insights namespace + agentro port-forward RBAC
-  enable_redis_insights_ns = var.enable_redis_insights_ns
 }
 
 module "comet_elasticache" {
