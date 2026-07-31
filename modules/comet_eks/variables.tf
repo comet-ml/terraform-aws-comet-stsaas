@@ -255,11 +255,6 @@ variable "eks_cert_manager_addon_version" {
   default     = null
 }
 
-variable "eks_aws_cloudwatch_metrics" {
-  description = "Enables AWS Cloudwatch Metrics in the EKS cluster"
-  type        = bool
-}
-
 variable "eks_external_dns" {
   description = "Enables ExternalDNS in the EKS cluster (as a native EKS managed add-on, using EKS Pod Identity for Route53 access)"
   type        = bool
