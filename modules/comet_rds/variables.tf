@@ -121,6 +121,12 @@ variable "common_tags" {
   default     = {}
 }
 
+variable "vpn_client_cidr" {
+  description = "CIDR of the VPN client pool. Opened unconditionally on the MySQL SG (port 3306) for operator port-forward access via the VPN (DND-1522)."
+  type        = string
+  default     = "10.126.0.0/15"
+}
+
 variable "rds_snapshot_identifier" {
   description = "Snapshot identifier to restore the RDS cluster from. If provided, the cluster will be restored from this snapshot instead of being created fresh."
   type        = string

@@ -354,13 +354,10 @@ module "comet_eks" {
   # Karpenter Helm chart
   karpenter_extra_tags = var.eks_karpenter_extra_tags
 
-  # EKS API ingress — standardized fleet-wide access
-  enable_argocd_management_eks_access = var.enable_argocd_management_eks_access
-  argocd_management_cidrs             = var.argocd_management_cidrs
-  enable_vpn_eks_api_access           = var.enable_vpn_eks_api_access
-  vpn_client_cidr                     = var.vpn_client_cidr
-  enable_ci_runners_eks_api_access    = var.enable_ci_runners_eks_api_access
-  ci_runners_cidr                     = var.ci_runners_cidr
+  # EKS API ingress — standardized fleet-wide access (opened unconditionally, DND-1522)
+  argocd_management_cidrs = var.argocd_management_cidrs
+  vpn_client_cidr         = var.vpn_client_cidr
+  ci_runners_cidr         = var.ci_runners_cidr
 
 }
 
@@ -387,8 +384,7 @@ module "comet_elasticache" {
   elasticache_multi_az_enabled            = var.elasticache_multi_az_enabled
   elasticache_preferred_cache_cluster_azs = var.elasticache_preferred_cache_cluster_azs
 
-  enable_vpn_redis_access = var.enable_vpn_redis_access
-  vpn_client_cidr         = var.vpn_client_cidr
+  vpn_client_cidr = var.vpn_client_cidr
 }
 
 module "comet_rds" {
@@ -405,6 +401,7 @@ module "comet_rds" {
   rds_allow_from_sg = var.enable_ec2 ? module.comet_ec2[0].comet_ec2_sg_id : (
     var.enable_eks ? module.comet_eks[0].nodegroup_sg_id : (
   var.rds_allow_from_sg))
+  vpn_client_cidr       = var.vpn_client_cidr
   rds_engine            = var.rds_engine
   rds_engine_version    = var.rds_engine_version
   rds_instance_type     = var.rds_instance_type

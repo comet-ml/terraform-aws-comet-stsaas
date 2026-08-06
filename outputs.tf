@@ -53,6 +53,11 @@ output "mysql_database_name" {
   value       = var.enable_rds ? module.comet_rds[0].mysql_database_name : null
 }
 
+output "mysql_sg_id" {
+  description = "Security group ID of the MySQL (Aurora) cluster — wrappers add ingress rules to this instead of looking it up by name (DND-1522)"
+  value       = var.enable_rds ? module.comet_rds[0].mysql_sg_id : null
+}
+
 output "rds_password_auto_generated" {
   description = "Whether the RDS master password was auto-generated (true) or provided explicitly (false)"
   value       = var.enable_rds ? nonsensitive(var.rds_master_password == null) : null

@@ -1479,34 +1479,35 @@ module "karpenter_irsa" {
 #### EKS API ingress — fleet-wide CIDRs ####
 #########################################
 # These open the EKS cluster_security_group_id (the cluster's primary SG) on
-# port 443 to fleet-wide management surfaces. Each ingress source is gated by
-# its own toggle; the local map merges all enabled rules into a single
-# for_each so the common attributes live in one place.
+# port 443 to fleet-wide management surfaces (ArgoCD management, VPN clients, CI
+# runners). Connectivity is never a per-environment decision, so every source is
+# opened unconditionally (DND-1522); the CIDRs remain inputs. The local map
+# merges all rules into a single for_each so the common attributes live in one place.
 
 locals {
   eks_api_ingress_rules = merge(
-    var.enable_argocd_management_eks_access ? {
+    {
       for cidr in distinct(var.argocd_management_cidrs) :
       "argocd-management-${replace(cidr, "/", "_")}" => {
         cidr        = cidr
         description = "Allow ArgoCD management to reach EKS API from ${cidr}"
         name        = "argocd-management-access-${replace(cidr, "/", "_")}"
       }
-    } : {},
-    var.enable_vpn_eks_api_access ? {
+    },
+    {
       "vpn" = {
         cidr        = var.vpn_client_cidr
         description = "Allow VPN clients to reach EKS API"
         name        = "vpn-eks-api-access"
       }
-    } : {},
-    var.enable_ci_runners_eks_api_access ? {
+    },
+    {
       "ci-runners" = {
         cidr        = var.ci_runners_cidr
         description = "Allow CI cluster runners to reach EKS API"
         name        = "ci-runners-eks-api-access"
       }
-    } : {},
+    },
   )
 }
 

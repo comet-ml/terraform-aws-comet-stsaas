@@ -65,12 +65,10 @@ resource "aws_vpc_security_group_ingress_rule" "redis_port_inbound_rule" {
   ip_protocol                  = "tcp"
   referenced_security_group_id = var.elasticache_allow_from_sg
 }
-# VPN ingress to Redis (DND-752) — gated by enable_vpn_redis_access. Allows
-# operators on the VPN to connect to Redis via kubectl port-forward through
-# the cluster's Redis SG.
+# VPN ingress to Redis (DND-752). Allows operators on the VPN to connect to
+# Redis via kubectl port-forward through the cluster's Redis SG. Opened
+# unconditionally — connectivity is never per-environment (DND-1522).
 resource "aws_vpc_security_group_ingress_rule" "redis_vpn" {
-  count = var.enable_vpn_redis_access ? 1 : 0
-
   security_group_id = aws_security_group.redis_inbound_sg.id
   description       = "VPN client access (DND-752)"
   from_port         = local.redis_port
