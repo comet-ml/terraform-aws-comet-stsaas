@@ -826,7 +826,7 @@ module "external_secrets_irsa_role" {
   oidc_providers = {
     ex = {
       provider_arn               = module.eks.oidc_provider_arn
-      namespace_service_accounts = ["external-secrets:external-secrets"]
+      namespace_service_accounts = var.external_secrets_namespace_service_accounts
     }
   }
 

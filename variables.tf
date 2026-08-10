@@ -102,6 +102,12 @@ variable "external_secrets_iam_role_name_override" {
   }
 }
 
+variable "external_secrets_namespace_service_accounts" {
+  description = "OIDC-trusted <namespace>:<serviceaccount> subjects for the External Secrets IRSA role. Default trusts the standalone app's SA. During a namespace migration (e.g. folding ESO into the comet-infra umbrella in comet-system), list BOTH old and new subjects for a zero-gap cutover, then trim to just the new one."
+  type        = list(string)
+  default     = ["external-secrets:external-secrets"]
+}
+
 variable "cloudwatch_exporter_iam_role_name_override" {
   description = "Override the CloudWatch Exporter IRSA role name. Null keeps the computed <environment>-cloudwatch-exporter name."
   type        = string
