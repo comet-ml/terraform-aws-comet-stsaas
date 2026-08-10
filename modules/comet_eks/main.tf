@@ -1096,6 +1096,20 @@ resource "aws_ec2_tag" "karpenter_subnet" {
   value       = var.eks_cluster_name
 }
 
+# Tag private subnets with the EKS cluster-shared tag so tag-based node subnet
+# selectors resolve. EKS Auto Mode NodeClasses (and the comet-infra chart's
+# terse NodeClass builder) select private subnets by
+# `kubernetes.io/cluster/<cluster>=shared` + `kubernetes.io/role/internal-elb=1`;
+# the VPC module already sets internal-elb but not the cluster tag. Non-authoritative
+# aws_ec2_tag (per-key) so it never clobbers other subnet tags, and it works whether
+# the VPC is module-created (enable_vpc=true) or an external one passed in.
+resource "aws_ec2_tag" "eks_cluster_subnet" {
+  for_each    = toset(var.eks_private_subnets)
+  resource_id = each.value
+  key         = "kubernetes.io/cluster/${var.eks_cluster_name}"
+  value       = "shared"
+}
+
 # Tag the node shared security group for Karpenter discovery
 resource "aws_ec2_tag" "karpenter_sg" {
   count       = var.enable_karpenter ? 1 : 0
