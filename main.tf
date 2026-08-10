@@ -144,6 +144,7 @@ module "comet_vpc" {
   private_subnet_tags = var.private_subnet_tags
 
   eks_enabled        = var.enable_eks
+  eks_cluster_name   = var.enable_eks ? var.eks_cluster_name : null
   single_nat_gateway = var.single_nat_gateway
 
   enable_tgw_prep      = var.enable_tgw_prep

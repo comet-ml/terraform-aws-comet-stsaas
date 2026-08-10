@@ -9,8 +9,15 @@ locals {
   azs = slice(data.aws_availability_zones.available.names, 0, min(3, length(data.aws_availability_zones.available.names)))
 
   # When EKS is enabled, set subnet tags for AWS Load Balancer Controller auto-discovery.
-  eks_public_subnet_tags  = var.eks_enabled ? { "kubernetes.io/role/elb" = "1" } : {}
-  eks_private_subnet_tags = var.eks_enabled ? { "kubernetes.io/role/internal-elb" = "1" } : {}
+  # The cluster-shared tag (added when eks_cluster_name is set) lets EKS Auto Mode
+  # NodeClasses select these subnets by kubernetes.io/cluster/<name>=shared. It lives
+  # here (the VPC module's authoritative private_subnet_tags map) rather than a
+  # separate aws_ec2_tag so there's a single source of truth and no tag flap.
+  eks_public_subnet_tags = var.eks_enabled ? { "kubernetes.io/role/elb" = "1" } : {}
+  eks_private_subnet_tags = var.eks_enabled ? merge(
+    { "kubernetes.io/role/internal-elb" = "1" },
+    trimspace(coalesce(var.eks_cluster_name, " ")) != "" ? { "kubernetes.io/cluster/${var.eks_cluster_name}" = "shared" } : {},
+  ) : {}
 
   # TGW Connect-attachment targeting tag — set on private subnets when TGW prep is enabled.
   # The attachment resource is created in a follow-on change.
