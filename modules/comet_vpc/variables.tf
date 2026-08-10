@@ -8,6 +8,12 @@ variable "eks_enabled" {
   type        = bool
 }
 
+variable "eks_cluster_name" {
+  description = "EKS cluster name. When set (and eks_enabled), private subnets get the authoritative kubernetes.io/cluster/<name>=shared tag so EKS Auto Mode NodeClasses can select them by tag. Null/empty omits the tag."
+  type        = string
+  default     = null
+}
+
 variable "single_nat_gateway" {
   description = "Controls whether single NAT gateway used for all public subnets"
   type        = bool
