@@ -14,8 +14,13 @@ output "cluster_certificate_authority_data" {
 }
 
 output "nodegroup_sg_id" {
-  description = "ID of the node shared security group"
+  description = "ID of the node shared security group (managed node groups attach this)"
   value       = module.eks.node_security_group_id
+}
+
+output "cluster_primary_security_group_id" {
+  description = "EKS-managed cluster primary security group. EKS Auto Mode nodes attach this SG (managed node groups use nodegroup_sg_id instead) — reference it where Auto Mode nodes need network access (e.g. data-layer SG ingress)."
+  value       = module.eks.cluster_primary_security_group_id
 }
 
 output "cluster_autoscaler_irsa_role_arn" {
