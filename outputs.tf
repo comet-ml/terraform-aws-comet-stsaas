@@ -136,7 +136,7 @@ output "cluster_autoscaler_irsa_role_name" {
 # AWS Load Balancer Controller — deployed per stsaas customer via ArgoCD (comet-gitops).
 # Feed these into the customer's ArgoCD Application / Helm values.
 output "aws_load_balancer_controller_irsa_role_arn" {
-  description = "ARN of the AWS Load Balancer Controller IRSA role. Annotate the kube-system/aws-load-balancer-controller ServiceAccount with this in the ArgoCD-managed Helm values."
+  description = "ARN of the AWS Load Balancer Controller IRSA role. Annotate the controller ServiceAccount with this in the ArgoCD-managed Helm values. The SA's <namespace>:<name> must be listed in aws_load_balancer_controller_namespace_service_accounts (the role's OIDC trust) — default kube-system:aws-load-balancer-controller, or the comet-system umbrella subject when folded."
   value       = var.enable_eks && var.eks_aws_load_balancer_controller ? module.comet_eks[0].aws_load_balancer_controller_irsa_role_arn : null
 }
 

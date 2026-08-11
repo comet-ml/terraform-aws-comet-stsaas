@@ -106,12 +106,31 @@ variable "external_secrets_namespace_service_accounts" {
   description = "OIDC-trusted <namespace>:<serviceaccount> subjects for the External Secrets IRSA role. Default trusts the standalone app's SA. During a namespace migration (e.g. folding ESO into the comet-infra umbrella in comet-system), list BOTH old and new subjects for a zero-gap cutover, then trim to just the new one."
   type        = list(string)
   default     = ["external-secrets:external-secrets"]
+
+  validation {
+    # Each entry must be "<namespace>:<serviceaccount>" — the module prepends
+    # "system:serviceaccount:" and compares with StringEquals (exact match), so a
+    # malformed or wildcard entry produces an IRSA trust the SA can never assume.
+    condition = alltrue([
+      for s in var.external_secrets_namespace_service_accounts :
+      can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?:[a-z0-9]([a-z0-9-]*[a-z0-9])?$", s))
+    ])
+    error_message = "Each external_secrets_namespace_service_accounts entry must be \"<namespace>:<serviceaccount>\" (exactly one colon, each part a DNS-1123 label of lowercase alphanumerics/hyphens, no wildcards)."
+  }
 }
 
 variable "aws_load_balancer_controller_namespace_service_accounts" {
   description = "OIDC-trusted <namespace>:<serviceaccount> subjects for the AWS Load Balancer Controller IRSA role. Default trusts the standalone app's SA (kube-system). When folding the controller into the comet-infra umbrella (comet-system ns), list BOTH old and new subjects for a zero-gap cutover, then trim to just the new one."
   type        = list(string)
   default     = ["kube-system:aws-load-balancer-controller"]
+
+  validation {
+    condition = alltrue([
+      for s in var.aws_load_balancer_controller_namespace_service_accounts :
+      can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?:[a-z0-9]([a-z0-9-]*[a-z0-9])?$", s))
+    ])
+    error_message = "Each aws_load_balancer_controller_namespace_service_accounts entry must be \"<namespace>:<serviceaccount>\" (exactly one colon, each part a DNS-1123 label of lowercase alphanumerics/hyphens, no wildcards)."
+  }
 }
 
 variable "cloudwatch_exporter_iam_role_name_override" {
