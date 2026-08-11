@@ -378,6 +378,9 @@ module "comet_elasticache" {
   elasticache_allow_from_sg = var.enable_ec2 ? module.comet_ec2[0].comet_ec2_sg_id : (
     var.enable_eks ? module.comet_eks[0].nodegroup_sg_id : (
   var.elasticache_allow_from_sg))
+  # EKS Auto Mode nodes attach the cluster primary SG (distinct from the managed node SG
+  # above), so grant them Redis access too when Auto Mode is enabled.
+  elasticache_auto_mode_allow_from_sg     = var.enable_eks && var.eks_enable_auto_mode ? module.comet_eks[0].cluster_primary_security_group_id : null
   elasticache_engine                      = var.elasticache_engine
   elasticache_engine_version              = var.elasticache_engine_version
   elasticache_instance_type               = var.elasticache_instance_type
@@ -408,11 +411,14 @@ module "comet_rds" {
   rds_allow_from_sg = var.enable_ec2 ? module.comet_ec2[0].comet_ec2_sg_id : (
     var.enable_eks ? module.comet_eks[0].nodegroup_sg_id : (
   var.rds_allow_from_sg))
-  rds_engine            = var.rds_engine
-  rds_engine_version    = var.rds_engine_version
-  rds_instance_type     = var.rds_instance_type
-  rds_instance_count    = var.rds_instance_count
-  rds_storage_encrypted = var.rds_storage_encrypted
+  # EKS Auto Mode nodes attach the cluster primary SG (distinct from the managed node SG
+  # above), so grant them MySQL access too when Auto Mode is enabled.
+  rds_auto_mode_allow_from_sg = var.enable_eks && var.eks_enable_auto_mode ? module.comet_eks[0].cluster_primary_security_group_id : null
+  rds_engine                  = var.rds_engine
+  rds_engine_version          = var.rds_engine_version
+  rds_instance_type           = var.rds_instance_type
+  rds_instance_count          = var.rds_instance_count
+  rds_storage_encrypted       = var.rds_storage_encrypted
 
   # Aurora Serverless v2 (optional)
   rds_serverless_v2_enabled                  = var.rds_serverless_v2_enabled
@@ -460,8 +466,13 @@ module "comet_rds_proxy" {
   vpc_id     = var.enable_vpc ? module.comet_vpc[0].vpc_id : var.comet_vpc_id
   subnet_ids = var.enable_vpc ? module.comet_vpc[0].private_subnets : var.comet_private_subnets
 
-  allowed_sg_ids = var.enable_eks ? [module.comet_eks[0].nodegroup_sg_id] : var.rds_proxy_allowed_sg_ids
-  allowed_cidrs  = var.rds_proxy_allowed_cidrs
+  # Managed node SG + (when Auto Mode is enabled) the cluster primary SG that Auto Mode
+  # nodes attach, so pods on either node type can reach the RDS proxy.
+  allowed_sg_ids = var.enable_eks ? concat(
+    [module.comet_eks[0].nodegroup_sg_id],
+    var.eks_enable_auto_mode ? [module.comet_eks[0].cluster_primary_security_group_id] : [],
+  ) : var.rds_proxy_allowed_sg_ids
+  allowed_cidrs = var.rds_proxy_allowed_cidrs
 
   mysql_cluster_id      = module.comet_rds[0].mysql_cluster_id
   mysql_sg_id           = module.comet_rds[0].mysql_sg_id

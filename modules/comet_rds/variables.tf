@@ -35,6 +35,12 @@ variable "rds_allow_from_sg" {
   type        = string
 }
 
+variable "rds_auto_mode_allow_from_sg" {
+  description = "Additional security group allowed to reach RDS — the EKS Auto Mode cluster primary SG. Auto Mode nodes attach a different SG than managed node groups, so without this a pod on an Auto Mode node cannot reach MySQL. Null (default) creates no extra rule."
+  type        = string
+  default     = null
+}
+
 variable "rds_engine" {
   description = "Engine type for RDS database"
   type        = string

@@ -254,3 +254,17 @@ resource "aws_vpc_security_group_ingress_rule" "mysql_port_inbound_ec2" {
   ip_protocol                  = "tcp"
   referenced_security_group_id = var.rds_allow_from_sg
 }
+
+# EKS Auto Mode nodes attach the cluster primary SG (not the managed node SG that
+# rds_allow_from_sg references), so they need their own ingress rule to reach MySQL.
+# Only created when the Auto Mode SG is passed in.
+resource "aws_vpc_security_group_ingress_rule" "mysql_port_inbound_auto_mode" {
+  count = var.rds_auto_mode_allow_from_sg != null ? 1 : 0
+
+  security_group_id            = aws_security_group.mysql_sg.id
+  from_port                    = local.mysql_port
+  to_port                      = local.mysql_port
+  ip_protocol                  = "tcp"
+  referenced_security_group_id = var.rds_auto_mode_allow_from_sg
+  description                  = "MySQL from EKS Auto Mode nodes (cluster primary SG)"
+}
