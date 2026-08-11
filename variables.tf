@@ -108,6 +108,12 @@ variable "external_secrets_namespace_service_accounts" {
   default     = ["external-secrets:external-secrets"]
 }
 
+variable "aws_load_balancer_controller_namespace_service_accounts" {
+  description = "OIDC-trusted <namespace>:<serviceaccount> subjects for the AWS Load Balancer Controller IRSA role. Default trusts the standalone app's SA (kube-system). When folding the controller into the comet-infra umbrella (comet-system ns), list BOTH old and new subjects for a zero-gap cutover, then trim to just the new one."
+  type        = list(string)
+  default     = ["kube-system:aws-load-balancer-controller"]
+}
+
 variable "cloudwatch_exporter_iam_role_name_override" {
   description = "Override the CloudWatch Exporter IRSA role name. Null keeps the computed <environment>-cloudwatch-exporter name."
   type        = string
