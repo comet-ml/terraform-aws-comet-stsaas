@@ -75,6 +75,31 @@ resource "aws_secretsmanager_secret_version" "monitoring" {
   })
 }
 
+##########################
+#### Registry Secret ####
+##########################
+# Per-cluster docker.comet.com image-pull credential, consumed by ESO (comet-infra
+# ClusterExternalSecret) -> the in-cluster comet-ml-registry dockerconfigjson secret.
+# The VALUE is the canonical credential, read at the ROOT from the prod-account
+# cometml/shared/registry secret and passed in via var.registry_dockerconfigjson —
+# so rotating the shared secret + re-applying updates every cluster. The payload is
+# a JSON object with a ".dockerconfigjson" property (ESO extracts that property).
+resource "aws_secretsmanager_secret" "registry" {
+  count = var.enable_registry_secret ? 1 : 0
+
+  name        = "cometml/${var.environment}/registry"
+  description = "${var.environment} docker.comet.com image-pull credential (copied from canonical cometml/shared/registry)"
+
+  tags = var.common_tags
+}
+
+resource "aws_secretsmanager_secret_version" "registry" {
+  count = var.enable_registry_secret ? 1 : 0
+
+  secret_id     = aws_secretsmanager_secret.registry[0].id
+  secret_string = var.registry_dockerconfigjson
+}
+
 ############################
 #### ClickHouse Secret ####
 ############################
