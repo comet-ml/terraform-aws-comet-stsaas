@@ -30,6 +30,19 @@ variable "enable_clickhouse_secret" {
   default     = true
 }
 
+variable "enable_registry_secret" {
+  description = "Enable creation of the per-cluster docker.comet.com image-pull secret (cometml/<environment>/registry), consumed by ESO. Requires registry_dockerconfigjson. Default false to preserve existing behavior; set true (with the value wired from the canonical cometml/shared/registry) for clusters that source the pull secret from Secrets Manager instead of the comet-ml chart's Git-values hook."
+  type        = bool
+  default     = false
+}
+
+variable "registry_dockerconfigjson" {
+  description = "Secret payload for cometml/<environment>/registry — a JSON object with a \".dockerconfigjson\" property holding the docker.comet.com config (ESO extracts that property). Read at the root from the canonical prod-account cometml/shared/registry secret. Null unless enable_registry_secret is true."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
 # Database passwords
 variable "mysql_password" {
   description = "MySQL password (used for MYSQL_PASSWORD, MYSQL_PASSWORD_RO, MYSQL_PASSWORD_RW, mysql-root-password, mysql-replication-password, mysql-password, STATE_DB_PASS, MYSQL_ADMIN_PASSWORD)"

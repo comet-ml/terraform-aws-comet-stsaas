@@ -520,6 +520,9 @@ module "comet_secretsmanager" {
   enable_monitoring_secret = var.enable_monitoring_secret
   enable_clickhouse_secret = var.enable_clickhouse_secret
 
+  enable_registry_secret    = var.enable_registry_secret
+  registry_dockerconfigjson = var.registry_dockerconfigjson
+
   # Database password (from RDS - uses provided or auto-generated password)
   mysql_password = local.rds_master_password
 

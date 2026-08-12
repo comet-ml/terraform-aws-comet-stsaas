@@ -197,6 +197,19 @@ variable "enable_clickhouse_secret" {
   default     = true
 }
 
+variable "enable_registry_secret" {
+  description = "Enable creation of the docker.comet.com image-pull secret (cometml/{environment}/registry), consumed by ESO. Requires registry_dockerconfigjson. Default false; set true (value wired from the canonical cometml/shared/registry) for clusters that source the pull secret from Secrets Manager instead of the comet-ml chart's Git-values hook."
+  type        = bool
+  default     = false
+}
+
+variable "registry_dockerconfigjson" {
+  description = "Secret payload for cometml/{environment}/registry — a JSON object with a \".dockerconfigjson\" property holding the docker.comet.com config. Read at the caller from the canonical prod-account cometml/shared/registry. Null unless enable_registry_secret is true."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
 ################
 #### Global ####
 ################
