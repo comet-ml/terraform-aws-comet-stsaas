@@ -440,6 +440,10 @@ module "comet_rds" {
   rds_performance_insights_kms_key_id       = var.rds_performance_insights_kms_key_id
   rds_enhanced_monitoring_interval          = var.rds_enhanced_monitoring_interval
 
+  # CloudWatch Logs export (DND-1537)
+  rds_enabled_cloudwatch_logs_exports = var.rds_enabled_cloudwatch_logs_exports
+  rds_log_retention_days              = var.rds_log_retention_days
+
   # Deletion protection
   rds_deletion_protection = var.rds_deletion_protection
 

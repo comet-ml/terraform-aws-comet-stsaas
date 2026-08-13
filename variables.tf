@@ -1168,6 +1168,23 @@ variable "rds_enhanced_monitoring_interval" {
   default     = 60
 }
 
+# DND-1537: a fleet audit found EnabledCloudwatchLogsExports null on all 16 STSaaS Aurora
+# clusters, which left the MySQL error log unreadable during CUST-6816 — agentro holds
+# rds:DescribeDBLogFiles but not rds:DownloadDBLogFilePortion, so the investigation could
+# see a 254 KB error-log spike in the failure hour and could not read it. Exporting to
+# CloudWatch Logs closes that without widening the read-only role.
+variable "rds_enabled_cloudwatch_logs_exports" {
+  description = "MySQL log types exported to CloudWatch Logs. 'error' carries the entries that matter for post-mortems. 'slowquery' produces nothing unless slow_query_log=1 is also set via rds_cluster_parameters — it is enabled here so the log group exists and is retention-managed from the moment that parameter is turned on. Pass [] to disable."
+  type        = list(string)
+  default     = ["error", "slowquery"]
+}
+
+variable "rds_log_retention_days" {
+  description = "Retention for the RDS CloudWatch log groups, in days. 0 means keep forever — avoid: that is what RDS applies on its own when it auto-creates the groups, and the reason DND-1537 found an orphaned group holding 3.65 GB of dead data indefinitely."
+  type        = number
+  default     = 90
+}
+
 #### comet_s3 ####
 variable "s3_bucket_name" {
   description = "Name for S3 bucket"

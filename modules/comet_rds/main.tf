@@ -1,6 +1,11 @@
 locals {
   mysql_port                  = 3306
   enhanced_monitoring_enabled = var.rds_enhanced_monitoring_interval > 0
+
+  # Named once so the CloudWatch log groups can be built from the same identifier the
+  # cluster uses — the group names RDS writes to are /aws/rds/cluster/<id>/<type>, so a
+  # drift between the two would silently leave the real groups unmanaged (DND-1537).
+  rds_cluster_identifier = coalesce(var.rds_cluster_identifier, "cometml-rds-cluster-${var.environment}")
 }
 
 # IAM role for Enhanced Monitoring
@@ -67,8 +72,27 @@ resource "aws_rds_cluster_instance" "comet-ml-rds-mysql" {
   )
 }
 
+# DND-1537: create the log groups ourselves, with retention, so they exist BEFORE the
+# export is switched on below. If RDS gets there first it creates them with no retention
+# ("never expire") and terraform then collides with an unmanaged resource — which is both
+# how the orphaned zoox slowquery group came to bill 3.65 GB indefinitely, and an import
+# nobody wants to do 16 times.
+resource "aws_cloudwatch_log_group" "rds_exported_logs" {
+  for_each = toset(var.rds_enabled_cloudwatch_logs_exports)
+
+  name              = "/aws/rds/cluster/${local.rds_cluster_identifier}/${each.value}"
+  retention_in_days = var.rds_log_retention_days == 0 ? null : var.rds_log_retention_days
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "/aws/rds/cluster/${local.rds_cluster_identifier}/${each.value}"
+    }
+  )
+}
+
 resource "aws_rds_cluster" "cometml-db-cluster" {
-  cluster_identifier                  = coalesce(var.rds_cluster_identifier, "cometml-rds-cluster-${var.environment}")
+  cluster_identifier                  = local.rds_cluster_identifier
   db_subnet_group_name                = aws_db_subnet_group.comet-ml-rds-subnet.name
   availability_zones                  = var.availability_zones
   database_name                       = var.rds_snapshot_identifier == null ? var.rds_database_name : null
@@ -90,6 +114,11 @@ resource "aws_rds_cluster" "cometml-db-cluster" {
   deletion_protection                 = var.rds_deletion_protection
   storage_type                        = var.rds_storage_type
   apply_immediately                   = true
+  enabled_cloudwatch_logs_exports     = var.rds_enabled_cloudwatch_logs_exports
+
+  # The log groups must exist with their retention already set before RDS starts
+  # exporting, otherwise RDS creates them itself at "never expire" (DND-1537).
+  depends_on = [aws_cloudwatch_log_group.rds_exported_logs]
 
   dynamic "serverlessv2_scaling_configuration" {
     for_each = var.rds_serverless_v2_enabled ? [1] : []
