@@ -205,7 +205,7 @@ variable "rds_managed_log_group_types" {
 # second time, at exactly the moment DND-1537 flips slow_query_log=1 and the groups start
 # carrying customer SQL text. Also what trivy AVD-AWS-0017 asks for.
 variable "rds_log_kms_key_id" {
-  description = "ARN of a KMS key to encrypt the RDS CloudWatch log groups. Default null uses the CloudWatch service-managed key. Worth setting for environments whose slow query log will carry customer SQL text."
+  description = "ARN of a KMS key to encrypt the RDS CloudWatch log groups. Default null uses the CloudWatch service-managed key. Worth setting for environments whose slow query log will carry customer SQL text. When first setting this, the KMS key policy must grant logs.<region>.amazonaws.com permission to use the key, or CreateLogGroup fails with InvalidParameterException — which reads like a terraform problem and is not."
   type        = string
   default     = null
 }

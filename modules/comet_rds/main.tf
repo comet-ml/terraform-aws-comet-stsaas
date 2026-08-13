@@ -154,6 +154,20 @@ resource "aws_rds_cluster" "cometml-db-cluster" {
     # dependents to "known after apply"). It only matters at destroy time as the
     # snapshot name, so ignore in-place changes and keep the value first stored.
     ignore_changes = [final_snapshot_identifier]
+
+    # Exporting a type that has no managed log group hands group creation back to
+    # RDS, which makes it at never-expire — this module's own failure mode, through
+    # a new door. Both variables default to the same list so this holds out of the
+    # box; the precondition stops someone adding e.g. "general" to the export list
+    # alone. A cross-variable `validation` block would be the natural home, but that
+    # needs Terraform 1.9 and this repo's floor is >= 1.5.7.
+    precondition {
+      condition = alltrue([
+        for t in var.rds_enabled_cloudwatch_logs_exports :
+        contains(var.rds_managed_log_group_types, t)
+      ])
+      error_message = "Every exported log type must also be in rds_managed_log_group_types, or RDS creates its log group at never-expire."
+    }
   }
 }
 
