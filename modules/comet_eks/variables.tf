@@ -822,9 +822,8 @@ variable "argocd_management_cidrs" {
 }
 
 variable "vpn_client_cidr" {
-  description = "CIDR of the VPN client pool. Opened on the EKS API (DND-915) and passed through to Redis/MySQL SG rules (DND-1522)."
+  description = "CIDR of the VPN client pool. Opened on the EKS API (DND-915) and passed through to Redis/MySQL SG rules (DND-1522). Required — the root module always supplies it; the default lives only there so the value can't drift between submodules."
   type        = string
-  default     = "10.126.0.0/15"
 }
 
 variable "ci_runners_cidr" {

@@ -63,6 +63,11 @@ output "rds_password_auto_generated" {
   value       = var.enable_rds ? nonsensitive(var.rds_master_password == null) : null
 }
 
+output "redis_sg_id" {
+  description = "Security group ID of the Redis (ElastiCache) replication group — wrappers add ingress rules to this instead of looking it up by name (DND-1522)"
+  value       = var.enable_elasticache ? module.comet_elasticache[0].redis_sg_id : null
+}
+
 output "configure_kubectl" {
   description = "Configure kubectl: run the following command to update your kubeconfig with the newly provisioned cluster."
   value       = var.enable_eks ? "aws eks update-kubeconfig --region ${var.region} --name ${module.comet_eks[0].cluster_name}" : null

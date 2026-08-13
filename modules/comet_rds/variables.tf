@@ -122,9 +122,8 @@ variable "common_tags" {
 }
 
 variable "vpn_client_cidr" {
-  description = "CIDR of the VPN client pool. Opened unconditionally on the MySQL SG (port 3306) for operator port-forward access via the VPN (DND-1522)."
+  description = "CIDR of the VPN client pool. Opened unconditionally on the MySQL SG (port 3306) for operator port-forward access via the VPN (DND-1522). Required — the root module always supplies it; the default lives only there so the value can't drift between submodules."
   type        = string
-  default     = "10.126.0.0/15"
 }
 
 variable "rds_snapshot_identifier" {

@@ -78,3 +78,14 @@ resource "aws_vpc_security_group_ingress_rule" "redis_vpn" {
 
   tags = merge(var.common_tags, { Name = "redis-vpn-access" })
 }
+
+# The rule was previously gated on enable_vpn_redis_access, so envs that had it
+# on hold it in state as redis_vpn[0]. Dropping count changes the address to
+# redis_vpn; without this, Terraform plans an unordered destroy + create of two
+# unrelated addresses, which can race into InvalidPermission.Duplicate and, on
+# the happy path, still leaves a window with no VPN ingress to Redis. No-op for
+# any consumer that had the toggle off (DND-1522).
+moved {
+  from = aws_vpc_security_group_ingress_rule.redis_vpn[0]
+  to   = aws_vpc_security_group_ingress_rule.redis_vpn
+}

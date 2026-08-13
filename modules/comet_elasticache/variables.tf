@@ -90,7 +90,6 @@ variable "common_tags" {
 }
 
 variable "vpn_client_cidr" {
-  description = "CIDR of the VPN client pool. Opened unconditionally on the Redis SG (port 6379) for operator port-forward access via the VPN (DND-752, DND-1522)."
+  description = "CIDR of the VPN client pool. Opened unconditionally on the Redis SG (port 6379) for operator port-forward access via the VPN (DND-752, DND-1522). Required — the root module always supplies it; the default lives only there so the value can't drift between submodules."
   type        = string
-  default     = "10.126.0.0/15"
 }
