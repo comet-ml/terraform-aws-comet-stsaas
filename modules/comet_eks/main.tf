@@ -932,6 +932,18 @@ resource "kubernetes_secret" "monitoring" {
   type      = "Opaque"
   immutable = false
 
+  # DND-1489: the monitoring Secret is co-managed at runtime — the comet-infra Helm
+  # chart / External Secrets Operator / ArgoCD stamp their own metadata
+  # (meta.helm.sh/*, reconcile.external-secrets.io/*, argocd.argoproj.io/tracking-id).
+  # Terraform only owns the grafana-admin data here, so ignore that controller-owned
+  # metadata; otherwise every plan tries to strip it and the controllers immediately
+  # re-add it, producing perpetual no-op churn on this Secret each apply. (v5.x resolves
+  # this differently — it no longer terraform-manages this Secret at all; this
+  # ignore_changes is the fix for the v1.20.x/v2.0.x/v2.1.x lines that still do.)
+  lifecycle {
+    ignore_changes = [metadata[0].annotations, metadata[0].labels]
+  }
+
   depends_on = [kubernetes_namespace.monitoring]
 }
 
