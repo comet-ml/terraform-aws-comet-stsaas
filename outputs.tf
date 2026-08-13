@@ -53,6 +53,16 @@ output "mysql_database_name" {
   value       = var.enable_rds ? module.comet_rds[0].mysql_database_name : null
 }
 
+output "mysql_log_group_names" {
+  description = "CloudWatch log group names for the exported RDS logs, keyed by log type. Needed to build the terraform import address when adopting a cluster whose export was enabled out-of-band (DND-1537)."
+  value       = var.enable_rds ? module.comet_rds[0].mysql_log_group_names : null
+}
+
+output "mysql_log_group_arns" {
+  description = "CloudWatch log group ARNs for the exported RDS logs, keyed by log type. For metric filters, subscription filters and alarm targets."
+  value       = var.enable_rds ? module.comet_rds[0].mysql_log_group_arns : null
+}
+
 output "rds_password_auto_generated" {
   description = "Whether the RDS master password was auto-generated (true) or provided explicitly (false)"
   value       = var.enable_rds ? nonsensitive(var.rds_master_password == null) : null

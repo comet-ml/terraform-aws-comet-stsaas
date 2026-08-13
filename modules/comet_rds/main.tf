@@ -78,16 +78,21 @@ resource "aws_rds_cluster_instance" "comet-ml-rds-mysql" {
 # how the orphaned zoox slowquery group came to bill 3.65 GB indefinitely, and an import
 # nobody wants to do 16 times.
 resource "aws_cloudwatch_log_group" "rds_exported_logs" {
-  for_each = toset(var.rds_enabled_cloudwatch_logs_exports)
+  # Driven by rds_managed_log_group_types, NOT by the export list — see that variable for
+  # why. Toggling an export off leaves the group in state, so re-enabling it later is a
+  # no-op rather than a ResourceAlreadyExistsException.
+  for_each = toset(var.rds_managed_log_group_types)
 
   name              = "/aws/rds/cluster/${local.rds_cluster_identifier}/${each.value}"
-  retention_in_days = var.rds_log_retention_days == 0 ? null : var.rds_log_retention_days
+  retention_in_days = var.rds_log_retention_days
+  kms_key_id        = var.rds_log_kms_key_id
 
-  # Dropping a type from rds_enabled_cloudwatch_logs_exports removes it from the for_each,
-  # which would otherwise destroy the group and every log in it. Turning an export off must
-  # not delete the evidence already collected — that is the whole point of exporting.
-  # The cost is that a real teardown leaves the groups behind, but they carry retention now
-  # and expire on their own, unlike the never-expire orphan DND-1537 had to clean up.
+  # Turning an export off must not delete the evidence already collected — that is the whole
+  # point of exporting. Belt-and-braces now that the two lifecycles are decoupled: it only
+  # bites when a type is removed from rds_managed_log_group_types, which is an explicit
+  # "stop managing this group" rather than a side effect of changing the export list.
+  # The cost is that a real teardown leaves the groups behind, but they carry finite
+  # retention and expire on their own, unlike the never-expire orphan DND-1537 cleaned up.
   skip_destroy = true
 
   tags = merge(

@@ -442,7 +442,9 @@ module "comet_rds" {
 
   # CloudWatch Logs export (DND-1537)
   rds_enabled_cloudwatch_logs_exports = var.rds_enabled_cloudwatch_logs_exports
+  rds_managed_log_group_types         = var.rds_managed_log_group_types
   rds_log_retention_days              = var.rds_log_retention_days
+  rds_log_kms_key_id                  = var.rds_log_kms_key_id
 
   # Deletion protection
   rds_deletion_protection = var.rds_deletion_protection
