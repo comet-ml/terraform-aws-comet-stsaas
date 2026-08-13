@@ -54,13 +54,18 @@ output "mysql_database_name" {
 }
 
 output "mysql_log_group_names" {
-  description = "CloudWatch log group names for the exported RDS logs, keyed by log type. Needed to build the terraform import address when adopting a cluster whose export was enabled out-of-band (DND-1537)."
+  description = "CloudWatch log group names for the RDS log groups this module MANAGES, keyed by log type. Superset of what is actively exported — cross-reference mysql_exported_log_types. Needed to build the terraform import address when adopting a cluster whose export was enabled out-of-band (DND-1537)."
   value       = var.enable_rds ? module.comet_rds[0].mysql_log_group_names : null
 }
 
 output "mysql_log_group_arns" {
-  description = "CloudWatch log group ARNs for the exported RDS logs, keyed by log type. For metric filters, subscription filters and alarm targets."
+  description = "CloudWatch log group ARNs for the RDS log groups this module MANAGES, keyed by log type. Superset of what is actively exported — filter by mysql_exported_log_types before attaching metric filters, subscription filters or alarms, or you will target a group nothing writes to."
   value       = var.enable_rds ? module.comet_rds[0].mysql_log_group_arns : null
+}
+
+output "mysql_exported_log_types" {
+  description = "MySQL log types the cluster is actively exporting. Subset of the keys in mysql_log_group_names / mysql_log_group_arns. A type can be exported and still produce nothing — 'slowquery' stays empty until slow_query_log=1 is set via rds_cluster_parameters."
+  value       = var.enable_rds ? module.comet_rds[0].mysql_exported_log_types : null
 }
 
 output "rds_password_auto_generated" {
