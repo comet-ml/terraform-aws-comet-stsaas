@@ -1,6 +1,11 @@
 locals {
   mysql_port                  = 3306
   enhanced_monitoring_enabled = var.rds_enhanced_monitoring_interval > 0
+
+  # Named once so the CloudWatch log groups can be built from the same identifier the
+  # cluster uses — the group names RDS writes to are /aws/rds/cluster/<id>/<type>, so a
+  # drift between the two would silently leave the real groups unmanaged (DND-1537).
+  rds_cluster_identifier = coalesce(var.rds_cluster_identifier, "cometml-rds-cluster-${var.environment}")
 }
 
 # IAM role for Enhanced Monitoring
@@ -67,8 +72,39 @@ resource "aws_rds_cluster_instance" "comet-ml-rds-mysql" {
   )
 }
 
+# DND-1537: create the log groups ourselves, with retention, so they exist BEFORE the
+# export is switched on below. If RDS gets there first it creates them with no retention
+# ("never expire") and terraform then collides with an unmanaged resource — which is both
+# how the orphaned zoox slowquery group came to bill 3.65 GB indefinitely, and an import
+# nobody wants to do 16 times.
+resource "aws_cloudwatch_log_group" "rds_exported_logs" {
+  # Driven by rds_managed_log_group_types, NOT by the export list — see that variable for
+  # why. Toggling an export off leaves the group in state, so re-enabling it later is a
+  # no-op rather than a ResourceAlreadyExistsException.
+  for_each = toset(var.rds_managed_log_group_types)
+
+  name              = "/aws/rds/cluster/${local.rds_cluster_identifier}/${each.value}"
+  retention_in_days = var.rds_log_retention_days
+  kms_key_id        = var.rds_log_kms_key_id
+
+  # Turning an export off must not delete the evidence already collected — that is the whole
+  # point of exporting. Belt-and-braces now that the two lifecycles are decoupled: it only
+  # bites when a type is removed from rds_managed_log_group_types, which is an explicit
+  # "stop managing this group" rather than a side effect of changing the export list.
+  # The cost is that a real teardown leaves the groups behind, but they carry finite
+  # retention and expire on their own, unlike the never-expire orphan DND-1537 cleaned up.
+  skip_destroy = true
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "/aws/rds/cluster/${local.rds_cluster_identifier}/${each.value}"
+    }
+  )
+}
+
 resource "aws_rds_cluster" "cometml-db-cluster" {
-  cluster_identifier                  = coalesce(var.rds_cluster_identifier, "cometml-rds-cluster-${var.environment}")
+  cluster_identifier                  = local.rds_cluster_identifier
   db_subnet_group_name                = aws_db_subnet_group.comet-ml-rds-subnet.name
   availability_zones                  = var.availability_zones
   database_name                       = var.rds_snapshot_identifier == null ? var.rds_database_name : null
@@ -90,6 +126,11 @@ resource "aws_rds_cluster" "cometml-db-cluster" {
   deletion_protection                 = var.rds_deletion_protection
   storage_type                        = var.rds_storage_type
   apply_immediately                   = true
+  enabled_cloudwatch_logs_exports     = var.rds_enabled_cloudwatch_logs_exports
+
+  # The log groups must exist with their retention already set before RDS starts
+  # exporting, otherwise RDS creates them itself at "never expire" (DND-1537).
+  depends_on = [aws_cloudwatch_log_group.rds_exported_logs]
 
   dynamic "serverlessv2_scaling_configuration" {
     for_each = var.rds_serverless_v2_enabled ? [1] : []
@@ -113,6 +154,20 @@ resource "aws_rds_cluster" "cometml-db-cluster" {
     # dependents to "known after apply"). It only matters at destroy time as the
     # snapshot name, so ignore in-place changes and keep the value first stored.
     ignore_changes = [final_snapshot_identifier]
+
+    # Exporting a type that has no managed log group hands group creation back to
+    # RDS, which makes it at never-expire — this module's own failure mode, through
+    # a new door. Both variables default to the same list so this holds out of the
+    # box; the precondition stops someone adding e.g. "general" to the export list
+    # alone. A cross-variable `validation` block would be the natural home, but that
+    # needs Terraform 1.9 and this repo's floor is >= 1.5.7.
+    precondition {
+      condition = alltrue([
+        for t in var.rds_enabled_cloudwatch_logs_exports :
+        contains(var.rds_managed_log_group_types, t)
+      ])
+      error_message = "Every exported log type must also be in rds_managed_log_group_types, or RDS creates its log group at never-expire."
+    }
   }
 }
 
