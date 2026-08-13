@@ -1177,12 +1177,22 @@ variable "rds_enabled_cloudwatch_logs_exports" {
   description = "MySQL log types exported to CloudWatch Logs. 'error' carries the entries that matter for post-mortems. 'slowquery' produces nothing unless slow_query_log=1 is also set via rds_cluster_parameters — it is enabled here so the log group exists and is retention-managed from the moment that parameter is turned on. Pass [] to disable."
   type        = list(string)
   default     = ["error", "slowquery"]
+
+  validation {
+    condition     = alltrue([for t in var.rds_enabled_cloudwatch_logs_exports : contains(["audit", "error", "general", "slowquery"], t)])
+    error_message = "Valid Aurora MySQL log types are: audit, error, general, slowquery."
+  }
 }
 
 variable "rds_log_retention_days" {
   description = "Retention for the RDS CloudWatch log groups, in days. 0 means keep forever — avoid: that is what RDS applies on its own when it auto-creates the groups, and the reason DND-1537 found an orphaned group holding 3.65 GB of dead data indefinitely."
   type        = number
   default     = 90
+
+  validation {
+    condition     = contains([0, 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.rds_log_retention_days)
+    error_message = "Must be a retention period CloudWatch Logs accepts (0, 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653)."
+  }
 }
 
 #### comet_s3 ####

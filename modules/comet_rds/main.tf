@@ -83,6 +83,13 @@ resource "aws_cloudwatch_log_group" "rds_exported_logs" {
   name              = "/aws/rds/cluster/${local.rds_cluster_identifier}/${each.value}"
   retention_in_days = var.rds_log_retention_days == 0 ? null : var.rds_log_retention_days
 
+  # Dropping a type from rds_enabled_cloudwatch_logs_exports removes it from the for_each,
+  # which would otherwise destroy the group and every log in it. Turning an export off must
+  # not delete the evidence already collected — that is the whole point of exporting.
+  # The cost is that a real teardown leaves the groups behind, but they carry retention now
+  # and expire on their own, unlike the never-expire orphan DND-1537 had to clean up.
+  skip_destroy = true
+
   tags = merge(
     var.common_tags,
     {
