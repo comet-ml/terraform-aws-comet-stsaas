@@ -1475,12 +1475,25 @@ variable "clickhouse_monitoring_username" {
 }
 
 variable "rds_cluster_parameters" {
-  description = "Additional MySQL parameters applied to the cluster parameter group on top of the module's baseline character-set/collation/innodb defaults. Defaults include operational tunings (wait_timeout, max_execution_time, innodb purge settings, aurora_read_replica_read_committed) used across Comet STSAAS deployments. Pass [] to disable, or override with a custom list."
+  description = "Additional MySQL parameters applied to the cluster parameter group on top of the module's baseline character-set/collation/innodb defaults. Defaults include operational tunings (wait_timeout, max_execution_time, innodb purge settings, aurora_read_replica_read_committed, temptable_max_mmap) used across Comet STSAAS deployments. Pass [] to disable, or override with a custom list — note that overriding replaces this list wholesale, so a per-env override must re-state any default it still wants."
   type = list(object({
     name         = string
     value        = string
     apply_method = string
   }))
+  # DND-1536: temptable_max_mmap defaults to 4 GiB rather than the 1 GiB engine default.
+  # The EM project-columns GROUP BY over experiment_metrics_params_other materialises an
+  # internal temp table; with internal_tmp_mem_storage_engine=TempTable and
+  # temptable_use_mmap=1, exceeding the mmap budget throws
+  #   The table '/rdsdbdata/tmp/#sql...' is full
+  # which surfaces as an HTTP 500 on GET /query/column-names. The budget is global across
+  # sessions, so it cannot be tuned per query. A fleet audit (2026-08-11) found 14 of 15
+  # STSAAS clusters on the 1 GiB default, with zoox failing ~1k/day (CUST-6816).
+  #
+  # 4 GiB matches the value proven at bmw. temptable_max_ram is deliberately NOT set here:
+  # mmap is backed by local NVMe (FreeLocalStorage), whereas max_ram competes with the
+  # InnoDB buffer pool — a 4 GiB RAM tier would be 25% of instance memory on the
+  # db.r7g.large envs. Both parameters are dynamic, hence apply_method = "immediate".
   default = [
     { name = "aurora_read_replica_read_committed", value = "ON", apply_method = "immediate" },
     { name = "innodb_max_purge_lag", value = "1000000", apply_method = "immediate" },
@@ -1488,6 +1501,7 @@ variable "rds_cluster_parameters" {
     { name = "innodb_purge_batch_size", value = "5000", apply_method = "immediate" },
     { name = "innodb_purge_threads", value = "16", apply_method = "pending-reboot" },
     { name = "max_execution_time", value = "60000", apply_method = "immediate" },
+    { name = "temptable_max_mmap", value = "4294967296", apply_method = "immediate" },
     { name = "wait_timeout", value = "1800", apply_method = "immediate" },
   ]
 }
