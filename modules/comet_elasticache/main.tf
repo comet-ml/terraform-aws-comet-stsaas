@@ -65,6 +65,21 @@ resource "aws_vpc_security_group_ingress_rule" "redis_port_inbound_rule" {
   ip_protocol                  = "tcp"
   referenced_security_group_id = var.elasticache_allow_from_sg
 }
+
+# EKS Auto Mode nodes attach the cluster primary SG (not the managed node SG that
+# elasticache_allow_from_sg references), so they need their own ingress rule to reach
+# Redis. Only created when the Auto Mode SG is passed in.
+resource "aws_vpc_security_group_ingress_rule" "redis_port_inbound_auto_mode" {
+  count = var.elasticache_auto_mode_allow_from_sg != null ? 1 : 0
+
+  security_group_id            = aws_security_group.redis_inbound_sg.id
+  from_port                    = local.redis_port
+  to_port                      = local.redis_port
+  ip_protocol                  = "tcp"
+  referenced_security_group_id = var.elasticache_auto_mode_allow_from_sg
+  description                  = "Redis from EKS Auto Mode nodes (cluster primary SG)"
+}
+
 # VPN ingress to Redis (DND-752). Allows operators on the VPN to connect to
 # Redis via kubectl port-forward through the cluster's Redis SG. Opened
 # unconditionally — connectivity is never per-environment (DND-1522).

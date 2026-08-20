@@ -35,6 +35,12 @@ variable "rds_allow_from_sg" {
   type        = string
 }
 
+variable "rds_auto_mode_allow_from_sg" {
+  description = "Additional security group allowed to reach RDS — the EKS Auto Mode cluster primary SG. Auto Mode nodes attach a different SG than managed node groups, so without this a pod on an Auto Mode node cannot reach MySQL. Null (default) creates no extra rule."
+  type        = string
+  default     = null
+}
+
 variable "rds_engine" {
   description = "Engine type for RDS database"
   type        = string
@@ -160,6 +166,74 @@ variable "rds_enhanced_monitoring_interval" {
   description = "Interval in seconds for Enhanced Monitoring metrics collection. Valid values are 0, 1, 5, 10, 15, 30, 60. Set to 0 to disable Enhanced Monitoring."
   type        = number
   default     = 60
+}
+
+# DND-1537: without these, no STSaaS cluster exported anything and the MySQL error log
+# was unreadable — agentro is granted rds:DescribeDBLogFiles but not
+# rds:DownloadDBLogFilePortion, so an investigation could see that a log file existed
+# and how large it was, but not a byte of its contents. Exporting to CloudWatch Logs
+# closes that without widening the IAM role.
+variable "rds_enabled_cloudwatch_logs_exports" {
+  description = "MySQL log types the CLUSTER exports to CloudWatch Logs. 'error' carries the entries that matter for post-mortems (CUST-6816). 'slowquery' produces nothing unless slow_query_log=1 is also set via rds_cluster_parameters — it is enabled here so the log group exists and is retention-managed from the moment that parameter is turned on. Pass [] to stop exporting; the log groups themselves are governed separately by rds_managed_log_group_types, so disabling an export never removes a group from state."
+  type        = list(string)
+  default     = ["error", "slowquery"]
+
+  validation {
+    condition     = alltrue([for t in var.rds_enabled_cloudwatch_logs_exports : contains(["audit", "error", "general", "slowquery"], t)])
+    error_message = "Valid Aurora MySQL log types are: audit, error, general, slowquery."
+  }
+}
+
+# Deliberately separate from rds_enabled_cloudwatch_logs_exports: one variable driving both
+# the cluster attribute and the log-group for_each would make disabling an export a one-way
+# door. The group would leave state while surviving in AWS (skip_destroy), and re-enabling
+# the export later would fail on ResourceAlreadyExistsException — the same collision this
+# whole change exists to prevent, just deferred and self-inflicted.
+#
+# Keeping them apart means toggling an export is purely a cluster-attribute change. A type
+# listed here but not exported yields an empty log group with retention already set, which
+# is the desired state for slowquery on the 15 clusters where slow_query_log=0.
+variable "rds_managed_log_group_types" {
+  description = "MySQL log types whose CloudWatch log groups this module creates and manages retention for. Should be a superset of rds_enabled_cloudwatch_logs_exports — a type listed here but not exported simply yields an empty group with retention already applied, ready for when the export (or slow_query_log) is switched on. Removing a type here stops managing its group; it is NOT deleted, because of skip_destroy."
+  type        = list(string)
+  default     = ["error", "slowquery"]
+
+  validation {
+    condition     = alltrue([for t in var.rds_managed_log_group_types : contains(["audit", "error", "general", "slowquery"], t)])
+    error_message = "Valid Aurora MySQL log types are: audit, error, general, slowquery."
+  }
+}
+
+# The cluster and Performance Insights both take a KMS key; the log groups should too.
+# Left at the service-managed key by default (no behaviour change), but exposed now rather
+# than after this reaches 16 clusters — retrofitting it later means touching every env a
+# second time, at exactly the moment DND-1537 flips slow_query_log=1 and the groups start
+# carrying customer SQL text. Also what trivy AVD-AWS-0017 asks for.
+variable "rds_log_kms_key_id" {
+  description = "ARN of a KMS key to encrypt the RDS CloudWatch log groups. Default null uses the CloudWatch service-managed key. Worth setting for environments whose slow query log will carry customer SQL text. When first setting this, the KMS key policy must grant logs.<region>.amazonaws.com permission to use the key, or CreateLogGroup fails with InvalidParameterException — which reads like a terraform problem and is not."
+  type        = string
+  default     = null
+}
+
+# RDS auto-creates /aws/rds/cluster/<id>/<type> with NO retention ("never expire") the
+# instant an export is enabled. That is how the pre-rebuild zoox slowquery group came to
+# hold 3.65 GB of dead data indefinitely (DND-1537). The groups are therefore created
+# explicitly, with retention, and the cluster depends on them so they exist first.
+# 0 ("never expire") is deliberately NOT accepted. It is what RDS applies when it creates
+# these groups itself, and the reason DND-1537 found an orphan holding 3.65 GB of dead data
+# indefinitely — a module whose purpose is to prevent that should not offer it as an option.
+# These groups carry error and slow-query logs, i.e. customer SQL text once slow_query_log
+# is on, so unbounded retention is the wrong default to make reachable. 3653 (10 years) is
+# available if something genuinely needs to keep them a long time.
+variable "rds_log_retention_days" {
+  description = "Retention for the RDS CloudWatch log groups, in days. Must be finite — 'never expire' is not offered, see DND-1537."
+  type        = number
+  default     = 90
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.rds_log_retention_days)
+    error_message = "Must be a finite retention period CloudWatch Logs accepts (1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653). 0 / never-expire is intentionally not permitted."
+  }
 }
 
 variable "rds_deletion_protection" {

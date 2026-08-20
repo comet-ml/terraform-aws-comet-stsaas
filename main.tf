@@ -144,6 +144,7 @@ module "comet_vpc" {
   private_subnet_tags = var.private_subnet_tags
 
   eks_enabled        = var.enable_eks
+  eks_cluster_name   = var.enable_eks ? var.eks_cluster_name : null
   single_nat_gateway = var.single_nat_gateway
 
   enable_tgw_prep      = var.enable_tgw_prep
@@ -208,45 +209,46 @@ module "comet_eks" {
   region      = var.region
   common_tags = local.all_tags
 
-  vpc_id                                       = var.enable_vpc ? module.comet_vpc[0].vpc_id : var.comet_vpc_id
-  eks_private_subnets                          = var.enable_vpc ? module.comet_vpc[0].private_subnets : var.comet_private_subnets
-  eks_cluster_name                             = var.eks_cluster_name
-  eks_cluster_version                          = var.eks_cluster_version
-  eks_cluster_endpoint_public_access           = var.eks_cluster_endpoint_public_access
-  eks_cluster_endpoint_private_access          = var.eks_cluster_endpoint_private_access
-  eks_cluster_deletion_protection              = var.eks_cluster_deletion_protection
-  eks_cluster_security_group_additional_rules  = var.eks_cluster_security_group_additional_rules
-  eks_private_access_cidrs                     = var.eks_private_access_cidrs
-  eks_authentication_mode                      = var.eks_authentication_mode
-  eks_enable_cluster_creator_admin_permissions = var.eks_enable_cluster_creator_admin_permissions
-  eks_admin_role_arns                          = var.eks_admin_role_arns
-  kms_key_administrators                       = var.eks_kms_key_administrators
-  kms_key_users                                = var.eks_kms_key_users
-  eks_mng_ami_type                             = var.eks_mng_ami_type
-  eks_admin_ami_type                           = var.eks_admin_ami_type
-  eks_comet_ami_type                           = var.eks_comet_ami_type
-  eks_clickhouse_ami_type                      = var.eks_clickhouse_ami_type
-  eks_mng_ami_id                               = var.eks_mng_ami_id
-  eks_mng_force_update_version                 = var.eks_mng_force_update_version
-  eks_mng_use_latest_ami_release_version       = var.eks_mng_use_latest_ami_release_version
-  eks_mng_pin_launch_template_version          = var.eks_mng_pin_launch_template_version
-  eks_mng_disk_size                            = var.eks_mng_disk_size
-  eks_aws_load_balancer_controller             = var.eks_aws_load_balancer_controller
-  eks_cert_manager                             = var.eks_cert_manager
-  eks_cert_manager_addon_version               = var.eks_cert_manager_addon_version
-  eks_external_dns                             = var.eks_external_dns
-  eks_external_dns_addon_version               = var.eks_external_dns_addon_version
-  eks_external_dns_r53_zones                   = var.eks_external_dns_r53_zones
-  eks_enable_metrics_server                    = var.eks_enable_metrics_server
-  eks_enable_network_policy                    = var.eks_enable_network_policy
-  eks_metrics_server_addon_version             = var.eks_metrics_server_addon_version
-  eks_enable_kube_state_metrics                = var.eks_enable_kube_state_metrics
-  eks_kube_state_metrics_addon_version         = var.eks_kube_state_metrics_addon_version
-  eks_enable_prometheus_node_exporter          = var.eks_enable_prometheus_node_exporter
-  eks_prometheus_node_exporter_addon_version   = var.eks_prometheus_node_exporter_addon_version
-  eks_enable_node_monitoring_agent             = var.eks_enable_node_monitoring_agent
-  eks_node_monitoring_agent_addon_version      = var.eks_node_monitoring_agent_addon_version
-  eks_enable_cluster_autoscaler                = var.eks_enable_cluster_autoscaler
+  vpc_id                                                  = var.enable_vpc ? module.comet_vpc[0].vpc_id : var.comet_vpc_id
+  eks_private_subnets                                     = var.enable_vpc ? module.comet_vpc[0].private_subnets : var.comet_private_subnets
+  eks_cluster_name                                        = var.eks_cluster_name
+  eks_cluster_version                                     = var.eks_cluster_version
+  eks_cluster_endpoint_public_access                      = var.eks_cluster_endpoint_public_access
+  eks_cluster_endpoint_private_access                     = var.eks_cluster_endpoint_private_access
+  eks_cluster_deletion_protection                         = var.eks_cluster_deletion_protection
+  eks_cluster_security_group_additional_rules             = var.eks_cluster_security_group_additional_rules
+  eks_private_access_cidrs                                = var.eks_private_access_cidrs
+  eks_authentication_mode                                 = var.eks_authentication_mode
+  eks_enable_cluster_creator_admin_permissions            = var.eks_enable_cluster_creator_admin_permissions
+  eks_admin_role_arns                                     = var.eks_admin_role_arns
+  kms_key_administrators                                  = var.eks_kms_key_administrators
+  kms_key_users                                           = var.eks_kms_key_users
+  eks_mng_ami_type                                        = var.eks_mng_ami_type
+  eks_admin_ami_type                                      = var.eks_admin_ami_type
+  eks_comet_ami_type                                      = var.eks_comet_ami_type
+  eks_clickhouse_ami_type                                 = var.eks_clickhouse_ami_type
+  eks_mng_ami_id                                          = var.eks_mng_ami_id
+  eks_mng_force_update_version                            = var.eks_mng_force_update_version
+  eks_mng_use_latest_ami_release_version                  = var.eks_mng_use_latest_ami_release_version
+  eks_mng_pin_launch_template_version                     = var.eks_mng_pin_launch_template_version
+  eks_mng_disk_size                                       = var.eks_mng_disk_size
+  eks_aws_load_balancer_controller                        = var.eks_aws_load_balancer_controller
+  aws_load_balancer_controller_namespace_service_accounts = var.aws_load_balancer_controller_namespace_service_accounts
+  eks_cert_manager                                        = var.eks_cert_manager
+  eks_cert_manager_addon_version                          = var.eks_cert_manager_addon_version
+  eks_external_dns                                        = var.eks_external_dns
+  eks_external_dns_addon_version                          = var.eks_external_dns_addon_version
+  eks_external_dns_r53_zones                              = var.eks_external_dns_r53_zones
+  eks_enable_metrics_server                               = var.eks_enable_metrics_server
+  eks_enable_network_policy                               = var.eks_enable_network_policy
+  eks_metrics_server_addon_version                        = var.eks_metrics_server_addon_version
+  eks_enable_kube_state_metrics                           = var.eks_enable_kube_state_metrics
+  eks_kube_state_metrics_addon_version                    = var.eks_kube_state_metrics_addon_version
+  eks_enable_prometheus_node_exporter                     = var.eks_enable_prometheus_node_exporter
+  eks_prometheus_node_exporter_addon_version              = var.eks_prometheus_node_exporter_addon_version
+  eks_enable_node_monitoring_agent                        = var.eks_enable_node_monitoring_agent
+  eks_node_monitoring_agent_addon_version                 = var.eks_node_monitoring_agent_addon_version
+  eks_enable_cluster_autoscaler                           = var.eks_enable_cluster_autoscaler
 
   s3_enabled              = var.enable_s3
   comet_ec2_s3_iam_policy = var.enable_s3 ? module.comet_s3[0].comet_s3_iam_policy_arn : null
@@ -320,9 +322,10 @@ module "comet_eks" {
   additional_s3_bucket_arns = var.eks_additional_s3_bucket_arns
 
   # External Secrets IRSA role and Helm chart
-  enable_external_secrets                 = var.eks_enable_external_secrets
-  external_secrets_iam_role_name_override = var.external_secrets_iam_role_name_override
-  secretsmanager_environment              = var.secretsmanager_environment
+  enable_external_secrets                     = var.eks_enable_external_secrets
+  external_secrets_iam_role_name_override     = var.external_secrets_iam_role_name_override
+  external_secrets_namespace_service_accounts = var.external_secrets_namespace_service_accounts
+  secretsmanager_environment                  = var.secretsmanager_environment
 
   # Loki IRSA for S3 access
   enable_loki                 = var.enable_loki_bucket
@@ -372,6 +375,9 @@ module "comet_elasticache" {
   elasticache_allow_from_sg = var.enable_ec2 ? module.comet_ec2[0].comet_ec2_sg_id : (
     var.enable_eks ? module.comet_eks[0].nodegroup_sg_id : (
   var.elasticache_allow_from_sg))
+  # EKS Auto Mode nodes attach the cluster primary SG (distinct from the managed node SG
+  # above), so grant them Redis access too when Auto Mode is enabled.
+  elasticache_auto_mode_allow_from_sg     = var.enable_eks && var.eks_enable_auto_mode ? module.comet_eks[0].cluster_primary_security_group_id : null
   elasticache_engine                      = var.elasticache_engine
   elasticache_engine_version              = var.elasticache_engine_version
   elasticache_instance_type               = var.elasticache_instance_type
@@ -401,12 +407,16 @@ module "comet_rds" {
   rds_allow_from_sg = var.enable_ec2 ? module.comet_ec2[0].comet_ec2_sg_id : (
     var.enable_eks ? module.comet_eks[0].nodegroup_sg_id : (
   var.rds_allow_from_sg))
-  vpn_client_cidr       = var.vpn_client_cidr
-  rds_engine            = var.rds_engine
-  rds_engine_version    = var.rds_engine_version
-  rds_instance_type     = var.rds_instance_type
-  rds_instance_count    = var.rds_instance_count
-  rds_storage_encrypted = var.rds_storage_encrypted
+  vpn_client_cidr = var.vpn_client_cidr
+
+  # EKS Auto Mode nodes attach the cluster primary SG (distinct from the managed node SG
+  # above), so grant them MySQL access too when Auto Mode is enabled.
+  rds_auto_mode_allow_from_sg = var.enable_eks && var.eks_enable_auto_mode ? module.comet_eks[0].cluster_primary_security_group_id : null
+  rds_engine                  = var.rds_engine
+  rds_engine_version          = var.rds_engine_version
+  rds_instance_type           = var.rds_instance_type
+  rds_instance_count          = var.rds_instance_count
+  rds_storage_encrypted       = var.rds_storage_encrypted
 
   # Aurora Serverless v2 (optional)
   rds_serverless_v2_enabled                  = var.rds_serverless_v2_enabled
@@ -427,6 +437,12 @@ module "comet_rds" {
   rds_performance_insights_retention_period = var.rds_performance_insights_retention_period
   rds_performance_insights_kms_key_id       = var.rds_performance_insights_kms_key_id
   rds_enhanced_monitoring_interval          = var.rds_enhanced_monitoring_interval
+
+  # CloudWatch Logs export (DND-1537)
+  rds_enabled_cloudwatch_logs_exports = var.rds_enabled_cloudwatch_logs_exports
+  rds_managed_log_group_types         = var.rds_managed_log_group_types
+  rds_log_retention_days              = var.rds_log_retention_days
+  rds_log_kms_key_id                  = var.rds_log_kms_key_id
 
   # Deletion protection
   rds_deletion_protection = var.rds_deletion_protection
@@ -454,8 +470,13 @@ module "comet_rds_proxy" {
   vpc_id     = var.enable_vpc ? module.comet_vpc[0].vpc_id : var.comet_vpc_id
   subnet_ids = var.enable_vpc ? module.comet_vpc[0].private_subnets : var.comet_private_subnets
 
-  allowed_sg_ids = var.enable_eks ? [module.comet_eks[0].nodegroup_sg_id] : var.rds_proxy_allowed_sg_ids
-  allowed_cidrs  = var.rds_proxy_allowed_cidrs
+  # Managed node SG + (when Auto Mode is enabled) the cluster primary SG that Auto Mode
+  # nodes attach, so pods on either node type can reach the RDS proxy.
+  allowed_sg_ids = var.enable_eks ? concat(
+    [module.comet_eks[0].nodegroup_sg_id],
+    var.eks_enable_auto_mode ? [module.comet_eks[0].cluster_primary_security_group_id] : [],
+  ) : var.rds_proxy_allowed_sg_ids
+  allowed_cidrs = var.rds_proxy_allowed_cidrs
 
   mysql_cluster_id      = module.comet_rds[0].mysql_cluster_id
   mysql_sg_id           = module.comet_rds[0].mysql_sg_id
@@ -502,6 +523,9 @@ module "comet_secretsmanager" {
   enable_config_secret     = var.enable_config_secret
   enable_monitoring_secret = var.enable_monitoring_secret
   enable_clickhouse_secret = var.enable_clickhouse_secret
+
+  enable_registry_secret    = var.enable_registry_secret
+  registry_dockerconfigjson = var.registry_dockerconfigjson
 
   # Database password (from RDS - uses provided or auto-generated password)
   mysql_password = local.rds_master_password

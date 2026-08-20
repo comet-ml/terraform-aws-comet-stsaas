@@ -782,7 +782,7 @@ module "aws_load_balancer_controller_irsa_role" {
   oidc_providers = {
     ex = {
       provider_arn               = module.eks.oidc_provider_arn
-      namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
+      namespace_service_accounts = var.aws_load_balancer_controller_namespace_service_accounts
     }
   }
 
@@ -826,7 +826,7 @@ module "external_secrets_irsa_role" {
   oidc_providers = {
     ex = {
       provider_arn               = module.eks.oidc_provider_arn
-      namespace_service_accounts = ["external-secrets:external-secrets"]
+      namespace_service_accounts = var.external_secrets_namespace_service_accounts
     }
   }
 
@@ -1095,6 +1095,12 @@ resource "aws_ec2_tag" "karpenter_subnet" {
   key         = "karpenter.sh/discovery"
   value       = var.eks_cluster_name
 }
+
+# NOTE: the kubernetes.io/cluster/<cluster>=shared PRIVATE-subnet tag is set by the
+# comet_vpc module via its authoritative private_subnet_tags map (eks_cluster_name),
+# NOT here — a separate aws_ec2_tag fought the VPC module's tag map (tag flap +
+# perpetual diff). For an EXTERNAL VPC (enable_vpc=false) the caller must ensure that
+# tag exists on the passed-in subnets.
 
 # Tag the node shared security group for Karpenter discovery
 resource "aws_ec2_tag" "karpenter_sg" {

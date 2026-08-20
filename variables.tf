@@ -102,6 +102,37 @@ variable "external_secrets_iam_role_name_override" {
   }
 }
 
+variable "external_secrets_namespace_service_accounts" {
+  description = "OIDC-trusted <namespace>:<serviceaccount> subjects for the External Secrets IRSA role. Default trusts the standalone app's SA. During a namespace migration (e.g. folding ESO into the comet-infra umbrella in comet-system), list BOTH old and new subjects for a zero-gap cutover, then trim to just the new one."
+  type        = list(string)
+  default     = ["external-secrets:external-secrets"]
+
+  validation {
+    # Each entry must be "<namespace>:<serviceaccount>" — the module prepends
+    # "system:serviceaccount:" and compares with StringEquals (exact match), so a
+    # malformed or wildcard entry produces an IRSA trust the SA can never assume.
+    condition = alltrue([
+      for s in var.external_secrets_namespace_service_accounts :
+      can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?:[a-z0-9]([a-z0-9-]*[a-z0-9])?$", s))
+    ])
+    error_message = "Each external_secrets_namespace_service_accounts entry must be \"<namespace>:<serviceaccount>\" (exactly one colon, each part a DNS-1123 label of lowercase alphanumerics/hyphens, no wildcards)."
+  }
+}
+
+variable "aws_load_balancer_controller_namespace_service_accounts" {
+  description = "OIDC-trusted <namespace>:<serviceaccount> subjects for the AWS Load Balancer Controller IRSA role. Default trusts the standalone app's SA (kube-system). When folding the controller into the comet-infra umbrella (comet-system ns), list BOTH old and new subjects for a zero-gap cutover, then trim to just the new one."
+  type        = list(string)
+  default     = ["kube-system:aws-load-balancer-controller"]
+
+  validation {
+    condition = alltrue([
+      for s in var.aws_load_balancer_controller_namespace_service_accounts :
+      can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?:[a-z0-9]([a-z0-9-]*[a-z0-9])?$", s))
+    ])
+    error_message = "Each aws_load_balancer_controller_namespace_service_accounts entry must be \"<namespace>:<serviceaccount>\" (exactly one colon, each part a DNS-1123 label of lowercase alphanumerics/hyphens, no wildcards)."
+  }
+}
+
 variable "cloudwatch_exporter_iam_role_name_override" {
   description = "Override the CloudWatch Exporter IRSA role name. Null keeps the computed <environment>-cloudwatch-exporter name."
   type        = string
@@ -164,6 +195,19 @@ variable "enable_clickhouse_secret" {
   description = "Enable creation of the clickhouse secret (cometml/{environment}/clickhouse)"
   type        = bool
   default     = true
+}
+
+variable "enable_registry_secret" {
+  description = "Enable creation of the docker.comet.com image-pull secret (cometml/{environment}/registry), consumed by ESO. Requires registry_dockerconfigjson. Default false; set true (value wired from the canonical cometml/shared/registry) for clusters that source the pull secret from Secrets Manager instead of the comet-ml chart's Git-values hook."
+  type        = bool
+  default     = false
+}
+
+variable "registry_dockerconfigjson" {
+  description = "Secret payload for cometml/{environment}/registry — a JSON object with a \".dockerconfigjson\" property holding the docker.comet.com config. Read at the caller from the canonical prod-account cometml/shared/registry. Null unless enable_registry_secret is true."
+  type        = string
+  default     = null
+  sensitive   = true
 }
 
 ################
@@ -1124,6 +1168,50 @@ variable "rds_enhanced_monitoring_interval" {
   default     = 60
 }
 
+# DND-1537: a fleet audit found EnabledCloudwatchLogsExports null on all 16 STSaaS Aurora
+# clusters, which left the MySQL error log unreadable during CUST-6816 — agentro holds
+# rds:DescribeDBLogFiles but not rds:DownloadDBLogFilePortion, so the investigation could
+# see a 254 KB error-log spike in the failure hour and could not read it. Exporting to
+# CloudWatch Logs closes that without widening the read-only role.
+variable "rds_enabled_cloudwatch_logs_exports" {
+  description = "MySQL log types the CLUSTER exports to CloudWatch Logs. 'error' carries the entries that matter for post-mortems. 'slowquery' produces nothing unless slow_query_log=1 is also set via rds_cluster_parameters — it is enabled here so the log group exists and is retention-managed from the moment that parameter is turned on. Pass [] to stop exporting; the log groups are governed separately by rds_managed_log_group_types, so disabling an export never removes a group from state."
+  type        = list(string)
+  default     = ["error", "slowquery"]
+
+  validation {
+    condition     = alltrue([for t in var.rds_enabled_cloudwatch_logs_exports : contains(["audit", "error", "general", "slowquery"], t)])
+    error_message = "Valid Aurora MySQL log types are: audit, error, general, slowquery."
+  }
+}
+
+variable "rds_managed_log_group_types" {
+  description = "MySQL log types whose CloudWatch log groups are created and retention-managed here. Kept separate from rds_enabled_cloudwatch_logs_exports so that disabling an export is not a one-way door: the group stays in state, and re-enabling later is a no-op instead of a ResourceAlreadyExistsException. Should be a superset of the export list."
+  type        = list(string)
+  default     = ["error", "slowquery"]
+
+  validation {
+    condition     = alltrue([for t in var.rds_managed_log_group_types : contains(["audit", "error", "general", "slowquery"], t)])
+    error_message = "Valid Aurora MySQL log types are: audit, error, general, slowquery."
+  }
+}
+
+variable "rds_log_kms_key_id" {
+  description = "ARN of a KMS key to encrypt the RDS CloudWatch log groups. Default null uses the CloudWatch service-managed key. Worth setting for environments whose slow query log will carry customer SQL text. When first setting this, the KMS key policy must grant logs.<region>.amazonaws.com permission to use the key, or CreateLogGroup fails with InvalidParameterException — which reads like a terraform problem and is not."
+  type        = string
+  default     = null
+}
+
+variable "rds_log_retention_days" {
+  description = "Retention for the RDS CloudWatch log groups, in days. Must be finite — 'never expire' is intentionally not offered: that is what RDS applies when it creates the groups itself, and the reason DND-1537 found an orphan holding 3.65 GB of dead data indefinitely."
+  type        = number
+  default     = 90
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.rds_log_retention_days)
+    error_message = "Must be a finite retention period CloudWatch Logs accepts (1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653). 0 / never-expire is intentionally not permitted."
+  }
+}
+
 #### comet_s3 ####
 variable "s3_bucket_name" {
   description = "Name for S3 bucket"
@@ -1459,12 +1547,25 @@ variable "clickhouse_monitoring_username" {
 }
 
 variable "rds_cluster_parameters" {
-  description = "Additional MySQL parameters applied to the cluster parameter group on top of the module's baseline character-set/collation/innodb defaults. Defaults include operational tunings (wait_timeout, max_execution_time, innodb purge settings, aurora_read_replica_read_committed) used across Comet STSAAS deployments. Pass [] to disable, or override with a custom list."
+  description = "Additional MySQL parameters applied to the cluster parameter group on top of the module's baseline character-set/collation/innodb defaults. Defaults include operational tunings (wait_timeout, max_execution_time, innodb purge settings, aurora_read_replica_read_committed, temptable_max_mmap) used across Comet STSAAS deployments. Pass [] to disable, or override with a custom list — note that overriding replaces this list wholesale, so a per-env override must re-state any default it still wants."
   type = list(object({
     name         = string
     value        = string
     apply_method = string
   }))
+  # DND-1536: temptable_max_mmap defaults to 4 GiB rather than the 1 GiB engine default.
+  # The EM project-columns GROUP BY over experiment_metrics_params_other materialises an
+  # internal temp table; with internal_tmp_mem_storage_engine=TempTable and
+  # temptable_use_mmap=1, exceeding the mmap budget throws
+  #   The table '/rdsdbdata/tmp/#sql...' is full
+  # which surfaces as an HTTP 500 on GET /query/column-names. The budget is global across
+  # sessions, so it cannot be tuned per query. A fleet audit (2026-08-11) found 14 of 15
+  # STSAAS clusters on the 1 GiB default, with zoox failing ~1k/day (CUST-6816).
+  #
+  # 4 GiB matches the value proven at bmw. temptable_max_ram is deliberately NOT set here:
+  # mmap is backed by local NVMe (FreeLocalStorage), whereas max_ram competes with the
+  # InnoDB buffer pool — a 4 GiB RAM tier would be 25% of instance memory on the
+  # db.r7g.large envs. Both parameters are dynamic, hence apply_method = "immediate".
   default = [
     { name = "aurora_read_replica_read_committed", value = "ON", apply_method = "immediate" },
     { name = "innodb_max_purge_lag", value = "1000000", apply_method = "immediate" },
@@ -1472,6 +1573,7 @@ variable "rds_cluster_parameters" {
     { name = "innodb_purge_batch_size", value = "5000", apply_method = "immediate" },
     { name = "innodb_purge_threads", value = "16", apply_method = "pending-reboot" },
     { name = "max_execution_time", value = "60000", apply_method = "immediate" },
+    { name = "temptable_max_mmap", value = "4294967296", apply_method = "immediate" },
     { name = "wait_timeout", value = "1800", apply_method = "immediate" },
   ]
 }

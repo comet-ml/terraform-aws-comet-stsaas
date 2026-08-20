@@ -14,8 +14,13 @@ output "cluster_certificate_authority_data" {
 }
 
 output "nodegroup_sg_id" {
-  description = "ID of the node shared security group"
+  description = "ID of the node shared security group (managed node groups attach this)"
   value       = module.eks.node_security_group_id
+}
+
+output "cluster_primary_security_group_id" {
+  description = "EKS-managed cluster primary security group. EKS Auto Mode nodes attach this SG (managed node groups use nodegroup_sg_id instead) — reference it where Auto Mode nodes need network access (e.g. data-layer SG ingress)."
+  value       = module.eks.cluster_primary_security_group_id
 }
 
 output "cluster_autoscaler_irsa_role_arn" {
@@ -25,10 +30,13 @@ output "cluster_autoscaler_irsa_role_arn" {
 
 # AWS Load Balancer Controller — installed per customer via ArgoCD (comet-gitops).
 # Consume these in the ArgoCD Application / Helm values: annotate the controller
-# ServiceAccount (kube-system:aws-load-balancer-controller) with the role ARN, and
-# set clusterName / region / vpcId from the cluster facts below.
+# ServiceAccount with the role ARN, and set clusterName / region / vpcId from the
+# cluster facts below. The SA's <namespace>:<name> must be trusted by the role —
+# see var.aws_load_balancer_controller_namespace_service_accounts (default
+# kube-system:aws-load-balancer-controller; comet-system:<release>-aws-load-balancer-controller
+# when folded into the comet-infra umbrella).
 output "aws_load_balancer_controller_irsa_role_arn" {
-  description = "ARN of the AWS Load Balancer Controller IRSA role. Annotate the kube-system/aws-load-balancer-controller ServiceAccount with this in the ArgoCD-managed Helm values (serviceAccount.annotations.\"eks.amazonaws.com/role-arn\")."
+  description = "ARN of the AWS Load Balancer Controller IRSA role. Annotate the controller ServiceAccount with this (serviceAccount.annotations.\"eks.amazonaws.com/role-arn\") in the ArgoCD-managed Helm values. The SA's <namespace>:<name> must be listed in aws_load_balancer_controller_namespace_service_accounts (the role's OIDC trust)."
   value       = var.eks_aws_load_balancer_controller ? module.aws_load_balancer_controller_irsa_role[0].iam_role_arn : null
 }
 
