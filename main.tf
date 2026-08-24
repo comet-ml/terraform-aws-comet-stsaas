@@ -20,6 +20,23 @@ locals {
   rds_master_password = var.rds_master_password != null ? var.rds_master_password : (
     var.enable_rds ? random_password.rds_master[0].result : null
   )
+
+  # Resolve rds_proxy_allowed_cidrs' tri-state once (DND-1522). The proxy is a second
+  # path to the same Aurora cluster the mysql_vpn rule opens directly, so its CIDR
+  # ingress follows vpn_client_cidr instead of carrying its own copy of the pool: a
+  # duplicated default drifts on the first renumber, moving the direct path while the
+  # proxy keeps trusting the retired range. null means follow; [] still means SG-only
+  # ingress; an explicit list still wins.
+  #
+  # This has to be a local, not an inline conditional at each use. The
+  # rds_proxy_validation precondition counts ingress sources with
+  # length(rds_proxy_allowed_cidrs), and null is not a list — so resolving inline at the
+  # module argument only would leave length(null) to raise "Invalid function argument"
+  # in precisely the case the precondition exists to explain (enable_eks = false with
+  # no rds_proxy_allowed_sg_ids). Deriving the effective list also keeps the count
+  # honest: under null the proxy does get one CIDR source, so null must satisfy that
+  # check rather than fail it — which coalesce(..., []) would get backwards.
+  rds_proxy_effective_cidrs = var.rds_proxy_allowed_cidrs == null ? [var.vpn_client_cidr] : var.rds_proxy_allowed_cidrs
 }
 
 #############################
@@ -119,7 +136,7 @@ resource "terraform_data" "rds_proxy_validation" {
       error_message = "enable_rds_proxy requires enable_rds to be true."
     }
     precondition {
-      condition     = var.enable_eks || length(var.rds_proxy_allowed_sg_ids) > 0 || length(var.rds_proxy_allowed_cidrs) > 0
+      condition     = var.enable_eks || length(var.rds_proxy_allowed_sg_ids) > 0 || length(local.rds_proxy_effective_cidrs) > 0
       error_message = "enable_rds_proxy requires at least one ingress source: enable_eks=true (auto-wires the nodegroup SG), or non-empty rds_proxy_allowed_sg_ids, or non-empty rds_proxy_allowed_cidrs. Otherwise the proxy has no ingress rules and is unreachable."
     }
     precondition {
@@ -477,12 +494,8 @@ module "comet_rds_proxy" {
     var.eks_enable_auto_mode ? [module.comet_eks[0].cluster_primary_security_group_id] : [],
   ) : var.rds_proxy_allowed_sg_ids
 
-  # The proxy is a second path to the same Aurora cluster the mysql_vpn rule opens
-  # directly, so its CIDR ingress follows vpn_client_cidr instead of carrying its own
-  # copy of the pool. A duplicated default drifts the moment the VPN is renumbered:
-  # the direct path moves and the proxy keeps trusting the old range. null (the default)
-  # means follow; [] still means SG-only ingress; an explicit list still wins (DND-1522).
-  allowed_cidrs = var.rds_proxy_allowed_cidrs == null ? [var.vpn_client_cidr] : var.rds_proxy_allowed_cidrs
+  # Resolved once in locals, and shared with the rds_proxy_validation precondition.
+  allowed_cidrs = local.rds_proxy_effective_cidrs
 
   mysql_cluster_id      = module.comet_rds[0].mysql_cluster_id
   mysql_sg_id           = module.comet_rds[0].mysql_sg_id
