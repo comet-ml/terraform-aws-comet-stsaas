@@ -6,6 +6,25 @@ locals {
   # cluster uses — the group names RDS writes to are /aws/rds/cluster/<id>/<type>, so a
   # drift between the two would silently leave the real groups unmanaged (DND-1537).
   rds_cluster_identifier = coalesce(var.rds_cluster_identifier, "cometml-rds-cluster-${var.environment}")
+
+  # AWS derives the family from the version's first two components:
+  # "8.0.mysql_aurora.3.11.1" and the bare "8.0" both -> aurora-mysql8.0.
+  # Used to cross-check the family against the version below, since a variable
+  # validation block cannot reference another variable.
+  rds_expected_parameter_group_family = "aurora-mysql${join(".", slice(split(".", var.rds_engine_version), 0, min(2, length(split(".", var.rds_engine_version)))))}"
+}
+
+# Cross-field check: each var is individually valid but the pair can still be
+# incompatible (e.g. version 8.0.mysql_aurora.3.11.1 with family aurora-mysql5.7).
+# AWS only rejects that when the cluster is associated, after the parameter groups
+# already exist — fail at plan instead.
+resource "terraform_data" "parameter_group_family_matches_engine_version" {
+  lifecycle {
+    precondition {
+      condition     = var.rds_parameter_group_family == local.rds_expected_parameter_group_family
+      error_message = "rds_parameter_group_family (${var.rds_parameter_group_family}) does not match rds_engine_version (${var.rds_engine_version}), which requires ${local.rds_expected_parameter_group_family}."
+    }
+  }
 }
 
 # IAM role for Enhanced Monitoring
