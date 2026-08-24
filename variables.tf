@@ -1706,6 +1706,11 @@ variable "eks_clickhouse_subnet_ids" {
 # address is legitimately a public /32, and hardcoding the fleet's own ranges
 # into a reusable module recreates the "only one correct value" input that
 # DND-1522 exists to remove.
+#
+# IPv4 is enforced by can(cidrnetmask(...)), which errors on IPv6. Without it an
+# address like 2001:db8::/32 satisfies both other conditions — cidrhost() and
+# split() are family-agnostic — and only fails at apply, against cidr_ipv4, with
+# an AWS error instead of the message below that already says "IPv4".
 
 variable "argocd_management_cidrs" {
   description = "CIDRs allowed to reach the EKS API for ArgoCD management. Defaults cover the ArgoCD mgmt VPC + cluster CIDRs. Opened unconditionally (DND-1522). Each entry must be a canonical CIDR no broader than /8."
@@ -1715,6 +1720,7 @@ variable "argocd_management_cidrs" {
   validation {
     condition = alltrue([
       for cidr in var.argocd_management_cidrs :
+      can(cidrnetmask(cidr)) &&
       try(cidr == format("%s/%d", cidrhost(cidr, 0), tonumber(split("/", cidr)[1])), false)
     ])
     error_message = "Each entry in argocd_management_cidrs must be a canonical IPv4 CIDR — the network address with no host bits set and an unpadded prefix (e.g. 10.100.0.0/16, not 10.100.0.1/16 or 10.100.0.0/016)."
@@ -1735,7 +1741,7 @@ variable "vpn_client_cidr" {
   default     = "10.126.0.0/15"
 
   validation {
-    condition     = try(var.vpn_client_cidr == format("%s/%d", cidrhost(var.vpn_client_cidr, 0), tonumber(split("/", var.vpn_client_cidr)[1])), false)
+    condition     = can(cidrnetmask(var.vpn_client_cidr)) && try(var.vpn_client_cidr == format("%s/%d", cidrhost(var.vpn_client_cidr, 0), tonumber(split("/", var.vpn_client_cidr)[1])), false)
     error_message = "vpn_client_cidr must be a canonical IPv4 CIDR — the network address with no host bits set and an unpadded prefix (e.g. 10.126.0.0/15, not 10.126.0.1/15 or 10.126.0.0/015)."
   }
 
@@ -1751,7 +1757,7 @@ variable "ci_runners_cidr" {
   default     = "10.4.0.0/16"
 
   validation {
-    condition     = try(var.ci_runners_cidr == format("%s/%d", cidrhost(var.ci_runners_cidr, 0), tonumber(split("/", var.ci_runners_cidr)[1])), false)
+    condition     = can(cidrnetmask(var.ci_runners_cidr)) && try(var.ci_runners_cidr == format("%s/%d", cidrhost(var.ci_runners_cidr, 0), tonumber(split("/", var.ci_runners_cidr)[1])), false)
     error_message = "ci_runners_cidr must be a canonical IPv4 CIDR — the network address with no host bits set and an unpadded prefix (e.g. 10.4.0.0/16, not 10.4.0.1/16 or 10.4.0.0/016)."
   }
 

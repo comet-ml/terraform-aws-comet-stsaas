@@ -847,9 +847,8 @@ variable "eks_clickhouse_subnet_ids" {
 #####################
 
 variable "argocd_management_cidrs" {
-  description = "CIDRs allowed to reach the EKS API for ArgoCD management. Defaults cover the ArgoCD mgmt VPC + cluster CIDRs. Opened unconditionally (DND-1522)."
+  description = "CIDRs allowed to reach the EKS API for ArgoCD management. Opened unconditionally (DND-1522). Required — the root module always supplies it; the default lives only there so the value can't drift between submodules."
   type        = list(string)
-  default     = ["10.162.0.0/16", "10.100.0.0/16"]
 }
 
 variable "vpn_client_cidr" {
@@ -858,9 +857,8 @@ variable "vpn_client_cidr" {
 }
 
 variable "ci_runners_cidr" {
-  description = "CIDR of the CI runners cluster."
+  description = "CIDR of the CI runners cluster. Opened unconditionally on the EKS API (DND-1522). Required — the root module always supplies it; the default lives only there so the value can't drift between submodules."
   type        = string
-  default     = "10.4.0.0/16"
 }
 
 #####################

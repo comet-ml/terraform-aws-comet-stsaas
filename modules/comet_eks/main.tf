@@ -1527,6 +1527,16 @@ locals {
   # to make such a collision avoidable are gone (DND-1522). The default CIDRs
   # don't collide, so every for_each key is unchanged and this is a no-op
   # against existing state.
+  #
+  # WARNING — the winner keeps its own key, so introducing a collision moves the
+  # rule's Terraform address. Set vpn_client_cidr equal to an argocd CIDR and the
+  # "vpn" key disappears in favour of "argocd-management-<cidr>"; for an env
+  # already holding that rule under "vpn" the plan is a destroy plus a create at
+  # the new address, i.e. a window with no VPN reach to the EKS API. (Equal to
+  # ci_runners_cidr drops "ci-runners" instead — the order above decides which.)
+  # Same failure mode the redis_vpn moved block exists to prevent, reached
+  # through a config change rather than a refactor. If such a collision is ever
+  # deliberate, add a moved block for the retired key in the same change.
   eks_api_ingress_rules = {
     for candidate in local.eks_api_rule_candidates :
     candidate.key => {
