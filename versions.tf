@@ -13,5 +13,16 @@ terraform {
       source  = "hashicorp/random"
       version = ">= 3.0"
     }
+    # kubernetes + helm: see modules/comet_eks/versions.tf — declared only so brownfield
+    # clusters can drop leftover in-cluster/helm resources from state via removed.tf.
+    # v5 creates no kubernetes/helm resources; the wrapper still passes these providers.
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = ">= 2.0"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = ">= 2.0"
+    }
   }
 }
