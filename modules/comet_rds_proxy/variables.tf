@@ -26,9 +26,8 @@ variable "allowed_sg_ids" {
 }
 
 variable "allowed_cidrs" {
-  description = "CIDR blocks allowed to connect to the proxy on the MySQL port (in addition to allowed_sg_ids). Defaults to the agentro VPN client pool so ops queries via VPN reach the proxy directly. Set to [] to allow only SG-based ingress."
+  description = "CIDR blocks allowed to connect to the proxy on the MySQL port (in addition to allowed_sg_ids). [] allows only SG-based ingress. Required — the root module resolves this from rds_proxy_allowed_cidrs, falling back to vpn_client_cidr; the default lives only there so the two MySQL paths can't diverge."
   type        = list(string)
-  default     = ["10.126.0.0/15"]
 }
 
 variable "mysql_cluster_id" {

@@ -476,7 +476,13 @@ module "comet_rds_proxy" {
     [module.comet_eks[0].nodegroup_sg_id],
     var.eks_enable_auto_mode ? [module.comet_eks[0].cluster_primary_security_group_id] : [],
   ) : var.rds_proxy_allowed_sg_ids
-  allowed_cidrs = var.rds_proxy_allowed_cidrs
+
+  # The proxy is a second path to the same Aurora cluster the mysql_vpn rule opens
+  # directly, so its CIDR ingress follows vpn_client_cidr instead of carrying its own
+  # copy of the pool. A duplicated default drifts the moment the VPN is renumbered:
+  # the direct path moves and the proxy keeps trusting the old range. null (the default)
+  # means follow; [] still means SG-only ingress; an explicit list still wins (DND-1522).
+  allowed_cidrs = var.rds_proxy_allowed_cidrs == null ? [var.vpn_client_cidr] : var.rds_proxy_allowed_cidrs
 
   mysql_cluster_id      = module.comet_rds[0].mysql_cluster_id
   mysql_sg_id           = module.comet_rds[0].mysql_sg_id

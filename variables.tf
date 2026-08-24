@@ -1608,9 +1608,26 @@ variable "rds_proxy_allowed_sg_ids" {
 }
 
 variable "rds_proxy_allowed_cidrs" {
-  description = "CIDR blocks allowed to connect to the proxy on 3306 (in addition to allowed SGs). Defaults to the agentro VPN client pool (10.126.0.0/15)."
+  description = "CIDR blocks allowed to connect to the proxy on 3306, in addition to allowed SGs. Tri-state: null (default) follows vpn_client_cidr, so the proxy and the direct mysql_sg rule open to the same pool; [] allows only SG-based ingress; a list is used verbatim. Each entry must be a canonical IPv4 CIDR no broader than /8."
   type        = list(string)
-  default     = ["10.126.0.0/15"]
+  default     = null
+
+  validation {
+    condition = var.rds_proxy_allowed_cidrs == null ? true : alltrue([
+      for cidr in var.rds_proxy_allowed_cidrs :
+      can(cidrnetmask(cidr)) &&
+      try(cidr == format("%s/%d", cidrhost(cidr, 0), tonumber(split("/", cidr)[1])), false)
+    ])
+    error_message = "Each entry in rds_proxy_allowed_cidrs must be a canonical IPv4 CIDR — the network address with no host bits set and an unpadded prefix (e.g. 10.126.0.0/15, not 10.126.0.1/15 or 10.126.0.0/015)."
+  }
+
+  validation {
+    condition = var.rds_proxy_allowed_cidrs == null ? true : alltrue([
+      for cidr in var.rds_proxy_allowed_cidrs :
+      try(tonumber(split("/", cidr)[1]) >= 8, false)
+    ])
+    error_message = "Each entry in rds_proxy_allowed_cidrs must be /8 or narrower. These CIDRs reach Aurora through the proxy on 3306, so 0.0.0.0/0 and other broad ranges are rejected."
+  }
 }
 
 variable "rds_proxy_require_tls" {
