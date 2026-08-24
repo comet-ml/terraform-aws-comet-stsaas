@@ -1032,9 +1032,15 @@ variable "rds_engine" {
 }
 
 variable "rds_engine_version" {
-  description = "Engine version number for RDS database"
+  description = "Engine version number for RDS database. \"8.0\" tracks the latest 8.0.x; pin a point release (e.g. \"8.0.mysql_aurora.3.11.1\") to stop AWS drifting it. Does not affect the parameter group family — see rds_parameter_group_family."
   type        = string
   default     = "8.0"
+}
+
+variable "rds_parameter_group_family" {
+  description = "Parameter group family for the cluster and DB parameter groups. This is NOT the engine version — only aurora-mysql5.7, aurora-mysql8.0 and aurora-mysql8.4 exist, and every Aurora MySQL 3.x point release uses aurora-mysql8.0."
+  type        = string
+  default     = "aurora-mysql8.0"
 }
 
 variable "rds_instance_type" {
@@ -1596,7 +1602,15 @@ variable "rds_db_parameters" {
 
 #### comet_rds_proxy ####
 variable "enable_rds_proxy" {
-  description = "Provision an RDS Proxy in front of the Aurora MySQL cluster (connection pooling, faster failover). Requires enable_rds. Auth via a dedicated Secrets Manager secret created by the sub-module."
+  description = "Provision an RDS Proxy in front of the Aurora MySQL cluster (connection pooling, faster failover). Requires enable_rds. Auth via a dedicated Secrets Manager secret created by the sub-module. Provisioning alone routes no traffic — see rds_use_proxy_endpoint."
+  type        = bool
+  default     = false
+}
+
+# Separate from enable_rds_proxy so the proxy can be built and verified before
+# any traffic moves, and so cutover/rollback is a one-line flip (DND-875).
+variable "rds_use_proxy_endpoint" {
+  description = "Make the mysql_host output resolve to the RDS Proxy endpoint instead of the Aurora cluster writer endpoint. Requires enable_rds_proxy. Only affects the writer — mysql_reader_host always stays on the Aurora reader endpoint because the proxy is writer-only."
   type        = bool
   default     = false
 }

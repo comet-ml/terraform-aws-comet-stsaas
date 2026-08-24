@@ -51,6 +51,21 @@ variable "rds_engine_version" {
   type        = string
 }
 
+# Decoupled from rds_engine_version (DND-875): the family is coarse
+# ("aurora-mysql8.0") while engine_version may be a pinned point release
+# ("8.0.mysql_aurora.3.11.1"). Interpolating the version into the family yields
+# a nonexistent family and forces parameter-group replacement.
+variable "rds_parameter_group_family" {
+  description = "Parameter group family for the cluster and DB parameter groups. This is NOT the engine version — only aurora-mysql5.7, aurora-mysql8.0 and aurora-mysql8.4 exist, and every Aurora MySQL 3.x point release uses aurora-mysql8.0."
+  type        = string
+  default     = "aurora-mysql8.0"
+
+  validation {
+    condition     = can(regex("^aurora-mysql(5\\.7|8\\.0|8\\.4)$", var.rds_parameter_group_family))
+    error_message = "rds_parameter_group_family must be one of: aurora-mysql5.7, aurora-mysql8.0, aurora-mysql8.4."
+  }
+}
+
 variable "rds_instance_type" {
   description = "Instance type for RDS database. Ignored when rds_serverless_v2_enabled = true (db.serverless is used)."
   type        = string

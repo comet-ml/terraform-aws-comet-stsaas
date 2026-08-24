@@ -20,6 +20,10 @@ locals {
   rds_master_password = var.rds_master_password != null ? var.rds_master_password : (
     var.enable_rds ? random_password.rds_master[0].result : null
   )
+
+  # Both flags, so mysql_host can never dereference module.comet_rds_proxy[0]
+  # when the proxy is disabled.
+  rds_proxy_endpoint_in_use = var.enable_rds_proxy && var.rds_use_proxy_endpoint
 }
 
 #############################
@@ -125,6 +129,17 @@ resource "terraform_data" "rds_proxy_validation" {
     precondition {
       condition     = var.rds_snapshot_identifier == null
       error_message = "enable_rds_proxy is not currently supported with rds_snapshot_identifier — the proxy auth secret would be written with vars that don't match the snapshot's embedded credentials. Disable enable_rds_proxy or open a follow-up to add an explicit rds_proxy_username/password override."
+    }
+  }
+}
+
+# Unconditional: the misconfiguration to catch is rds_use_proxy_endpoint = true
+# while the proxy is off, which a count-gated check above would skip entirely.
+resource "terraform_data" "rds_proxy_endpoint_validation" {
+  lifecycle {
+    precondition {
+      condition     = !var.rds_use_proxy_endpoint || var.enable_rds_proxy
+      error_message = "rds_use_proxy_endpoint requires enable_rds_proxy to be true — otherwise mysql_host would point at a proxy that does not exist."
     }
   }
 }
@@ -416,6 +431,7 @@ module "comet_rds" {
   rds_auto_mode_allow_from_sg = var.enable_eks && var.eks_enable_auto_mode ? module.comet_eks[0].cluster_primary_security_group_id : null
   rds_engine                  = var.rds_engine
   rds_engine_version          = var.rds_engine_version
+  rds_parameter_group_family  = var.rds_parameter_group_family
   rds_instance_type           = var.rds_instance_type
   rds_instance_count          = var.rds_instance_count
   rds_storage_encrypted       = var.rds_storage_encrypted

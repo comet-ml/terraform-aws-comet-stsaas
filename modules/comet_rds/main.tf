@@ -173,7 +173,7 @@ resource "aws_rds_cluster" "cometml-db-cluster" {
 
 resource "aws_rds_cluster_parameter_group" "cometml-cluster-pg" {
   name        = "cometml-rds-cluster-pg-${var.environment}"
-  family      = "aurora-mysql${var.rds_engine_version}"
+  family      = var.rds_parameter_group_family
   description = "CometML RDS cluster parameter group"
 
   tags = merge(
@@ -269,7 +269,7 @@ resource "aws_rds_cluster_parameter_group" "cometml-cluster-pg" {
 # through var.rds_db_parameters.
 resource "aws_db_parameter_group" "cometml-db-pg" {
   name        = "cometml-rds-db-pg-${var.environment}"
-  family      = "aurora-mysql${var.rds_engine_version}"
+  family      = var.rds_parameter_group_family
   description = "CometML RDS DB-instance parameter group"
 
   tags = merge(

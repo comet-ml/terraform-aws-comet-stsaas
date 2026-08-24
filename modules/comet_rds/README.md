@@ -36,6 +36,7 @@ No modules.
 | <a name="input_rds_engine"></a> [rds\_engine](#input\_rds\_engine) | Engine type for RDS database | `string` | n/a | yes |
 | <a name="input_rds_engine_version"></a> [rds\_engine\_version](#input\_rds\_engine\_version) | Engine version number for RDS database | `string` | n/a | yes |
 | <a name="input_rds_iam_db_auth"></a> [rds\_iam\_db\_auth](#input\_rds\_iam\_db\_auth) | Enables IAM auth for the database in RDS | `bool` | n/a | yes |
+| <a name="input_rds_parameter_group_family"></a> [rds\_parameter\_group\_family](#input\_rds\_parameter\_group\_family) | Parameter group family for the cluster and DB parameter groups. This is NOT the engine version — only aurora-mysql5.7, aurora-mysql8.0 and aurora-mysql8.4 exist, and every Aurora MySQL 3.x point release uses aurora-mysql8.0. | `string` | `"aurora-mysql8.0"` | no |
 | <a name="input_rds_instance_count"></a> [rds\_instance\_count](#input\_rds\_instance\_count) | Number of RDS instances in the database cluster | `number` | n/a | yes |
 | <a name="input_rds_instance_type"></a> [rds\_instance\_type](#input\_rds\_instance\_type) | Instance type for RDS database | `string` | n/a | yes |
 | <a name="input_rds_preferred_backup_window"></a> [rds\_preferred\_backup\_window](#input\_rds\_preferred\_backup\_window) | Backup window for RDS | `string` | n/a | yes |
