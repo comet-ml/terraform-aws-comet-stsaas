@@ -49,6 +49,16 @@ variable "rds_engine" {
 variable "rds_engine_version" {
   description = "Engine version number for RDS database"
   type        = string
+
+  # Shape only, not an allowlist of 5.7|8.0|8.4: the parameter group family is derived
+  # from the first two components, so a value like "8" or "" derives a nonexistent
+  # family that passes plan (the precondition compares the derived value to itself) and
+  # fails at apply with a raw AWS error. Pinning known families here would reject a
+  # future 8.5 and recreate the trap the hardcoded family default already caused.
+  validation {
+    condition     = can(regex("^[0-9]+\\.[0-9]+(\\..*)?$", var.rds_engine_version))
+    error_message = "rds_engine_version must start with a major.minor pair (e.g. \"8.0\" or \"8.0.mysql_aurora.3.11.1\") — the parameter group family is derived from it."
+  }
 }
 
 # Decoupled from rds_engine_version (DND-875): the family is coarse
@@ -57,11 +67,24 @@ variable "rds_engine_version" {
 # a nonexistent family and forces parameter-group replacement.
 #
 # CHANGING THE FAMILY ON A LIVE CLUSTER NEEDS AN OUT-OF-BAND SEQUENCE. family is
-# ForceNew on both parameter-group resources and their names are static, so a
-# family change (e.g. an 8.0 -> 8.4 upgrade) plans a replacement terraform cannot
-# execute: it destroys first, and AWS refuses to delete a parameter group still
-# associated with a live cluster. Create the new groups manually, associate them
-# with the cluster, then adopt them into state — not in one apply.
+# ForceNew on both parameter-group resources and their names are static, so a family
+# change (e.g. an 8.0 -> 8.4 upgrade) plans a replacement terraform cannot execute:
+# it destroys first, and AWS refuses to delete a parameter group still associated
+# with a live cluster.
+#
+# Use a TEMPORARY group to detach terraform's own, rather than importing a renamed
+# one — adopting a differently-named group leaves terraform wanting to rename it back
+# (name is ForceNew too), so the next plan is another replacement and the destroy
+# fails for the same reason. That does not terminate; this does:
+#
+#   1. Create a temporary parameter group out of band at the new family.
+#   2. Modify the cluster to use it. Terraform's own group is now unattached.
+#   3. Apply normally. Terraform destroys its group (the delete now succeeds),
+#      recreates it at the new family under the same static name, and re-attaches
+#      the cluster via db_cluster_parameter_group_name.
+#   4. Delete the temporary group.
+#
+# Same shape for aws_db_parameter_group via db_instance_parameter_group_name.
 variable "rds_parameter_group_family" {
   description = "Parameter group family for the cluster and DB parameter groups. Leave null to derive it from rds_engine + rds_engine_version, which is almost always what you want. This is NOT the engine version — only aurora-mysql5.7, aurora-mysql8.0 and aurora-mysql8.4 exist, and every Aurora MySQL 3.x point release uses aurora-mysql8.0. Changing it on a live cluster requires an out-of-band sequence; see the comment above this variable."
   type        = string

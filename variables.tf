@@ -1623,24 +1623,43 @@ variable "enable_rds_proxy" {
   default     = false
 }
 
-# Separate from enable_rds_proxy so the proxy can be built and verified before
-# any traffic moves, and so cutover/rollback is a one-line flip (DND-875).
+# Separate from enable_rds_proxy so the proxy can be built and verified before any
+# traffic moves (DND-875). This flag only moves the module's mysql_host output — it is
+# NOT the whole cutover; see item 4.
 #
-# Three things to check before flipping this, none of which terraform can catch:
+# Things to check before flipping this, none of which terraform can catch:
 #
 #   1. IAM DB auth. Clusters run iam_database_authentication_enabled = true, but the
 #      proxy is created with iam_auth = "DISABLED". Any client authenticating via IAM
 #      breaks the moment mysql_host moves. Now enforced: the cutover requires
 #      rds_proxy_ack_no_iam_auth while rds_iam_db_auth is true.
-#   2. TLS certificate identity. The proxy presents a cert for
-#      *.proxy-*.rds.amazonaws.com, not the cluster endpoint. verify-ca is fine (same
-#      RDS CA); verify-identity / VERIFY_IDENTITY fails.
+#   2. TLS, and it breaks in both directions:
+#      - rds_proxy_require_tls = true makes the proxy REJECT plaintext clients. Envs
+#        with Helm mysql.useSSL = false (bmw, cisco, eonnext, netflix, zoox as of
+#        2026-08) get a refused connection, not a silent downgrade — the precondition
+#        passes and the app simply stops connecting. Set useSSL there first.
+#      - Where useSSL = true, the Opik JDBC URL appends
+#        useSSL=true&requireSSL=true&verifyServerCertificate=true. Hostname
+#        verification fails against the proxy's *.proxy-*.rds.amazonaws.com cert,
+#        which does not carry the cluster name. verify-ca is fine (same RDS CA);
+#        verify-identity is not.
 #   3. Session pinning. RDS Proxy pins on temp tables, some prepared-statement
 #      patterns and SET session variables. If the client does any of those, pooling
 #      degrades to pass-through and the proxy buys nothing — watch
 #      DatabaseConnectionsCurrentlySessionPinned during the soak.
+#   4. mysql_host is not the only writer endpoint. Every env sets
+#      mysql.replicated.enabled = true with mysql.replicated.rw.host also pointing at
+#      the cluster writer (chart key MYSQL_HOST_RW). Moving only mysql.host leaves the
+#      RW pool — most write traffic — going direct to Aurora, while mysql_proxy_in_use
+#      reports true and the proxy carries almost nothing. Both values move on cutover,
+#      and both move back on rollback.
+#   5. Proxy auth is single-user. The proxy registers one Secrets Manager secret, for
+#      rds_master_username, and rejects any client authenticating as a different MySQL
+#      user. Confirm the Helm mysql user matches the terraform one (they align fleet-wide
+#      today: root on bmw/stabilityai, admin elsewhere) — a mismatch surfaces only as an
+#      opaque auth rejection.
 variable "rds_use_proxy_endpoint" {
-  description = "Make the mysql_host output resolve to the RDS Proxy endpoint instead of the Aurora cluster writer endpoint. Requires enable_rds_proxy, and rds_proxy_require_tls. Only affects the writer — mysql_reader_host always stays on the Aurora reader endpoint because the proxy is writer-only. Check the IAM-auth, TLS-identity and session-pinning caveats in the comment above this variable before flipping it."
+  description = "Make the mysql_host output resolve to the RDS Proxy endpoint instead of the Aurora cluster writer endpoint. Requires enable_rds_proxy, and rds_proxy_require_tls. Only affects the writer — mysql_reader_host always stays on the Aurora reader endpoint because the proxy is writer-only. NOT a complete cutover on its own: the Helm mysql.replicated.rw.host must move too, and TLS/user-auth preconditions apply. Read the caveats in the comment above this variable before flipping it."
   type        = bool
   default     = false
 }
