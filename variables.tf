@@ -1026,21 +1026,37 @@ variable "rds_allow_from_sg" {
 }
 
 variable "rds_engine" {
-  description = "Engine type for RDS database"
+  description = "Engine type for RDS database. Also supplies the parameter group family prefix, so a value other than aurora-mysql needs rds_parameter_group_family checked too."
   type        = string
   default     = "aurora-mysql"
+
+  validation {
+    condition     = can(regex("^aurora-mysql$", var.rds_engine))
+    error_message = "rds_engine must be aurora-mysql — the parameter group family derivation and the aurora-mysql5.7/8.0/8.4 family allowlist assume it."
+  }
 }
 
 variable "rds_engine_version" {
-  description = "Engine version number for RDS database. \"8.0\" tracks the latest 8.0.x; pin a point release (e.g. \"8.0.mysql_aurora.3.11.1\") to stop AWS drifting it. Does not affect the parameter group family — see rds_parameter_group_family."
+  description = "Engine version number for RDS database. \"8.0\" tracks the latest 8.0.x; pin a point release (e.g. \"8.0.mysql_aurora.3.11.1\") to control it. Pinning alone is not enough — AWS can still apply a minor upgrade unless rds_auto_minor_version_upgrade is false (the default). Does not affect the parameter group family, which is derived; see rds_parameter_group_family."
   type        = string
   default     = "8.0"
 }
 
 variable "rds_parameter_group_family" {
-  description = "Parameter group family for the cluster and DB parameter groups. This is NOT the engine version — only aurora-mysql5.7, aurora-mysql8.0 and aurora-mysql8.4 exist, and every Aurora MySQL 3.x point release uses aurora-mysql8.0."
+  description = "Parameter group family for the cluster and DB parameter groups. Leave null to derive it from rds_engine + rds_engine_version, which is almost always what you want. This is NOT the engine version — only aurora-mysql5.7, aurora-mysql8.0 and aurora-mysql8.4 exist, and every Aurora MySQL 3.x point release uses aurora-mysql8.0. Changing it on a live cluster requires an out-of-band sequence, because family is ForceNew and AWS will not delete a parameter group still attached to a cluster; see the variable comment in modules/comet_rds/variables.tf."
   type        = string
-  default     = "aurora-mysql8.0"
+  default     = null
+
+  validation {
+    condition     = var.rds_parameter_group_family == null || can(regex("^aurora-mysql(5\\.7|8\\.0|8\\.4)$", var.rds_parameter_group_family))
+    error_message = "rds_parameter_group_family must be null (derived from the engine version) or one of: aurora-mysql5.7, aurora-mysql8.0, aurora-mysql8.4."
+  }
+}
+
+variable "rds_auto_minor_version_upgrade" {
+  description = "Let AWS apply Aurora minor version upgrades during the maintenance window. Defaults to false so a pinned rds_engine_version stays pinned: an AWS-initiated upgrade makes the next plan attempt a downgrade back to the pin, which Aurora rejects and which fails every apply until someone re-pins by hand. Existing clusters are live at AWS's true default, so the first apply after taking this change flips the setting (a metadata change, no restart)."
+  type        = bool
+  default     = false
 }
 
 variable "rds_instance_type" {
@@ -1609,8 +1625,21 @@ variable "enable_rds_proxy" {
 
 # Separate from enable_rds_proxy so the proxy can be built and verified before
 # any traffic moves, and so cutover/rollback is a one-line flip (DND-875).
+#
+# Three things to check before flipping this, none of which terraform can catch:
+#
+#   1. IAM DB auth. Clusters run iam_database_authentication_enabled = true, but the
+#      proxy is created with iam_auth = "DISABLED". Any client authenticating via IAM
+#      breaks the moment mysql_host moves.
+#   2. TLS certificate identity. The proxy presents a cert for
+#      *.proxy-*.rds.amazonaws.com, not the cluster endpoint. verify-ca is fine (same
+#      RDS CA); verify-identity / VERIFY_IDENTITY fails.
+#   3. Session pinning. RDS Proxy pins on temp tables, some prepared-statement
+#      patterns and SET session variables. If the client does any of those, pooling
+#      degrades to pass-through and the proxy buys nothing — watch
+#      DatabaseConnectionsCurrentlySessionPinned during the soak.
 variable "rds_use_proxy_endpoint" {
-  description = "Make the mysql_host output resolve to the RDS Proxy endpoint instead of the Aurora cluster writer endpoint. Requires enable_rds_proxy. Only affects the writer — mysql_reader_host always stays on the Aurora reader endpoint because the proxy is writer-only."
+  description = "Make the mysql_host output resolve to the RDS Proxy endpoint instead of the Aurora cluster writer endpoint. Requires enable_rds_proxy. Only affects the writer — mysql_reader_host always stays on the Aurora reader endpoint because the proxy is writer-only. Check the IAM-auth, TLS-identity and session-pinning caveats in the comment above this variable before flipping it."
   type        = bool
   default     = false
 }

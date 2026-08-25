@@ -55,15 +55,28 @@ variable "rds_engine_version" {
 # ("aurora-mysql8.0") while engine_version may be a pinned point release
 # ("8.0.mysql_aurora.3.11.1"). Interpolating the version into the family yields
 # a nonexistent family and forces parameter-group replacement.
+#
+# CHANGING THE FAMILY ON A LIVE CLUSTER NEEDS AN OUT-OF-BAND SEQUENCE. family is
+# ForceNew on both parameter-group resources and their names are static, so a
+# family change (e.g. an 8.0 -> 8.4 upgrade) plans a replacement terraform cannot
+# execute: it destroys first, and AWS refuses to delete a parameter group still
+# associated with a live cluster. Create the new groups manually, associate them
+# with the cluster, then adopt them into state — not in one apply.
 variable "rds_parameter_group_family" {
-  description = "Parameter group family for the cluster and DB parameter groups. This is NOT the engine version — only aurora-mysql5.7, aurora-mysql8.0 and aurora-mysql8.4 exist, and every Aurora MySQL 3.x point release uses aurora-mysql8.0."
+  description = "Parameter group family for the cluster and DB parameter groups. Leave null to derive it from rds_engine + rds_engine_version, which is almost always what you want. This is NOT the engine version — only aurora-mysql5.7, aurora-mysql8.0 and aurora-mysql8.4 exist, and every Aurora MySQL 3.x point release uses aurora-mysql8.0. Changing it on a live cluster requires an out-of-band sequence; see the comment above this variable."
   type        = string
-  default     = "aurora-mysql8.0"
+  default     = null
 
   validation {
-    condition     = can(regex("^aurora-mysql(5\\.7|8\\.0|8\\.4)$", var.rds_parameter_group_family))
-    error_message = "rds_parameter_group_family must be one of: aurora-mysql5.7, aurora-mysql8.0, aurora-mysql8.4."
+    condition     = var.rds_parameter_group_family == null || can(regex("^aurora-mysql(5\\.7|8\\.0|8\\.4)$", var.rds_parameter_group_family))
+    error_message = "rds_parameter_group_family must be null (derived from the engine version) or one of: aurora-mysql5.7, aurora-mysql8.0, aurora-mysql8.4."
   }
+}
+
+variable "rds_auto_minor_version_upgrade" {
+  description = "Let AWS apply Aurora minor version upgrades during the maintenance window. Defaults to false: with a pinned rds_engine_version, an AWS-initiated upgrade makes the next plan attempt a downgrade back to the pin, which Aurora rejects and which fails every apply until someone re-pins by hand."
+  type        = bool
+  default     = false
 }
 
 variable "rds_instance_type" {

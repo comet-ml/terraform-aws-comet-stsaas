@@ -51,7 +51,7 @@ output "mysql_reader_host" {
 
 output "mysql_proxy_endpoint" {
   description = "RDS Proxy endpoint, or null when the proxy is disabled. Exposed independently of rds_use_proxy_endpoint so the proxy can be provisioned and tested before cutting traffic over."
-  value       = var.enable_rds_proxy ? module.comet_rds_proxy[0].proxy_endpoint : null
+  value       = local.rds_proxy_provisioned ? module.comet_rds_proxy[0].proxy_endpoint : null
 }
 
 output "mysql_proxy_in_use" {

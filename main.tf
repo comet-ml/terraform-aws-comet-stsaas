@@ -21,9 +21,10 @@ locals {
     var.enable_rds ? random_password.rds_master[0].result : null
   )
 
-  # Both flags, so mysql_host can never dereference module.comet_rds_proxy[0]
-  # when the proxy is disabled.
-  rds_proxy_endpoint_in_use = var.enable_rds_proxy && var.rds_use_proxy_endpoint
+  # Mirrors the comet_rds_proxy count exactly, so mysql_host can never dereference
+  # module.comet_rds_proxy[0] when the module isn't instantiated.
+  rds_proxy_provisioned     = var.enable_rds_proxy && var.enable_rds
+  rds_proxy_endpoint_in_use = local.rds_proxy_provisioned && var.rds_use_proxy_endpoint
 }
 
 #############################
@@ -428,13 +429,14 @@ module "comet_rds" {
   var.rds_allow_from_sg))
   # EKS Auto Mode nodes attach the cluster primary SG (distinct from the managed node SG
   # above), so grant them MySQL access too when Auto Mode is enabled.
-  rds_auto_mode_allow_from_sg = var.enable_eks && var.eks_enable_auto_mode ? module.comet_eks[0].cluster_primary_security_group_id : null
-  rds_engine                  = var.rds_engine
-  rds_engine_version          = var.rds_engine_version
-  rds_parameter_group_family  = var.rds_parameter_group_family
-  rds_instance_type           = var.rds_instance_type
-  rds_instance_count          = var.rds_instance_count
-  rds_storage_encrypted       = var.rds_storage_encrypted
+  rds_auto_mode_allow_from_sg    = var.enable_eks && var.eks_enable_auto_mode ? module.comet_eks[0].cluster_primary_security_group_id : null
+  rds_engine                     = var.rds_engine
+  rds_engine_version             = var.rds_engine_version
+  rds_parameter_group_family     = var.rds_parameter_group_family
+  rds_auto_minor_version_upgrade = var.rds_auto_minor_version_upgrade
+  rds_instance_type              = var.rds_instance_type
+  rds_instance_count             = var.rds_instance_count
+  rds_storage_encrypted          = var.rds_storage_encrypted
 
   # Aurora Serverless v2 (optional)
   rds_serverless_v2_enabled                  = var.rds_serverless_v2_enabled
@@ -480,7 +482,10 @@ module "comet_rds" {
 
 module "comet_rds_proxy" {
   source = "./modules/comet_rds_proxy"
-  count  = var.enable_rds_proxy ? 1 : 0
+  # enable_rds too: this module dereferences module.comet_rds[0] below, so keying only
+  # off enable_rds_proxy turns the enable_rds = false case into an index error that
+  # beats rds_proxy_validation's friendlier message.
+  count = var.enable_rds_proxy && var.enable_rds ? 1 : 0
 
   environment = var.environment
   common_tags = local.all_tags

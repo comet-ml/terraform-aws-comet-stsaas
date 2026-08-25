@@ -7,22 +7,27 @@ locals {
   # drift between the two would silently leave the real groups unmanaged (DND-1537).
   rds_cluster_identifier = coalesce(var.rds_cluster_identifier, "cometml-rds-cluster-${var.environment}")
 
-  # AWS derives the family from the version's first two components:
+  # AWS derives the family from the engine plus the version's first two components:
   # "8.0.mysql_aurora.3.11.1" and the bare "8.0" both -> aurora-mysql8.0.
-  # Used to cross-check the family against the version below, since a variable
-  # validation block cannot reference another variable.
-  rds_expected_parameter_group_family = "aurora-mysql${join(".", slice(split(".", var.rds_engine_version), 0, min(2, length(split(".", var.rds_engine_version)))))}"
+  # Built from var.rds_engine rather than a hardcoded prefix so a non-aurora-mysql
+  # engine produces a family that names the engine it was given.
+  rds_expected_parameter_group_family = "${var.rds_engine}${join(".", slice(split(".", var.rds_engine_version), 0, min(2, length(split(".", var.rds_engine_version)))))}"
+
+  # Derived unless overridden, so pinning a point release never silently changes the
+  # family, and the precondition below only fires on an explicit contradiction.
+  rds_parameter_group_family = coalesce(var.rds_parameter_group_family, local.rds_expected_parameter_group_family)
 }
 
 # Cross-field check: each var is individually valid but the pair can still be
 # incompatible (e.g. version 8.0.mysql_aurora.3.11.1 with family aurora-mysql5.7).
 # AWS only rejects that when the cluster is associated, after the parameter groups
-# already exist — fail at plan instead.
+# already exist — fail at plan instead. Only reachable when the family is set
+# explicitly; the derived value matches by construction.
 resource "terraform_data" "parameter_group_family_matches_engine_version" {
   lifecycle {
     precondition {
-      condition     = var.rds_parameter_group_family == local.rds_expected_parameter_group_family
-      error_message = "rds_parameter_group_family (${var.rds_parameter_group_family}) does not match rds_engine_version (${var.rds_engine_version}), which requires ${local.rds_expected_parameter_group_family}."
+      condition     = local.rds_parameter_group_family == local.rds_expected_parameter_group_family
+      error_message = "rds_parameter_group_family (${local.rds_parameter_group_family}) does not match rds_engine/rds_engine_version (${var.rds_engine} ${var.rds_engine_version}), which requires ${local.rds_expected_parameter_group_family}. Leave rds_parameter_group_family unset to derive it."
     }
   }
 }
@@ -73,6 +78,11 @@ resource "aws_rds_cluster_instance" "comet-ml-rds-mysql" {
   engine             = var.rds_engine
   engine_version     = var.rds_engine_version
   apply_immediately  = true
+
+  # Off by default: an AWS-initiated minor upgrade makes the next plan try to set
+  # engine_version back down to the pinned value, which Aurora rejects — the apply
+  # then fails until someone re-pins by hand.
+  auto_minor_version_upgrade = var.rds_auto_minor_version_upgrade
 
   # Performance Insights
   performance_insights_enabled          = var.rds_performance_insights_enabled
@@ -192,7 +202,7 @@ resource "aws_rds_cluster" "cometml-db-cluster" {
 
 resource "aws_rds_cluster_parameter_group" "cometml-cluster-pg" {
   name        = "cometml-rds-cluster-pg-${var.environment}"
-  family      = var.rds_parameter_group_family
+  family      = local.rds_parameter_group_family
   description = "CometML RDS cluster parameter group"
 
   tags = merge(
@@ -288,7 +298,7 @@ resource "aws_rds_cluster_parameter_group" "cometml-cluster-pg" {
 # through var.rds_db_parameters.
 resource "aws_db_parameter_group" "cometml-db-pg" {
   name        = "cometml-rds-db-pg-${var.environment}"
-  family      = var.rds_parameter_group_family
+  family      = local.rds_parameter_group_family
   description = "CometML RDS DB-instance parameter group"
 
   tags = merge(
