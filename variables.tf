@@ -1026,13 +1026,13 @@ variable "rds_allow_from_sg" {
 }
 
 variable "rds_engine" {
-  description = "Engine type for RDS database. Also supplies the parameter group family prefix, so a value other than aurora-mysql needs rds_parameter_group_family checked too."
+  description = "Engine type for RDS database. Only aurora-mysql is supported: it also supplies the parameter group family prefix, and the family allowlist is aurora-mysql5.7/8.0/8.4. Supporting another engine means revisiting both."
   type        = string
   default     = "aurora-mysql"
 
   validation {
-    condition     = can(regex("^aurora-mysql$", var.rds_engine))
-    error_message = "rds_engine must be aurora-mysql — the parameter group family derivation and the aurora-mysql5.7/8.0/8.4 family allowlist assume it."
+    condition     = var.rds_engine == "aurora-mysql"
+    error_message = "rds_engine must be aurora-mysql — it is the only supported engine. It supplies the parameter group family prefix, and the family allowlist (aurora-mysql5.7/8.0/8.4) assumes it."
   }
 }
 

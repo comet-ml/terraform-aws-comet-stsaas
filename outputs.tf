@@ -54,9 +54,12 @@ output "mysql_proxy_endpoint" {
   value       = local.rds_proxy_provisioned ? module.comet_rds_proxy[0].proxy_endpoint : null
 }
 
+# null rather than false when there is no RDS at all, so it matches mysql_host and
+# the other mysql_* outputs — false would claim "connect to the cluster writer"
+# while mysql_host is null and there is no writer to connect to.
 output "mysql_proxy_in_use" {
-  description = "Whether mysql_host resolves to the RDS Proxy (true) or the Aurora cluster writer endpoint (false)."
-  value       = local.rds_proxy_endpoint_in_use
+  description = "Whether mysql_host resolves to the RDS Proxy (true) or the Aurora cluster writer endpoint (false). Null when enable_rds is false, matching mysql_host."
+  value       = var.enable_rds ? local.rds_proxy_endpoint_in_use : null
 }
 
 output "mysql_port" {

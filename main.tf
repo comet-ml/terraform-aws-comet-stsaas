@@ -142,6 +142,13 @@ resource "terraform_data" "rds_proxy_endpoint_validation" {
       condition     = !var.rds_use_proxy_endpoint || var.enable_rds_proxy
       error_message = "rds_use_proxy_endpoint requires enable_rds_proxy to be true — otherwise mysql_host would point at a proxy that does not exist."
     }
+    # Moving application traffic onto the proxy must not quietly drop TLS: the
+    # cluster can still require secure transport while the proxy accepts plaintext
+    # from clients, so the downgrade would be invisible at the app.
+    precondition {
+      condition     = !var.rds_use_proxy_endpoint || var.rds_proxy_require_tls
+      error_message = "rds_use_proxy_endpoint requires rds_proxy_require_tls to be true — cutting mysql_host over to a proxy that accepts plaintext client connections would silently downgrade the application's transport security."
+    }
   }
 }
 
