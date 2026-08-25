@@ -1657,7 +1657,7 @@ variable "rds_proxy_ack_no_iam_auth" {
 }
 
 variable "rds_proxy_allowed_sg_ids" {
-  description = "When enable_eks=false, the list of security group IDs allowed to connect to the proxy on 3306. When enable_eks=true the EKS nodegroup SG is wired in automatically and this is ignored."
+  description = "When neither enable_ec2 nor enable_eks is set, the list of security group IDs allowed to connect to the proxy on 3306. With enable_ec2=true the EC2 instance SG is wired in automatically, and with enable_eks=true the EKS nodegroup SG (plus the Auto Mode cluster primary SG) — in both cases this is ignored, matching comet_rds's rds_allow_from_sg precedence."
   type        = list(string)
   default     = []
 }
