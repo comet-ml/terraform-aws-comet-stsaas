@@ -1630,7 +1630,8 @@ variable "enable_rds_proxy" {
 #
 #   1. IAM DB auth. Clusters run iam_database_authentication_enabled = true, but the
 #      proxy is created with iam_auth = "DISABLED". Any client authenticating via IAM
-#      breaks the moment mysql_host moves.
+#      breaks the moment mysql_host moves. Now enforced: the cutover requires
+#      rds_proxy_ack_no_iam_auth while rds_iam_db_auth is true.
 #   2. TLS certificate identity. The proxy presents a cert for
 #      *.proxy-*.rds.amazonaws.com, not the cluster endpoint. verify-ca is fine (same
 #      RDS CA); verify-identity / VERIFY_IDENTITY fails.
@@ -1639,7 +1640,18 @@ variable "enable_rds_proxy" {
 #      degrades to pass-through and the proxy buys nothing — watch
 #      DatabaseConnectionsCurrentlySessionPinned during the soak.
 variable "rds_use_proxy_endpoint" {
-  description = "Make the mysql_host output resolve to the RDS Proxy endpoint instead of the Aurora cluster writer endpoint. Requires enable_rds_proxy. Only affects the writer — mysql_reader_host always stays on the Aurora reader endpoint because the proxy is writer-only. Check the IAM-auth, TLS-identity and session-pinning caveats in the comment above this variable before flipping it."
+  description = "Make the mysql_host output resolve to the RDS Proxy endpoint instead of the Aurora cluster writer endpoint. Requires enable_rds_proxy, and rds_proxy_require_tls. Only affects the writer — mysql_reader_host always stays on the Aurora reader endpoint because the proxy is writer-only. Check the IAM-auth, TLS-identity and session-pinning caveats in the comment above this variable before flipping it."
+  type        = bool
+  default     = false
+}
+
+# Deliberately not gated on rds_iam_db_auth directly. That flag only makes IAM auth
+# *available* on the cluster — it is true fleet-wide, and Comet connects with the
+# Secrets Manager password — so failing closed on it would block every env's cutover
+# for a capability nothing currently uses. This makes the operator confirm that,
+# rather than the module guessing either way.
+variable "rds_proxy_ack_no_iam_auth" {
+  description = "Acknowledge that no client authenticates to this cluster with an IAM token, unblocking rds_use_proxy_endpoint while rds_iam_db_auth is true. The proxy is created with iam_auth = DISABLED and cannot serve IAM-token clients, so any that exist break when mysql_host moves. Comet's own backend connects with the Secrets Manager password and is unaffected. Verify before setting; the cluster having IAM auth enabled is not evidence that nothing uses it."
   type        = bool
   default     = false
 }

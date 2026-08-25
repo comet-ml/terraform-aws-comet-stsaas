@@ -149,6 +149,15 @@ resource "terraform_data" "rds_proxy_endpoint_validation" {
       condition     = !var.rds_use_proxy_endpoint || var.rds_proxy_require_tls
       error_message = "rds_use_proxy_endpoint requires rds_proxy_require_tls to be true — cutting mysql_host over to a proxy that accepts plaintext client connections would silently downgrade the application's transport security."
     }
+    # The proxy is built auth_scheme = SECRETS / iam_auth = DISABLED, so it cannot
+    # serve an IAM-token client. Gated on the acknowledgement rather than on
+    # rds_iam_db_auth itself: that flag only makes IAM auth *available* on the
+    # cluster (it is true fleet-wide and Comet connects by password), so keying off
+    # it would block every env's cutover for a capability nothing uses.
+    precondition {
+      condition     = !var.rds_use_proxy_endpoint || !var.rds_iam_db_auth || var.rds_proxy_ack_no_iam_auth
+      error_message = "rds_use_proxy_endpoint with rds_iam_db_auth = true: the RDS Proxy is created with iam_auth = DISABLED, so any client authenticating by IAM token breaks when mysql_host moves to the proxy. Comet itself connects with the Secrets Manager password and is unaffected. Confirm no IAM-auth client exists for this cluster, then set rds_proxy_ack_no_iam_auth = true. Do not set it blindly."
+    }
   }
 }
 
