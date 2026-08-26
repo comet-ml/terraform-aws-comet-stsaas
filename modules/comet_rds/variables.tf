@@ -55,9 +55,16 @@ variable "rds_engine_version" {
   # family that passes plan (the precondition compares the derived value to itself) and
   # fails at apply with a raw AWS error. Pinning known families here would reject a
   # future 8.5 and recreate the trap the hardcoded family default already caused.
+  #
+  # The major/minor pair is canonical-only — no leading zeros ("08.0", "8.00") and no
+  # empty suffix component ("8.0."). Those are typos of a real version rather than a
+  # version this module should grow into: "08.0" derives aurora-mysql08.0, which does
+  # not exist, and unlike an unrecognized-but-plausible 8.5 no Aurora release is ever
+  # spelled that way. A wrong-but-existing major.minor (say 9.9) is still accepted here
+  # and left to AWS, which rejects the engine_version itself.
   validation {
-    condition     = can(regex("^[0-9]+\\.[0-9]+(\\..*)?$", var.rds_engine_version))
-    error_message = "rds_engine_version must start with a major.minor pair (e.g. \"8.0\" or \"8.0.mysql_aurora.3.11.1\") — the parameter group family is derived from it."
+    condition     = can(regex("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\.[^.].*)?$", var.rds_engine_version))
+    error_message = "rds_engine_version must be a canonical major.minor pair, optionally followed by a point-release suffix (e.g. \"8.0\" or \"8.0.mysql_aurora.3.11.1\") — no leading zeros and no trailing dot, because the parameter group family is derived from it."
   }
 }
 
