@@ -20,6 +20,11 @@ locals {
   rds_master_password = var.rds_master_password != null ? var.rds_master_password : (
     var.enable_rds ? random_password.rds_master[0].result : null
   )
+
+  # Mirrors the comet_rds_proxy count exactly, so mysql_host can never dereference
+  # module.comet_rds_proxy[0] when the module isn't instantiated.
+  rds_proxy_provisioned     = var.enable_rds_proxy && var.enable_rds
+  rds_proxy_endpoint_in_use = local.rds_proxy_provisioned && var.rds_use_proxy_endpoint
 }
 
 #############################
@@ -118,13 +123,44 @@ resource "terraform_data" "rds_proxy_validation" {
       condition     = var.enable_rds
       error_message = "enable_rds_proxy requires enable_rds to be true."
     }
+    # rds_proxy_allowed_cidrs defaults to the VPN pool, so this is really "is there an
+    # ingress source at all" — it cannot tell VPN-only reachability from the application
+    # being able to connect. enable_ec2 / enable_eks auto-wire the app's SG; without
+    # either, an explicit SG or CIDR has to be supplied.
     precondition {
-      condition     = var.enable_eks || length(var.rds_proxy_allowed_sg_ids) > 0 || length(var.rds_proxy_allowed_cidrs) > 0
-      error_message = "enable_rds_proxy requires at least one ingress source: enable_eks=true (auto-wires the nodegroup SG), or non-empty rds_proxy_allowed_sg_ids, or non-empty rds_proxy_allowed_cidrs. Otherwise the proxy has no ingress rules and is unreachable."
+      condition     = var.enable_ec2 || var.enable_eks || length(var.rds_proxy_allowed_sg_ids) > 0 || length(var.rds_proxy_allowed_cidrs) > 0
+      error_message = "enable_rds_proxy requires at least one ingress source: enable_ec2=true or enable_eks=true (auto-wires the application SG), or non-empty rds_proxy_allowed_sg_ids, or non-empty rds_proxy_allowed_cidrs. Otherwise the proxy has no ingress rules and is unreachable."
     }
     precondition {
       condition     = var.rds_snapshot_identifier == null
       error_message = "enable_rds_proxy is not currently supported with rds_snapshot_identifier — the proxy auth secret would be written with vars that don't match the snapshot's embedded credentials. Disable enable_rds_proxy or open a follow-up to add an explicit rds_proxy_username/password override."
+    }
+  }
+}
+
+# Unconditional: the misconfiguration to catch is rds_use_proxy_endpoint = true
+# while the proxy is off, which a count-gated check above would skip entirely.
+resource "terraform_data" "rds_proxy_endpoint_validation" {
+  lifecycle {
+    precondition {
+      condition     = !var.rds_use_proxy_endpoint || var.enable_rds_proxy
+      error_message = "rds_use_proxy_endpoint requires enable_rds_proxy to be true — otherwise mysql_host would point at a proxy that does not exist."
+    }
+    # Moving application traffic onto the proxy must not quietly drop TLS: the
+    # cluster can still require secure transport while the proxy accepts plaintext
+    # from clients, so the downgrade would be invisible at the app.
+    precondition {
+      condition     = !var.rds_use_proxy_endpoint || var.rds_proxy_require_tls
+      error_message = "rds_use_proxy_endpoint requires rds_proxy_require_tls to be true — cutting mysql_host over to a proxy that accepts plaintext client connections would silently downgrade the application's transport security."
+    }
+    # The proxy is built with auth_scheme = SECRETS and iam_auth = DISABLED, so it
+    # cannot serve an IAM-token client. Gated on the acknowledgement rather than on
+    # rds_iam_db_auth itself: that flag only makes IAM auth *available* on the
+    # cluster (it is true fleet-wide and Comet connects by password), so keying off
+    # it would block every env's cutover for a capability nothing uses.
+    precondition {
+      condition     = !var.rds_use_proxy_endpoint || !var.rds_iam_db_auth || var.rds_proxy_ack_no_iam_auth
+      error_message = "rds_use_proxy_endpoint with rds_iam_db_auth = true: the RDS Proxy is created with iam_auth = DISABLED, so any client authenticating by IAM token breaks when mysql_host moves to the proxy. Comet itself connects with the Secrets Manager password and is unaffected. Confirm no IAM-auth client exists for this cluster, then set rds_proxy_ack_no_iam_auth = true. Do not set it blindly."
     }
   }
 }
@@ -417,11 +453,13 @@ module "comet_rds" {
   rds_allow_from_sg = var.enable_ec2 ? module.comet_ec2[0].comet_ec2_sg_id : (
     var.enable_eks ? module.comet_eks[0].nodegroup_sg_id : (
   var.rds_allow_from_sg))
-  rds_engine            = var.rds_engine
-  rds_engine_version    = var.rds_engine_version
-  rds_instance_type     = var.rds_instance_type
-  rds_instance_count    = var.rds_instance_count
-  rds_storage_encrypted = var.rds_storage_encrypted
+  rds_engine                     = var.rds_engine
+  rds_engine_version             = var.rds_engine_version
+  rds_parameter_group_family     = var.rds_parameter_group_family
+  rds_auto_minor_version_upgrade = var.rds_auto_minor_version_upgrade
+  rds_instance_type              = var.rds_instance_type
+  rds_instance_count             = var.rds_instance_count
+  rds_storage_encrypted          = var.rds_storage_encrypted
 
   # Aurora Serverless v2 (optional)
   rds_serverless_v2_enabled                  = var.rds_serverless_v2_enabled
@@ -461,7 +499,10 @@ module "comet_rds" {
 
 module "comet_rds_proxy" {
   source = "./modules/comet_rds_proxy"
-  count  = var.enable_rds_proxy ? 1 : 0
+  # enable_rds too: this module dereferences module.comet_rds[0] below, so keying only
+  # off enable_rds_proxy turns the enable_rds = false case into an index error that
+  # beats rds_proxy_validation's friendlier message.
+  count = var.enable_rds_proxy && var.enable_rds ? 1 : 0
 
   environment = var.environment
   common_tags = local.all_tags
@@ -469,8 +510,14 @@ module "comet_rds_proxy" {
   vpc_id     = var.enable_vpc ? module.comet_vpc[0].vpc_id : var.comet_vpc_id
   subnet_ids = var.enable_vpc ? module.comet_vpc[0].private_subnets : var.comet_private_subnets
 
-  allowed_sg_ids = var.enable_eks ? [module.comet_eks[0].nodegroup_sg_id] : var.rds_proxy_allowed_sg_ids
-  allowed_cidrs  = var.rds_proxy_allowed_cidrs
+  # Same precedence as comet_rds's rds_allow_from_sg — EC2 first, then EKS, then the
+  # explicit list. The EC2 branch was missing, so an enable_ec2 env got a proxy the
+  # application could not reach: rds_proxy_allowed_cidrs defaults to the VPN pool, so
+  # the "at least one ingress source" check passed on VPN access alone.
+  allowed_sg_ids = var.enable_ec2 ? [module.comet_ec2[0].comet_ec2_sg_id] : (
+    var.enable_eks ? [module.comet_eks[0].nodegroup_sg_id] : var.rds_proxy_allowed_sg_ids
+  )
+  allowed_cidrs = var.rds_proxy_allowed_cidrs
 
   mysql_cluster_id      = module.comet_rds[0].mysql_cluster_id
   mysql_sg_id           = module.comet_rds[0].mysql_sg_id
