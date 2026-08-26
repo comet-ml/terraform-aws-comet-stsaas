@@ -34,13 +34,32 @@ output "acm_certificate_status" {
 }
 
 output "mysql_host" {
-  description = "MySQL cluster (writer) endpoint for the RDS instance"
-  value       = var.enable_rds ? module.comet_rds[0].mysql_host : null
+  description = "MySQL writer endpoint clients should connect to. The RDS Proxy endpoint when rds_use_proxy_endpoint = true, otherwise the Aurora cluster writer endpoint. Feed this into the Helm mysql host value."
+  value = var.enable_rds ? (
+    local.rds_proxy_endpoint_in_use ? module.comet_rds_proxy[0].proxy_endpoint : module.comet_rds[0].mysql_host
+  ) : null
 }
 
+# Deliberately NOT proxy-backed: the proxy created here is writer-only (no
+# aws_db_proxy_endpoint with target_role = READ_ONLY), so pointing readers at it
+# would silently send read traffic to the writer. Reads stay on the Aurora RO
+# endpoint until a read-only proxy endpoint exists.
 output "mysql_reader_host" {
-  description = "MySQL cluster reader endpoint for the RDS instance"
+  description = "MySQL cluster reader endpoint. Always the Aurora reader endpoint — the RDS Proxy is writer-only, so this is never swapped to the proxy."
   value       = var.enable_rds ? module.comet_rds[0].mysql_reader_host : null
+}
+
+output "mysql_proxy_endpoint" {
+  description = "RDS Proxy endpoint, or null when the proxy is disabled. Exposed independently of rds_use_proxy_endpoint so the proxy can be provisioned and tested before cutting traffic over."
+  value       = local.rds_proxy_provisioned ? module.comet_rds_proxy[0].proxy_endpoint : null
+}
+
+# null rather than false when there is no RDS at all, so it matches mysql_host and
+# the other mysql_* outputs — false would claim "connect to the cluster writer"
+# while mysql_host is null and there is no writer to connect to.
+output "mysql_proxy_in_use" {
+  description = "Whether mysql_host resolves to the RDS Proxy (true) or the Aurora cluster writer endpoint (false). Null when enable_rds is false, matching mysql_host."
+  value       = var.enable_rds ? local.rds_proxy_endpoint_in_use : null
 }
 
 output "mysql_port" {
