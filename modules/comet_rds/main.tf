@@ -74,9 +74,18 @@ resource "aws_rds_cluster_instance" "comet-ml-rds-mysql" {
   engine_version     = var.rds_engine_version
   apply_immediately  = true
 
-  # Off by default: an AWS-initiated minor upgrade makes the next plan try to set
-  # engine_version back down to the pinned value, which Aurora rejects — the apply
-  # then fails until someone re-pins by hand.
+  # Set false alongside a pinned engine_version: an AWS-initiated minor upgrade makes
+  # the next plan try to set engine_version back down to the pin, which Aurora rejects
+  # — the apply then fails until someone re-pins by hand.
+  #
+  # This covers ordinary maintenance-window upgrades only. AWS still force-upgrades for
+  # critical security fixes and at end-of-support regardless of this setting, which
+  # produces the same downgrade-loop symptom; the fix there is to move the pin forward
+  # to the version AWS landed on, not to re-pin the old one.
+  #
+  # Null leaves the attribute unmanaged, which is the default on this line: v1.20.x
+  # never set it, so existing clusters stay at AWS's default instead of being flipped
+  # by an unrelated apply.
   auto_minor_version_upgrade = var.rds_auto_minor_version_upgrade
 
   # Performance Insights

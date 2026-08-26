@@ -1015,9 +1015,21 @@ variable "rds_parameter_group_family" {
 }
 
 variable "rds_auto_minor_version_upgrade" {
-  description = "Let AWS apply Aurora minor version upgrades during the maintenance window. Defaults to false so a pinned rds_engine_version stays pinned: an AWS-initiated upgrade makes the next plan attempt a downgrade back to the pin, which Aurora rejects and which fails every apply until someone re-pins by hand. Existing clusters are live at AWS's true default, so the first apply after taking this change flips the setting (a metadata change, no restart)."
+  # Backport note: unlike main, this defaults to null = "leave AWS's setting alone".
+  # v1.20.x never set auto_minor_version_upgrade, so every existing cluster on this
+  # line sits at AWS's default (true). Defaulting to false here would flip that on
+  # the next unrelated apply for every v1.20.x env — netflix, fetch, eonnext,
+  # mercedesamgf1 — not just the ones doing the DND-875 rollout. A backport should
+  # not change behaviour for envs that only wanted the module bump.
+  #
+  # Set false explicitly alongside a pinned rds_engine_version: without it the pin is
+  # not a pin, because an AWS-initiated minor upgrade makes the next plan attempt a
+  # downgrade back to the pin, which Aurora rejects and which fails every apply until
+  # someone re-pins by hand.
+  description = "Let AWS apply Aurora minor version upgrades during the maintenance window. Null (the default) leaves the current AWS-side setting untouched, preserving v1.20.x behaviour on existing clusters. Set false alongside a pinned rds_engine_version, or the pin does not hold."
   type        = bool
-  default     = false
+  default     = null
+
 }
 
 variable "rds_instance_type" {
@@ -1592,12 +1604,17 @@ variable "rds_proxy_allowed_sg_ids" {
   description = "When neither enable_ec2 nor enable_eks is set, the list of security group IDs allowed to connect to the proxy on 3306. With enable_ec2=true the EC2 instance SG is wired in automatically, and with enable_eks=true the EKS nodegroup SG (plus the Auto Mode cluster primary SG) — in both cases this is ignored, matching comet_rds's rds_allow_from_sg precedence."
   type        = list(string)
   default     = []
+  # nullable = false: an explicit null reaches length() in the ingress precondition,
+  # which errors with "argument must not be null" instead of the intended message.
+  nullable = false
 }
 
 variable "rds_proxy_allowed_cidrs" {
   description = "CIDR blocks allowed to connect to the proxy on 3306 (in addition to allowed SGs). Defaults to the agentro VPN client pool (10.126.0.0/15)."
   type        = list(string)
   default     = ["10.126.0.0/15"]
+  # nullable = false: see rds_proxy_allowed_sg_ids — an explicit null breaks length().
+  nullable = false
 }
 
 variable "rds_proxy_require_tls" {

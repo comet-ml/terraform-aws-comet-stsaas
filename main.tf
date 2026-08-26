@@ -510,13 +510,19 @@ module "comet_rds_proxy" {
   vpc_id     = var.enable_vpc ? module.comet_vpc[0].vpc_id : var.comet_vpc_id
   subnet_ids = var.enable_vpc ? module.comet_vpc[0].private_subnets : var.comet_private_subnets
 
-  # Same precedence as comet_rds's rds_allow_from_sg — EC2 first, then EKS, then the
-  # explicit list. The EC2 branch was missing, so an enable_ec2 env got a proxy the
+  # The EC2 branch was missing entirely, so an enable_ec2 env got a proxy the
   # application could not reach: rds_proxy_allowed_cidrs defaults to the VPN pool, so
   # the "at least one ingress source" check passed on VPN access alone.
-  allowed_sg_ids = var.enable_ec2 ? [module.comet_ec2[0].comet_ec2_sg_id] : (
-    var.enable_eks ? [module.comet_eks[0].nodegroup_sg_id] : var.rds_proxy_allowed_sg_ids
-  )
+  #
+  # Union rather than comet_rds's EC2-then-EKS precedence: rds_allow_from_sg is a single
+  # string and structurally cannot hold both, but allowed_sg_ids is a list. With both
+  # compute types enabled, precedence would silently drop the EKS nodegroup and leave
+  # pods unable to reach the proxy. Falls back to the explicit list only when neither
+  # compute module is enabled, matching the ingress precondition.
+  allowed_sg_ids = var.enable_ec2 || var.enable_eks ? concat(
+    var.enable_ec2 ? [module.comet_ec2[0].comet_ec2_sg_id] : [],
+    var.enable_eks ? [module.comet_eks[0].nodegroup_sg_id] : [],
+  ) : var.rds_proxy_allowed_sg_ids
   allowed_cidrs = var.rds_proxy_allowed_cidrs
 
   mysql_cluster_id      = module.comet_rds[0].mysql_cluster_id

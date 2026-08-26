@@ -36,8 +36,16 @@ variable "rds_allow_from_sg" {
 }
 
 variable "rds_engine" {
-  description = "Engine type for RDS database"
+  description = "Engine type for RDS database. Only aurora-mysql is supported: it supplies the parameter group family prefix, and the family derivation takes the version's first two components, which is the aurora-mysql convention. aurora-postgresql families are major-only (aurora-postgresql15, not aurora-postgresql15.2), so the derivation would produce a nonexistent family."
   type        = string
+
+  # Also validated at the root, but repeated here because this module is usable
+  # directly: without it a direct caller passing aurora-postgresql gets a malformed
+  # family and a raw AWS error at apply instead of a message at plan.
+  validation {
+    condition     = var.rds_engine == "aurora-mysql"
+    error_message = "rds_engine must be aurora-mysql — it is the only supported engine. The parameter group family is derived as <engine><major>.<minor>, which is the aurora-mysql convention; aurora-postgresql uses major-only families."
+  }
 }
 
 variable "rds_engine_version" {
@@ -50,15 +58,16 @@ variable "rds_engine_version" {
   # fails at apply with a raw AWS error. Pinning known families here would reject a
   # future 8.5 and recreate the trap the hardcoded family default already caused.
   #
-  # The major/minor pair is canonical-only — no leading zeros ("08.0", "8.00") and no
-  # empty suffix component ("8.0."). Those are typos of a real version rather than a
+  # The major/minor pair is canonical-only — no leading zeros ("08.0", "8.00") — and
+  # every suffix component must be non-empty, so "8.0.", "8.0..1" and a trailing
+  # "…3.11.1." are all rejected. Those are typos of a real version rather than a
   # version this module should grow into: "08.0" derives aurora-mysql08.0, which does
   # not exist, and unlike an unrecognized-but-plausible 8.5 no Aurora release is ever
   # spelled that way. A wrong-but-existing major.minor (say 9.9) is still accepted here
   # and left to AWS, which rejects the engine_version itself.
   validation {
-    condition     = can(regex("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\.[^.].*)?$", var.rds_engine_version))
-    error_message = "rds_engine_version must be a canonical major.minor pair, optionally followed by a point-release suffix (e.g. \"8.0\" or \"8.0.mysql_aurora.3.11.1\") — no leading zeros and no trailing dot, because the parameter group family is derived from it."
+    condition     = can(regex("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\.[^.]+)*$", var.rds_engine_version))
+    error_message = "rds_engine_version must be a canonical major.minor pair, optionally followed by dot-separated point-release components (e.g. \"8.0\" or \"8.0.mysql_aurora.3.11.1\") — no leading zeros, and no empty component or trailing dot, because the parameter group family is derived from it."
   }
 }
 
@@ -98,9 +107,10 @@ variable "rds_parameter_group_family" {
 }
 
 variable "rds_auto_minor_version_upgrade" {
-  description = "Let AWS apply Aurora minor version upgrades during the maintenance window. Defaults to false: with a pinned rds_engine_version, an AWS-initiated upgrade makes the next plan attempt a downgrade back to the pin, which Aurora rejects and which fails every apply until someone re-pins by hand."
+  description = "Let AWS apply Aurora minor version upgrades during the maintenance window. Null leaves the current AWS-side setting untouched (v1.20.x never managed this attribute, so existing clusters are at AWS's default of true). Set false alongside a pinned rds_engine_version: otherwise an AWS-initiated upgrade makes the next plan attempt a downgrade back to the pin, which Aurora rejects, failing every apply until someone re-pins by hand."
   type        = bool
-  default     = false
+  default     = null
+
 }
 
 variable "rds_instance_type" {
