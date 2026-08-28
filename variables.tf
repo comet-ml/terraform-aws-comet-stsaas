@@ -1041,7 +1041,7 @@ variable "rds_auto_minor_version_upgrade" {
   # not a pin, because an AWS-initiated minor upgrade makes the next plan attempt a
   # downgrade back to the pin, which Aurora rejects and which fails every apply until
   # someone re-pins by hand.
-  description = "Let AWS apply Aurora minor version upgrades during the maintenance window. Null (the default) leaves the current AWS-side setting untouched, preserving v2.1.x behaviour on existing clusters. Set false alongside a pinned rds_engine_version, or the pin does not hold."
+  description = "Let AWS apply Aurora minor version upgrades during the maintenance window. Null (the default) leaves the current AWS-side setting untouched, preserving existing v2.1.x behaviour. Set false alongside a pinned rds_engine_version, or the pin does not hold: an AWS-initiated upgrade makes the next plan attempt a downgrade back to the pin, which Aurora rejects and which fails every apply until someone re-pins by hand."
   type        = bool
   default     = null
 
@@ -1616,7 +1616,7 @@ variable "rds_proxy_ack_no_iam_auth" {
 }
 
 variable "rds_proxy_allowed_sg_ids" {
-  description = "When neither enable_ec2 nor enable_eks is set, the list of security group IDs allowed to connect to the proxy on 3306. With enable_ec2=true the EC2 instance SG is wired in automatically, and with enable_eks=true the EKS nodegroup SG (plus the Auto Mode cluster primary SG) — in both cases this is ignored, matching comet_rds's rds_allow_from_sg precedence."
+  description = "When neither enable_ec2 nor enable_eks is set, the list of security group IDs allowed to connect to the proxy on 3306. With enable_ec2=true the EC2 instance SG is wired in automatically, and with enable_eks=true the EKS nodegroup SG; when both are set, both SGs are allowed. In those cases this list is ignored."
   type        = list(string)
   default     = []
   # nullable = false: an explicit null reaches length() in the ingress precondition,
