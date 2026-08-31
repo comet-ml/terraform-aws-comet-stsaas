@@ -1026,15 +1026,37 @@ variable "rds_allow_from_sg" {
 }
 
 variable "rds_engine" {
-  description = "Engine type for RDS database"
+  description = "Engine type for RDS database. Only aurora-mysql is supported: it also supplies the parameter group family prefix, and the family allowlist is aurora-mysql5.7/8.0/8.4. Supporting another engine means revisiting both."
   type        = string
   default     = "aurora-mysql"
+
+  validation {
+    condition     = var.rds_engine == "aurora-mysql"
+    error_message = "rds_engine must be aurora-mysql — it is the only supported engine. It supplies the parameter group family prefix, and the family allowlist (aurora-mysql5.7/8.0/8.4) assumes it."
+  }
 }
 
 variable "rds_engine_version" {
-  description = "Engine version number for RDS database"
+  description = "Engine version number for RDS database. \"8.0\" tracks the latest 8.0.x; pin a point release (e.g. \"8.0.mysql_aurora.3.11.1\") to control it. Pinning alone is not enough — AWS can still apply a minor upgrade unless rds_auto_minor_version_upgrade is false (the default). Does not affect the parameter group family, which is derived; see rds_parameter_group_family."
   type        = string
   default     = "8.0"
+}
+
+variable "rds_parameter_group_family" {
+  description = "Parameter group family for the cluster and DB parameter groups. Leave null to derive it from rds_engine + rds_engine_version, which is almost always what you want. This is NOT the engine version — only aurora-mysql5.7, aurora-mysql8.0 and aurora-mysql8.4 exist, and every Aurora MySQL 3.x point release uses aurora-mysql8.0. Changing it on a live cluster requires an out-of-band sequence, because family is ForceNew and AWS will not delete a parameter group still attached to a cluster; see the variable comment in modules/comet_rds/variables.tf."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.rds_parameter_group_family == null || can(regex("^aurora-mysql(5\\.7|8\\.0|8\\.4)$", var.rds_parameter_group_family))
+    error_message = "rds_parameter_group_family must be null (derived from the engine version) or one of: aurora-mysql5.7, aurora-mysql8.0, aurora-mysql8.4."
+  }
+}
+
+variable "rds_auto_minor_version_upgrade" {
+  description = "Let AWS apply Aurora minor version upgrades during the maintenance window. Defaults to false so a pinned rds_engine_version stays pinned: an AWS-initiated upgrade makes the next plan attempt a downgrade back to the pin, which Aurora rejects and which fails every apply until someone re-pins by hand. Existing clusters are live at AWS's true default, so the first apply after taking this change flips the setting (a metadata change, no restart)."
+  type        = bool
+  default     = false
 }
 
 variable "rds_instance_type" {
@@ -1596,13 +1618,65 @@ variable "rds_db_parameters" {
 
 #### comet_rds_proxy ####
 variable "enable_rds_proxy" {
-  description = "Provision an RDS Proxy in front of the Aurora MySQL cluster (connection pooling, faster failover). Requires enable_rds. Auth via a dedicated Secrets Manager secret created by the sub-module."
+  description = "Provision an RDS Proxy in front of the Aurora MySQL cluster (connection pooling, faster failover). Requires enable_rds. Auth via a dedicated Secrets Manager secret created by the sub-module. Provisioning alone routes no traffic — see rds_use_proxy_endpoint."
+  type        = bool
+  default     = false
+}
+
+# Separate from enable_rds_proxy so the proxy can be built and verified before any
+# traffic moves (DND-875). This flag only moves the module's mysql_host output — it is
+# NOT the whole cutover; see item 4.
+#
+# Things to check before flipping this, none of which terraform can catch:
+#
+#   1. IAM DB auth. Clusters run iam_database_authentication_enabled = true, but the
+#      proxy is created with iam_auth = "DISABLED". Any client authenticating via IAM
+#      breaks the moment mysql_host moves. Now enforced: the cutover requires
+#      rds_proxy_ack_no_iam_auth while rds_iam_db_auth is true.
+#   2. TLS, and it breaks in both directions:
+#      - rds_proxy_require_tls = true makes the proxy REJECT plaintext clients. Envs
+#        with Helm mysql.useSSL = false (bmw, cisco, eonnext, netflix, zoox as of
+#        2026-08) get a refused connection, not a silent downgrade — the precondition
+#        passes and the app simply stops connecting. Set useSSL there first.
+#      - Where useSSL = true, the Opik JDBC URL appends
+#        useSSL=true&requireSSL=true&verifyServerCertificate=true. Hostname
+#        verification fails against the proxy's *.proxy-*.rds.amazonaws.com cert,
+#        which does not carry the cluster name. verify-ca is fine (same RDS CA);
+#        verify-identity is not.
+#   3. Session pinning. RDS Proxy pins on temp tables, some prepared-statement
+#      patterns and SET session variables. If the client does any of those, pooling
+#      degrades to pass-through and the proxy buys nothing — watch
+#      DatabaseConnectionsCurrentlySessionPinned during the soak.
+#   4. mysql_host is not the only writer endpoint. Every env sets
+#      mysql.replicated.enabled = true with mysql.replicated.rw.host also pointing at
+#      the cluster writer (chart key MYSQL_HOST_RW). Moving only mysql.host leaves the
+#      RW pool — most write traffic — going direct to Aurora, while mysql_proxy_in_use
+#      reports true and the proxy carries almost nothing. Both values move on cutover,
+#      and both move back on rollback.
+#   5. Proxy auth is single-user. The proxy registers one Secrets Manager secret, for
+#      rds_master_username, and rejects any client authenticating as a different MySQL
+#      user. Confirm the Helm mysql user matches the terraform one (they align fleet-wide
+#      today: root on bmw/stabilityai, admin elsewhere) — a mismatch surfaces only as an
+#      opaque auth rejection.
+variable "rds_use_proxy_endpoint" {
+  description = "Make the mysql_host output resolve to the RDS Proxy endpoint instead of the Aurora cluster writer endpoint. Requires enable_rds_proxy, and rds_proxy_require_tls. Only affects the writer — mysql_reader_host always stays on the Aurora reader endpoint because the proxy is writer-only. NOT a complete cutover on its own: the Helm mysql.replicated.rw.host must move too, and TLS/user-auth preconditions apply. Read the caveats in the comment above this variable before flipping it."
+  type        = bool
+  default     = false
+}
+
+# Deliberately not gated on rds_iam_db_auth directly. That flag only makes IAM auth
+# *available* on the cluster — it is true fleet-wide, and Comet connects with the
+# Secrets Manager password — so failing closed on it would block every env's cutover
+# for a capability nothing currently uses. This makes the operator confirm that,
+# rather than the module guessing either way.
+variable "rds_proxy_ack_no_iam_auth" {
+  description = "Acknowledge that no client authenticates to this cluster with an IAM token, unblocking rds_use_proxy_endpoint while rds_iam_db_auth is true. The proxy is created with iam_auth = DISABLED and cannot serve IAM-token clients, so any that exist break when mysql_host moves. Comet's own backend connects with the Secrets Manager password and is unaffected. Verify before setting; the cluster having IAM auth enabled is not evidence that nothing uses it."
   type        = bool
   default     = false
 }
 
 variable "rds_proxy_allowed_sg_ids" {
-  description = "When enable_eks=false, the list of security group IDs allowed to connect to the proxy on 3306. When enable_eks=true the EKS nodegroup SG is wired in automatically and this is ignored."
+  description = "When neither enable_ec2 nor enable_eks is set, the list of security group IDs allowed to connect to the proxy on 3306. With enable_ec2=true the EC2 instance SG is wired in automatically, and with enable_eks=true the EKS nodegroup SG (plus the Auto Mode cluster primary SG) — in both cases this is ignored, matching comet_rds's rds_allow_from_sg precedence."
   type        = list(string)
   default     = []
 }
