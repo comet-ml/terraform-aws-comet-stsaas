@@ -846,40 +846,19 @@ variable "eks_clickhouse_subnet_ids" {
 #### EKS API ingress — standardized fleet-wide access patterns
 #####################
 
-variable "enable_argocd_management_eks_access" {
-  description = "Open EKS API (port 443) to the ArgoCD management cluster CIDRs in argocd_management_cidrs. Required for ArgoCD to deploy into this cluster from the central mgmt cluster."
-  type        = bool
-  default     = false
-}
-
 variable "argocd_management_cidrs" {
-  description = "CIDRs allowed to reach the EKS API for ArgoCD management. Defaults cover the ArgoCD mgmt VPC + cluster CIDRs."
+  description = "CIDRs allowed to reach the EKS API for ArgoCD management. Opened unconditionally (DND-1522). Required — the root module always supplies it; the default lives only there so the value can't drift between submodules."
   type        = list(string)
-  default     = ["10.162.0.0/16", "10.100.0.0/16"]
-}
-
-variable "enable_vpn_eks_api_access" {
-  description = "Open EKS API (port 443) to the VPN client pool CIDR. Required after flipping endpoint_public_access=false (DND-915)."
-  type        = bool
-  default     = false
 }
 
 variable "vpn_client_cidr" {
-  description = "CIDR of the VPN client pool. Used by enable_vpn_eks_api_access and enable_vpn_redis_access."
+  description = "CIDR of the VPN client pool. Opened on the EKS API (DND-915) and passed through to Redis/MySQL SG rules (DND-1522). Required — the root module always supplies it; the default lives only there so the value can't drift between submodules."
   type        = string
-  default     = "10.126.0.0/15"
-}
-
-variable "enable_ci_runners_eks_api_access" {
-  description = "Open EKS API (port 443) to the CI runners cluster CIDR. Required for CI workflows that exec against the cluster (DND-1153)."
-  type        = bool
-  default     = false
 }
 
 variable "ci_runners_cidr" {
-  description = "CIDR of the CI runners cluster."
+  description = "CIDR of the CI runners cluster. Opened unconditionally on the EKS API (DND-1522). Required — the root module always supplies it; the default lives only there so the value can't drift between submodules."
   type        = string
-  default     = "10.4.0.0/16"
 }
 
 #####################

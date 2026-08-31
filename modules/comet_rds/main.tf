@@ -352,3 +352,18 @@ resource "aws_vpc_security_group_ingress_rule" "mysql_port_inbound_auto_mode" {
   referenced_security_group_id = var.rds_auto_mode_allow_from_sg
   description                  = "MySQL from EKS Auto Mode nodes (cluster primary SG)"
 }
+
+# VPN ingress to MySQL. Allows operators on the VPN to connect to Aurora via
+# kubectl port-forward through the cluster's MySQL SG. Opened unconditionally,
+# mirroring redis_vpn in modules/comet_elasticache — connectivity is never
+# per-environment (DND-1522).
+resource "aws_vpc_security_group_ingress_rule" "mysql_vpn" {
+  security_group_id = aws_security_group.mysql_sg.id
+  description       = "VPN client access (DND-1522)"
+  from_port         = local.mysql_port
+  to_port           = local.mysql_port
+  ip_protocol       = "tcp"
+  cidr_ipv4         = var.vpn_client_cidr
+
+  tags = merge(var.common_tags, { Name = "mysql-vpn-access" })
+}

@@ -1682,9 +1682,26 @@ variable "rds_proxy_allowed_sg_ids" {
 }
 
 variable "rds_proxy_allowed_cidrs" {
-  description = "CIDR blocks allowed to connect to the proxy on 3306 (in addition to allowed SGs). Defaults to the agentro VPN client pool (10.126.0.0/15)."
+  description = "CIDR blocks allowed to connect to the proxy on 3306, in addition to allowed SGs. Tri-state: null (default) follows vpn_client_cidr, so the proxy and the direct mysql_sg rule open to the same pool; [] allows only SG-based ingress; a list is used verbatim. Each entry must be a canonical IPv4 CIDR no broader than /8."
   type        = list(string)
-  default     = ["10.126.0.0/15"]
+  default     = null
+
+  validation {
+    condition = var.rds_proxy_allowed_cidrs == null ? true : alltrue([
+      for cidr in var.rds_proxy_allowed_cidrs :
+      can(cidrnetmask(cidr)) &&
+      try(cidr == format("%s/%d", cidrhost(cidr, 0), tonumber(split("/", cidr)[1])), false)
+    ])
+    error_message = "Each entry in rds_proxy_allowed_cidrs must be a canonical IPv4 CIDR — the network address with no host bits set and an unpadded prefix (e.g. 10.126.0.0/15, not 10.126.0.1/15 or 10.126.0.0/015)."
+  }
+
+  validation {
+    condition = var.rds_proxy_allowed_cidrs == null ? true : alltrue([
+      for cidr in var.rds_proxy_allowed_cidrs :
+      try(tonumber(split("/", cidr)[1]) >= 8, false)
+    ])
+    error_message = "Each entry in rds_proxy_allowed_cidrs must be /8 or narrower. These CIDRs reach Aurora through the proxy on 3306, so 0.0.0.0/0 and other broad ranges are rejected."
+  }
 }
 
 variable "rds_proxy_require_tls" {
@@ -1763,40 +1780,82 @@ variable "eks_clickhouse_subnet_ids" {
 #### EKS API ingress — standardized fleet-wide access (v1.19.0)
 #####################
 
-variable "enable_argocd_management_eks_access" {
-  description = "Open EKS API (port 443) to the ArgoCD management cluster CIDRs in argocd_management_cidrs. Required for ArgoCD to deploy into this cluster from the central mgmt cluster."
-  type        = bool
-  default     = false
-}
+# The three CIDRs below land directly in SG ingress rules that are now created
+# unconditionally (DND-1522), so a bad value can no longer be neutralised by
+# leaving a toggle off — it always reaches a rule. Both checks below therefore
+# validate at this boundary, where operators set the value.
+#
+# Canonical form is required (network address, no host bits, no zero-padded
+# prefix) because the eks_api rule keys and the duplicate filter in
+# modules/comet_eks are derived from the raw string: 10.126.0.0/015 and
+# 10.126.0.0/15 would otherwise be two Terraform addresses for one AWS rule and
+# collide as InvalidPermission.Duplicate. Rejecting is better than silently
+# canonicalising — it fails at plan instead of rewriting operator intent.
+#
+# Prefixes broader than /8 are rejected, which covers 0.0.0.0/0. This is
+# deliberately not an RFC1918 or fleet-range allowlist: a CI-runner NAT egress
+# address is legitimately a public /32, and hardcoding the fleet's own ranges
+# into a reusable module recreates the "only one correct value" input that
+# DND-1522 exists to remove.
+#
+# IPv4 is enforced by can(cidrnetmask(...)), which errors on IPv6. Without it an
+# address like 2001:db8::/32 satisfies both other conditions — cidrhost() and
+# split() are family-agnostic — and only fails at apply, against cidr_ipv4, with
+# an AWS error instead of the message below that already says "IPv4".
 
 variable "argocd_management_cidrs" {
-  description = "CIDRs allowed to reach the EKS API for ArgoCD management. Defaults cover the ArgoCD mgmt VPC + cluster CIDRs."
+  description = "CIDRs allowed to reach the EKS API for ArgoCD management. Defaults cover the ArgoCD mgmt VPC + cluster CIDRs. Opened unconditionally (DND-1522). Each entry must be a canonical CIDR no broader than /8."
   type        = list(string)
   default     = ["10.162.0.0/16", "10.100.0.0/16"]
-}
 
-variable "enable_vpn_eks_api_access" {
-  description = "Open EKS API (port 443) to the VPN client pool CIDR. Required after flipping endpoint_public_access=false (DND-915)."
-  type        = bool
-  default     = false
+  validation {
+    condition = alltrue([
+      for cidr in var.argocd_management_cidrs :
+      can(cidrnetmask(cidr)) &&
+      try(cidr == format("%s/%d", cidrhost(cidr, 0), tonumber(split("/", cidr)[1])), false)
+    ])
+    error_message = "Each entry in argocd_management_cidrs must be a canonical IPv4 CIDR — the network address with no host bits set and an unpadded prefix (e.g. 10.100.0.0/16, not 10.100.0.1/16 or 10.100.0.0/016)."
+  }
+
+  validation {
+    condition = alltrue([
+      for cidr in var.argocd_management_cidrs :
+      try(tonumber(split("/", cidr)[1]) >= 8, false)
+    ])
+    error_message = "Each entry in argocd_management_cidrs must be /8 or narrower. These CIDRs are opened on the EKS API unconditionally, so 0.0.0.0/0 and other broad ranges are rejected."
+  }
 }
 
 variable "vpn_client_cidr" {
-  description = "CIDR of the VPN client pool. Used by enable_vpn_eks_api_access and enable_vpn_redis_access."
+  description = "CIDR of the VPN client pool. Opened unconditionally on the EKS API (443, DND-915), Redis SG (6379, DND-752), and MySQL SG (3306, DND-1522) for operator access via the VPN. Must be a canonical CIDR no broader than /8."
   type        = string
   default     = "10.126.0.0/15"
-}
 
-variable "enable_ci_runners_eks_api_access" {
-  description = "Open EKS API (port 443) to the CI runners cluster CIDR. Required for CI workflows that exec against the cluster (DND-1153)."
-  type        = bool
-  default     = false
+  validation {
+    condition     = can(cidrnetmask(var.vpn_client_cidr)) && try(var.vpn_client_cidr == format("%s/%d", cidrhost(var.vpn_client_cidr, 0), tonumber(split("/", var.vpn_client_cidr)[1])), false)
+    error_message = "vpn_client_cidr must be a canonical IPv4 CIDR — the network address with no host bits set and an unpadded prefix (e.g. 10.126.0.0/15, not 10.126.0.1/15 or 10.126.0.0/015)."
+  }
+
+  validation {
+    condition     = try(tonumber(split("/", var.vpn_client_cidr)[1]) >= 8, false)
+    error_message = "vpn_client_cidr must be /8 or narrower. It is opened on the EKS API, Redis and MySQL SGs unconditionally, so 0.0.0.0/0 and other broad ranges are rejected."
+  }
 }
 
 variable "ci_runners_cidr" {
-  description = "CIDR of the CI runners cluster."
+  description = "CIDR of the CI runners cluster. Must be a canonical CIDR no broader than /8."
   type        = string
   default     = "10.4.0.0/16"
+
+  validation {
+    condition     = can(cidrnetmask(var.ci_runners_cidr)) && try(var.ci_runners_cidr == format("%s/%d", cidrhost(var.ci_runners_cidr, 0), tonumber(split("/", var.ci_runners_cidr)[1])), false)
+    error_message = "ci_runners_cidr must be a canonical IPv4 CIDR — the network address with no host bits set and an unpadded prefix (e.g. 10.4.0.0/16, not 10.4.0.1/16 or 10.4.0.0/016)."
+  }
+
+  validation {
+    condition     = try(tonumber(split("/", var.ci_runners_cidr)[1]) >= 8, false)
+    error_message = "ci_runners_cidr must be /8 or narrower. It is opened on the EKS API unconditionally, so 0.0.0.0/0 and other broad ranges are rejected."
+  }
 }
 
 #####################
@@ -1806,13 +1865,7 @@ variable "ci_runners_cidr" {
 # app_namespace, admin_pinned_namespaces) is obsolete under EKS Auto Mode. The
 # redis-insights namespace (enable_redis_insights_ns) moved to the agentro-role/rbac
 # local module. All four root vars removed with their comet_eks pass-throughs.
-
-#####################
-#### Redis VPN ingress (comet_elasticache passthrough)
-#####################
-
-variable "enable_vpn_redis_access" {
-  description = "Add a VPN client CIDR ingress rule on the Redis SG (port 6379) so operators on the VPN can connect via kubectl port-forward (DND-752)."
-  type        = bool
-  default     = false
-}
+#
+# Connectivity toggles (enable_argocd_management_eks_access, enable_vpn_eks_api_access,
+# enable_ci_runners_eks_api_access, enable_vpn_redis_access) removed in v6.0.0 (DND-1522):
+# their rules are now created unconditionally. Only the CIDR inputs remain as variables.

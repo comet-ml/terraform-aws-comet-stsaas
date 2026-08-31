@@ -72,6 +72,11 @@ output "mysql_database_name" {
   value       = var.enable_rds ? module.comet_rds[0].mysql_database_name : null
 }
 
+output "mysql_sg_id" {
+  description = "Security group ID of the MySQL (Aurora) cluster — wrappers add ingress rules to this instead of looking it up by name (DND-1522)"
+  value       = var.enable_rds ? module.comet_rds[0].mysql_sg_id : null
+}
+
 output "mysql_log_group_names" {
   description = "CloudWatch log group names for the RDS log groups this module MANAGES, keyed by log type. Superset of what is actively exported — cross-reference mysql_exported_log_types. Needed to build the terraform import address when adopting a cluster whose export was enabled out-of-band (DND-1537)."
   value       = var.enable_rds ? module.comet_rds[0].mysql_log_group_names : null
@@ -90,6 +95,11 @@ output "mysql_exported_log_types" {
 output "rds_password_auto_generated" {
   description = "Whether the RDS master password was auto-generated (true) or provided explicitly (false)"
   value       = var.enable_rds ? nonsensitive(var.rds_master_password == null) : null
+}
+
+output "redis_sg_id" {
+  description = "Security group ID of the Redis (ElastiCache) replication group — wrappers add ingress rules to this instead of looking it up by name (DND-1522)"
+  value       = var.enable_elasticache ? module.comet_elasticache[0].redis_sg_id : null
 }
 
 output "configure_kubectl" {

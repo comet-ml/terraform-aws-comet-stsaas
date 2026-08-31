@@ -79,12 +79,11 @@ resource "aws_vpc_security_group_ingress_rule" "redis_port_inbound_auto_mode" {
   referenced_security_group_id = var.elasticache_auto_mode_allow_from_sg
   description                  = "Redis from EKS Auto Mode nodes (cluster primary SG)"
 }
-# VPN ingress to Redis (DND-752) — gated by enable_vpn_redis_access. Allows
-# operators on the VPN to connect to Redis via kubectl port-forward through
-# the cluster's Redis SG.
-resource "aws_vpc_security_group_ingress_rule" "redis_vpn" {
-  count = var.enable_vpn_redis_access ? 1 : 0
 
+# VPN ingress to Redis (DND-752). Allows operators on the VPN to connect to
+# Redis via kubectl port-forward through the cluster's Redis SG. Opened
+# unconditionally — connectivity is never per-environment (DND-1522).
+resource "aws_vpc_security_group_ingress_rule" "redis_vpn" {
   security_group_id = aws_security_group.redis_inbound_sg.id
   description       = "VPN client access (DND-752)"
   from_port         = local.redis_port
@@ -93,4 +92,15 @@ resource "aws_vpc_security_group_ingress_rule" "redis_vpn" {
   cidr_ipv4         = var.vpn_client_cidr
 
   tags = merge(var.common_tags, { Name = "redis-vpn-access" })
+}
+
+# The rule was previously gated on enable_vpn_redis_access, so envs that had it
+# on hold it in state as redis_vpn[0]. Dropping count changes the address to
+# redis_vpn; without this, Terraform plans an unordered destroy + create of two
+# unrelated addresses, which can race into InvalidPermission.Duplicate and, on
+# the happy path, still leaves a window with no VPN ingress to Redis. No-op for
+# any consumer that had the toggle off (DND-1522).
+moved {
+  from = aws_vpc_security_group_ingress_rule.redis_vpn[0]
+  to   = aws_vpc_security_group_ingress_rule.redis_vpn
 }

@@ -1484,36 +1484,70 @@ module "karpenter_irsa" {
 #########################################
 #### EKS API ingress — fleet-wide CIDRs ####
 #########################################
-# These open the EKS cluster_security_group_id (the cluster's primary SG) on
-# port 443 to fleet-wide management surfaces. Each ingress source is gated by
-# its own toggle; the local map merges all enabled rules into a single
-# for_each so the common attributes live in one place.
+# These open the EKS cluster_primary_security_group_id on port 443 to fleet-wide
+# management surfaces (ArgoCD management, VPN clients, CI runners). Connectivity
+# is never a per-environment decision, so every source is opened unconditionally
+# (DND-1522); the CIDRs remain inputs. The local map merges all rules into a
+# single for_each so the common attributes live in one place.
 
 locals {
-  eks_api_ingress_rules = merge(
-    var.enable_argocd_management_eks_access ? {
-      for cidr in distinct(var.argocd_management_cidrs) :
-      "argocd-management-${replace(cidr, "/", "_")}" => {
+  # Ordered candidates — on a CIDR collision the earlier entry wins.
+  eks_api_rule_candidates = concat(
+    [
+      for cidr in distinct(var.argocd_management_cidrs) : {
+        key         = "argocd-management-${replace(cidr, "/", "_")}"
         cidr        = cidr
         description = "Allow ArgoCD management to reach EKS API from ${cidr}"
         name        = "argocd-management-access-${replace(cidr, "/", "_")}"
       }
-    } : {},
-    var.enable_vpn_eks_api_access ? {
-      "vpn" = {
+    ],
+    [
+      {
+        key         = "vpn"
         cidr        = var.vpn_client_cidr
         description = "Allow VPN clients to reach EKS API"
         name        = "vpn-eks-api-access"
       }
-    } : {},
-    var.enable_ci_runners_eks_api_access ? {
-      "ci-runners" = {
+    ],
+    [
+      {
+        key         = "ci-runners"
         cidr        = var.ci_runners_cidr
         description = "Allow CI cluster runners to reach EKS API"
         name        = "ci-runners-eks-api-access"
       }
-    } : {},
+    ],
   )
+
+  # AWS dedupes ingress on (protocol, port range, source), so two candidates
+  # sharing a CIDR would collide as InvalidPermission.Duplicate on apply. Keep
+  # only the first candidate for each CIDR. distinct() alone can't do this — it
+  # covered argocd_management_cidrs but not a cross-source collision (e.g.
+  # vpn_client_cidr equal to an argocd CIDR), and the enable_* toggles that used
+  # to make such a collision avoidable are gone (DND-1522). The default CIDRs
+  # don't collide, so every for_each key is unchanged and this is a no-op
+  # against existing state.
+  #
+  # WARNING — the winner keeps its own key, so introducing a collision moves the
+  # rule's Terraform address. Set vpn_client_cidr equal to an argocd CIDR and the
+  # "vpn" key disappears in favour of "argocd-management-<cidr>"; for an env
+  # already holding that rule under "vpn" the plan is a destroy plus a create at
+  # the new address, i.e. a window with no VPN reach to the EKS API. (Equal to
+  # ci_runners_cidr drops "ci-runners" instead — the order above decides which.)
+  # Same failure mode the redis_vpn moved block exists to prevent, reached
+  # through a config change rather than a refactor. If such a collision is ever
+  # deliberate, add a moved block for the retired key in the same change.
+  eks_api_ingress_rules = {
+    for candidate in local.eks_api_rule_candidates :
+    candidate.key => {
+      cidr        = candidate.cidr
+      description = candidate.description
+      name        = candidate.name
+    }
+    if candidate.key == [
+      for other in local.eks_api_rule_candidates : other.key if other.cidr == candidate.cidr
+    ][0]
+  }
 }
 
 resource "aws_vpc_security_group_ingress_rule" "eks_api" {

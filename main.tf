@@ -21,6 +21,23 @@ locals {
     var.enable_rds ? random_password.rds_master[0].result : null
   )
 
+  # Resolve rds_proxy_allowed_cidrs' tri-state once (DND-1522). The proxy is a second
+  # path to the same Aurora cluster the mysql_vpn rule opens directly, so its CIDR
+  # ingress follows vpn_client_cidr instead of carrying its own copy of the pool: a
+  # duplicated default drifts on the first renumber, moving the direct path while the
+  # proxy keeps trusting the retired range. null means follow; [] still means SG-only
+  # ingress; an explicit list still wins.
+  #
+  # This has to be a local, not an inline conditional at each use. The
+  # rds_proxy_validation precondition counts ingress sources with
+  # length(rds_proxy_allowed_cidrs), and null is not a list — so resolving inline at the
+  # module argument only would leave length(null) to raise "Invalid function argument"
+  # in precisely the case the precondition exists to explain (enable_ec2 and enable_eks
+  # both false, no rds_proxy_allowed_sg_ids). Deriving the effective list also keeps the count
+  # honest: under null the proxy does get one CIDR source, so null must satisfy that
+  # check rather than fail it — which coalesce(..., []) would get backwards.
+  rds_proxy_effective_cidrs = var.rds_proxy_allowed_cidrs == null ? [var.vpn_client_cidr] : var.rds_proxy_allowed_cidrs
+
   # Mirrors the comet_rds_proxy count exactly, so mysql_host can never dereference
   # module.comet_rds_proxy[0] when the module isn't instantiated.
   rds_proxy_provisioned     = var.enable_rds_proxy && var.enable_rds
@@ -128,7 +145,7 @@ resource "terraform_data" "rds_proxy_validation" {
     # being able to connect. enable_ec2 / enable_eks auto-wire the app's SG; without
     # either, an explicit SG or CIDR has to be supplied.
     precondition {
-      condition     = var.enable_ec2 || var.enable_eks || length(var.rds_proxy_allowed_sg_ids) > 0 || length(var.rds_proxy_allowed_cidrs) > 0
+      condition     = var.enable_ec2 || var.enable_eks || length(var.rds_proxy_allowed_sg_ids) > 0 || length(local.rds_proxy_effective_cidrs) > 0
       error_message = "enable_rds_proxy requires at least one ingress source: enable_ec2=true or enable_eks=true (auto-wires the application SG), or non-empty rds_proxy_allowed_sg_ids, or non-empty rds_proxy_allowed_cidrs. Otherwise the proxy has no ingress rules and is unreachable."
     }
     precondition {
@@ -393,13 +410,10 @@ module "comet_eks" {
   # Karpenter Helm chart
   karpenter_extra_tags = var.eks_karpenter_extra_tags
 
-  # EKS API ingress — standardized fleet-wide access
-  enable_argocd_management_eks_access = var.enable_argocd_management_eks_access
-  argocd_management_cidrs             = var.argocd_management_cidrs
-  enable_vpn_eks_api_access           = var.enable_vpn_eks_api_access
-  vpn_client_cidr                     = var.vpn_client_cidr
-  enable_ci_runners_eks_api_access    = var.enable_ci_runners_eks_api_access
-  ci_runners_cidr                     = var.ci_runners_cidr
+  # EKS API ingress — standardized fleet-wide access (opened unconditionally, DND-1522)
+  argocd_management_cidrs = var.argocd_management_cidrs
+  vpn_client_cidr         = var.vpn_client_cidr
+  ci_runners_cidr         = var.ci_runners_cidr
 
 }
 
@@ -429,8 +443,7 @@ module "comet_elasticache" {
   elasticache_multi_az_enabled            = var.elasticache_multi_az_enabled
   elasticache_preferred_cache_cluster_azs = var.elasticache_preferred_cache_cluster_azs
 
-  enable_vpn_redis_access = var.enable_vpn_redis_access
-  vpn_client_cidr         = var.vpn_client_cidr
+  vpn_client_cidr = var.vpn_client_cidr
 }
 
 module "comet_rds" {
@@ -447,6 +460,8 @@ module "comet_rds" {
   rds_allow_from_sg = var.enable_ec2 ? module.comet_ec2[0].comet_ec2_sg_id : (
     var.enable_eks ? module.comet_eks[0].nodegroup_sg_id : (
   var.rds_allow_from_sg))
+  vpn_client_cidr = var.vpn_client_cidr
+
   # EKS Auto Mode nodes attach the cluster primary SG (distinct from the managed node SG
   # above), so grant them MySQL access too when Auto Mode is enabled.
   rds_auto_mode_allow_from_sg    = var.enable_eks && var.eks_enable_auto_mode ? module.comet_eks[0].cluster_primary_security_group_id : null
@@ -515,7 +530,7 @@ module "comet_rds_proxy" {
 
   # Same precedence as comet_rds's rds_allow_from_sg — EC2 first, then EKS, then the
   # explicit list. The EC2 branch was missing, so an enable_ec2 env got a proxy the
-  # application could not reach: rds_proxy_allowed_cidrs defaults to the VPN pool, so
+  # application could not reach: rds_proxy_allowed_cidrs follows the VPN pool, so
   # the "at least one ingress source" check passed on VPN access alone.
   # EKS: managed node SG + (with Auto Mode) the cluster primary SG that Auto Mode nodes
   # attach, so pods on either node type can reach the proxy.
@@ -525,7 +540,9 @@ module "comet_rds_proxy" {
       var.eks_enable_auto_mode ? [module.comet_eks[0].cluster_primary_security_group_id] : [],
     ) : var.rds_proxy_allowed_sg_ids
   )
-  allowed_cidrs = var.rds_proxy_allowed_cidrs
+
+  # Resolved once in locals, and shared with the rds_proxy_validation precondition.
+  allowed_cidrs = local.rds_proxy_effective_cidrs
 
   mysql_cluster_id      = module.comet_rds[0].mysql_cluster_id
   mysql_sg_id           = module.comet_rds[0].mysql_sg_id
