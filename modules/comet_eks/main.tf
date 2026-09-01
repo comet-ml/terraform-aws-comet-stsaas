@@ -244,14 +244,21 @@ module "eks" {
 
   # EKS Auto Mode. When enabled, the control plane provisions nodes via the
   # built-in node pools and the upstream module auto-creates/wires the Auto Mode
-  # node IAM role (so node_role_arn is intentionally omitted). The block is
-  # always sent — enabled = false explicitly disables Auto Mode so a cluster that
-  # previously had it on can be turned back off (a bare null would omit the
-  # argument and leave the last-applied config in place).
-  compute_config = {
-    enabled    = var.enable_auto_mode
-    node_pools = var.enable_auto_mode ? var.auto_mode_node_pools : []
-  }
+  # node IAM role (so node_role_arn is intentionally omitted).
+  #
+  # null when disabled, NOT { enabled = false }. Sending an explicit disable to a
+  # cluster that never had Auto Mode makes EKS reject the whole UpdateClusterConfig
+  # with "Cannot modify EKS Auto Mode configuration. Auto Mode is not enabled on
+  # this cluster." That failed waystar's v6 apply (#2213) and would break every env
+  # where eks_enable_auto_mode is unset — 10 of 13.
+  #
+  # Turning Auto Mode back OFF on a cluster that has it therefore needs a
+  # deliberate one-off: set enabled = false here for that apply, or disable it out
+  # of band. That is the rarer operation, and unlike this failure it is not silent.
+  compute_config = var.enable_auto_mode ? {
+    enabled    = true
+    node_pools = var.auto_mode_node_pools
+  } : null
 
   # Bake the Karpenter discovery tag directly into the node SG so it is never
   # dropped when Terraform modifies the security group during subsequent applies.
