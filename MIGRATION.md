@@ -11,7 +11,7 @@ A cluster upgrading from v1/v2 still carries those objects in state, and because
 the module also dropped its kubernetes/helm provider *config blocks*, `plan` fails
 with `Provider configuration not present` for every one of them.
 
-`v6.0.1-migration-2` is `v6.0.0` plus:
+`v6.0.1-migration-3` is `v6.0.0` plus:
 
 - `modules/comet_eks/removed.tf` — 13 `removed{}` blocks, all `destroy = false`
 - `kubernetes` + `helm` back in both `versions.tf` files (requirements only, no
@@ -35,7 +35,7 @@ Wrapper:
 
 ```hcl
 module "comet" {
-  source = "github.com/comet-ml/terraform-aws-comet-stsaas?ref=v6.0.1-migration-2"
+  source = "github.com/comet-ml/terraform-aws-comet-stsaas?ref=v6.0.1-migration-3"
 
   providers = {
     aws        = aws
