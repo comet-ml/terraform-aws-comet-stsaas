@@ -20,7 +20,7 @@ with `Provider configuration not present` for every one of them.
 It is consumed for exactly ONE apply per cluster, then the wrapper moves to the
 permanent `v6.0.0`.
 
-`v6.0.1-migration` (without the `-2`) is abandoned — it shipped `compute_config`
+`v6.0.1-migration` (the unsuffixed tag) is abandoned — it shipped `compute_config`
 unconditionally, which EKS rejects on any cluster that never had Auto Mode. Do not
 use it.
 
