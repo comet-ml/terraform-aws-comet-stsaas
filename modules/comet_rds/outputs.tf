@@ -37,7 +37,7 @@ output "mysql_sg_id" {
 # still empty because slow_query_log=0. Consumers wiring alarms or metric filters want
 # mysql_exported_log_types below to filter by, or they will alarm on a group nothing writes to.
 output "mysql_log_group_names" {
-  description = "CloudWatch log group names for the RDS log groups this module MANAGES, keyed by log type. Superset of what is actively exported — cross-reference mysql_exported_log_types. Use when adopting a cluster whose export was enabled out-of-band: terraform import 'module.<path>.aws_cloudwatch_log_group.rds_exported_logs[\"error\"]' <name>"
+  description = "CloudWatch log group names for the RDS log groups this module MANAGES, keyed by log type. Superset of what is actively exported — cross-reference mysql_exported_log_types. Use when adopting a cluster whose export was enabled out-of-band: comet_rds is counted, so the index is required, and the address is relative to the caller: terraform import 'module.comet.module.comet_rds[0].aws_cloudwatch_log_group.rds_exported_logs[\"error\"]' <name>"
   value       = { for t, lg in aws_cloudwatch_log_group.rds_exported_logs : t => lg.name }
 }
 
