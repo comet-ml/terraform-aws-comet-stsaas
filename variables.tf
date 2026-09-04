@@ -1226,7 +1226,7 @@ variable "rds_log_kms_key_id" {
 variable "rds_log_retention_days" {
   description = "Retention for the RDS CloudWatch log groups, in days. Must be finite — 'never expire' is intentionally not offered: that is what RDS applies when it creates the groups itself, and the reason DND-1537 found an orphan holding 3.65 GB of dead data indefinitely."
   type        = number
-  default     = 90
+  default     = 30
 
   validation {
     condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.rds_log_retention_days)
