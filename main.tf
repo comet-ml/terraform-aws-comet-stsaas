@@ -394,6 +394,7 @@ module "comet_eks" {
 
   # EKS Auto Mode (mutually exclusive with Karpenter)
   enable_auto_mode     = var.eks_enable_auto_mode
+  disable_auto_mode    = var.eks_disable_auto_mode
   auto_mode_node_pools = var.eks_auto_mode_node_pools
 
   # Karpenter prerequisites

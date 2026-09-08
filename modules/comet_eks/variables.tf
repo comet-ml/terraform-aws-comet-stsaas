@@ -725,6 +725,18 @@ variable "enable_karpenter" {
   }
 }
 
+variable "disable_auto_mode" {
+  description = <<-EOT
+    Send an explicit Auto Mode disable while keeping enable_auto_mode = true. One
+    apply, to turn Auto Mode off on a cluster that has it — the coexistence SG
+    rules and addon pinning stay in place while AWS drains the nodes. Setting
+    enable_auto_mode = false instead omits compute_config, which would strip those
+    rules while the nodes still run. Clear both once the nodes are gone.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "enable_auto_mode" {
   description = <<-EOT
     Enable EKS Auto Mode. When true, the EKS control plane can provision nodes
