@@ -155,6 +155,12 @@ variable "eks_enable_auto_mode" {
   default     = false
 }
 
+variable "eks_disable_auto_mode" {
+  description = "Send an explicit Auto Mode disable while keeping eks_enable_auto_mode = true. One apply, to turn Auto Mode off on a cluster that has it. See disable_auto_mode in modules/comet_eks/variables.tf."
+  type        = bool
+  default     = false
+}
+
 variable "eks_auto_mode_node_pools" {
   description = "Built-in EKS Auto Mode node pools to enable when eks_enable_auto_mode = true. Common values: \"system\", \"general-purpose\". Custom NodePool/NodeClass CRDs are managed via GitOps (ArgoCD), not this module."
   type        = list(string)

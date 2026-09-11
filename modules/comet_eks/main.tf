@@ -244,14 +244,15 @@ module "eks" {
 
   # EKS Auto Mode. When enabled, the control plane provisions nodes via the
   # built-in node pools and the upstream module auto-creates/wires the Auto Mode
-  # node IAM role (so node_role_arn is intentionally omitted). The block is
-  # always sent — enabled = false explicitly disables Auto Mode so a cluster that
-  # previously had it on can be turned back off (a bare null would omit the
-  # argument and leave the last-applied config in place).
-  compute_config = {
-    enabled    = var.enable_auto_mode
-    node_pools = var.enable_auto_mode ? var.auto_mode_node_pools : []
-  }
+  # node IAM role (so node_role_arn is intentionally omitted).
+  #
+  # null, not { enabled = false } — EKS rejects an explicit disable on a cluster
+  # that never had Auto Mode. To turn it off on one that does, see
+  # disable_auto_mode.
+  compute_config = var.enable_auto_mode ? {
+    enabled    = !var.disable_auto_mode
+    node_pools = var.disable_auto_mode ? [] : var.auto_mode_node_pools
+  } : null
 
   # Bake the Karpenter discovery tag directly into the node SG so it is never
   # dropped when Terraform modifies the security group during subsequent applies.
@@ -312,6 +313,10 @@ module "eks" {
         } : {},
         {
           configuration_values = local.coredns_config
+          # OVERWRITE so the native add-on adopts objects the old eks_blueprints_addons
+          # Helm release owns, instead of failing on ConfigurationConflict. DND-1573.
+          resolve_conflicts_on_create = "OVERWRITE"
+          resolve_conflicts_on_update = "OVERWRITE"
         }
       )
     } : {},
@@ -328,6 +333,10 @@ module "eks" {
             role_arn        = aws_iam_role.external_dns[0].arn
             service_account = "external-dns"
           }]
+          # As cert-manager above. NOTE: resolve_conflicts does not cover Pod Identity
+          # associations — a pre-existing external-dns one must be deleted first.
+          resolve_conflicts_on_create = "OVERWRITE"
+          resolve_conflicts_on_update = "OVERWRITE"
         },
         var.eks_external_dns_addon_version != null ? {
           addon_version = var.eks_external_dns_addon_version
