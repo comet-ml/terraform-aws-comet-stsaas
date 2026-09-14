@@ -53,10 +53,22 @@ module would hijack credentials instead (AccessDenied).
 
 Also in the same PR:
 
-- **Root-level orphans** — porsche and si carry `kubernetes_cluster_role.agentro_extras`,
+- **Root-level orphans** — some envs carry `kubernetes_cluster_role.agentro_extras`,
   `kubernetes_cluster_role_binding.{agentro_extras,agentro_view}` and
   `kubernetes_role{,_binding}.agentro_portforward` at the STATE ROOT. They are not
-  module-addressed, so add `removed{}` blocks for them in the WRAPPER.
+  module-addressed, so they cannot be handled by this tag. Prefer consolidating onto
+  the shared `agentro-role/rbac` module: `moved{}` the access entry and the
+  agentro_view binding (identical config, no access gap), and drop agentro_extras /
+  agentro_portforward from config — the module's cluster-wide `agentro` ClusterRole
+  supersedes them. si did this in comet-devops#2246.
+- **Root-declared ingress rules** — some wrappers declare the six VPN / EKS-API
+  rules at root while v6 creates them unconditionally. Each needs `removed{}`
+  (`destroy = false`) + `import{}` at the module address; read the ids from state.
+  waystar and si had all six; zoox had none.
+- **cert-manager** — the native add-on cannot adopt a Helm-installed one (the merge
+  yields a duplicate `https` port and fails `UnsupportedAddonModification`).
+  cert-manager is unused fleet-wide, so set `eks_cert_manager = false`. Confirm with
+  `kubectl get certificates,issuers,clusterissuers -A` first.
 - **`mysql_vpn` import** — v6/DND-1522 creates the VPN→MySQL rule unconditionally,
   but every env already has it out of state from the DND-752 era. Without an
   `import{}` the apply fails `InvalidPermission.Duplicate`. See the rule-id table in
@@ -92,8 +104,14 @@ Expected plan: no infrastructure change. Stage 1 already landed on the v6 surfac
 
 ## Order
 
-Canary **waystar** — its orphan set is exactly the six blocks proven against bayer,
-with no root-level extras and no `aws_cloudwatch_metrics`. Then zoox, si, porsche.
-Group C (v1.20.x: circuit, circuit-dev, eonnext, fetch, mercedesamgf1, netflix)
-after Group B is complete; those additionally hit the Karpenter-Helm → EKS Auto Mode
-migration, which is its own piece of work.
+Done: **bayer**, **waystar**, **zoox**, **si**.
+
+Remaining: **porsche** — the last v2.1.x env, and the only one carrying
+`kubernetes_config_map.aws_auth` at the state root. That is the cluster auth map;
+read its state closely before writing anything.
+
+Then Group C (v1.20.x: circuit, circuit-dev, eonnext, fetch, mercedesamgf1,
+netflix). Those additionally create `helm_release.karpenter_stsaas`,
+`external_secrets{,_crds}`, `kubernetes_annotations.*_ns_node_selector` and
+`storage_class.comet_generic` — Karpenter-Helm → EKS Auto Mode is its own piece of
+work. Canary: **circuit-dev**, the only dev env.

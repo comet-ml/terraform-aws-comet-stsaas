@@ -38,3 +38,6 @@ override.tf.json
 .terraformrc
 terraform.rc
 *.local.md
+
+# Local working notes — never committed
+.notes/
