@@ -84,6 +84,10 @@ resource "aws_rds_cluster_instance" "comet-ml-rds-mysql" {
   # then fails until someone re-pins by hand.
   auto_minor_version_upgrade = var.rds_auto_minor_version_upgrade
 
+  # The minor upgrade is applied to the instance, so the window has to be set here
+  # as well as on the cluster or its timing stays unbounded.
+  preferred_maintenance_window = var.rds_preferred_maintenance_window
+
   # Performance Insights
   performance_insights_enabled          = var.rds_performance_insights_enabled
   performance_insights_retention_period = var.rds_performance_insights_enabled ? var.rds_performance_insights_retention_period : null
@@ -148,6 +152,7 @@ resource "aws_rds_cluster" "cometml-db-cluster" {
   backup_retention_period             = var.rds_backup_retention_period
   final_snapshot_identifier           = "cometml-rds-backup-${var.environment}-${formatdate("DD-MMM-YYYY-hh-mm-ss", timestamp())}"
   preferred_backup_window             = var.rds_preferred_backup_window
+  preferred_maintenance_window        = var.rds_preferred_maintenance_window
   vpc_security_group_ids              = [aws_security_group.mysql_sg.id]
   db_cluster_parameter_group_name     = aws_rds_cluster_parameter_group.cometml-cluster-pg.name
   db_instance_parameter_group_name    = aws_db_parameter_group.cometml-db-pg.name

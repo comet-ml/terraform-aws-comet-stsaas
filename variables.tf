@@ -1129,6 +1129,12 @@ variable "rds_preferred_backup_window" {
   default     = "02:00-04:00"
 }
 
+variable "rds_preferred_maintenance_window" {
+  description = "Weekly window (UTC) for AWS-applied maintenance, including Aurora minor upgrades when rds_auto_minor_version_upgrade is true. Must not overlap rds_preferred_backup_window, which AWS rejects. Leave null to let AWS assign one."
+  type        = string
+  default     = null
+}
+
 variable "rds_deletion_protection" {
   description = "Enable deletion protection for RDS cluster"
   type        = bool

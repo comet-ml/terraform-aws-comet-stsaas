@@ -163,6 +163,11 @@ variable "rds_preferred_backup_window" {
   type        = string
 }
 
+variable "rds_preferred_maintenance_window" {
+  description = "Weekly window (UTC) for AWS-applied maintenance, including Aurora minor upgrades. Must not overlap rds_preferred_backup_window."
+  type        = string
+}
+
 variable "rds_database_name" {
   description = "Name for the application database in RDS"
   type        = string
