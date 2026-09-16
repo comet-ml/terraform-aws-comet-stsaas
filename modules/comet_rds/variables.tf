@@ -166,6 +166,10 @@ variable "rds_preferred_backup_window" {
 variable "rds_preferred_maintenance_window" {
   description = "Weekly window (UTC) for AWS-applied maintenance, including Aurora minor upgrades. Must not overlap rds_preferred_backup_window."
   type        = string
+  validation {
+    condition     = var.rds_preferred_maintenance_window == null || can(regex("^(Mon|Tue|Wed|Thu|Fri|Sat|Sun):([01][0-9]|2[0-3]):[0-5][0-9]-(Mon|Tue|Wed|Thu|Fri|Sat|Sun):([01][0-9]|2[0-3]):[0-5][0-9]$", var.rds_preferred_maintenance_window))
+    error_message = "rds_preferred_maintenance_window must be ddd:hh24:mi-ddd:hh24:mi in UTC with a three-letter capitalised day, e.g. \"Sun:05:00-Sun:06:00\"."
+  }
 }
 
 variable "rds_database_name" {
