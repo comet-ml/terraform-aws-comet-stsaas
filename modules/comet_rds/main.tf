@@ -56,6 +56,10 @@ locals {
   rds_bw_start = tonumber(local.rds_bw_parts[0]) * 60 + tonumber(local.rds_bw_parts[1])
   rds_bw_end   = tonumber(local.rds_bw_parts[2]) * 60 + tonumber(local.rds_bw_parts[3])
 
+  # A window ending at or before its start wraps midnight (23:00-01:00 = 120min);
+  # equal start and end is zero minutes, which is how AWS reads it, not 24 hours.
+  rds_bw_duration = (local.rds_bw_end - local.rds_bw_start + 1440) % 1440
+
   # Absolute maintenance spans, split at the week boundary when it wraps. Objects,
   # not tuples: flatten() would splice a [start, end] pair into loose numbers.
   rds_mw_spans = local.rds_mw_end > local.rds_mw_start ? [
@@ -90,6 +94,10 @@ resource "terraform_data" "maintenance_window_is_valid" {
     precondition {
       condition     = !local.rds_maintenance_window_set || local.rds_mw_duration >= 30
       error_message = "rds_preferred_maintenance_window (${var.rds_preferred_maintenance_window}) must span at least 30 minutes; it spans ${local.rds_mw_duration}."
+    }
+    precondition {
+      condition     = local.rds_bw_duration >= 30
+      error_message = "rds_preferred_backup_window (${var.rds_preferred_backup_window}) must span at least 30 minutes, which AWS requires; it spans ${local.rds_bw_duration}. A window whose start and end are equal spans zero minutes, not 24 hours."
     }
     precondition {
       condition     = !local.rds_windows_overlap
