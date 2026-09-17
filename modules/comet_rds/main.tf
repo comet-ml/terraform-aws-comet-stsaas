@@ -85,7 +85,7 @@ locals {
   ]))
 }
 
-resource "terraform_data" "maintenance_window_does_not_overlap_backup_window" {
+resource "terraform_data" "maintenance_window_is_valid" {
   lifecycle {
     precondition {
       condition     = !local.rds_maintenance_window_set || local.rds_mw_duration >= 30

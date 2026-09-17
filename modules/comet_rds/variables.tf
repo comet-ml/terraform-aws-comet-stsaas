@@ -159,13 +159,20 @@ variable "rds_backup_retention_period" {
 }
 
 variable "rds_preferred_backup_window" {
-  description = "Backup window for RDS"
+  description = "Backup window for RDS (UTC)"
   type        = string
+  validation {
+    # Parsed into minutes-of-day for the maintenance-window overlap check, so a
+    # malformed value would otherwise surface as an opaque regex() failure.
+    condition     = can(regex("^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$", var.rds_preferred_backup_window))
+    error_message = "rds_preferred_backup_window must be hh24:mi-hh24:mi in UTC, e.g. \"02:00-04:00\"."
+  }
 }
 
 variable "rds_preferred_maintenance_window" {
-  description = "Weekly window (UTC) for AWS-applied maintenance, including Aurora minor upgrades. Must not overlap rds_preferred_backup_window."
+  description = "Weekly window (UTC) for AWS-applied maintenance, including Aurora minor upgrades. Must not overlap rds_preferred_backup_window. Null lets AWS assign one."
   type        = string
+  default     = null
   validation {
     condition     = var.rds_preferred_maintenance_window == null || can(regex("^(Mon|Tue|Wed|Thu|Fri|Sat|Sun):([01][0-9]|2[0-3]):[0-5][0-9]-(Mon|Tue|Wed|Thu|Fri|Sat|Sun):([01][0-9]|2[0-3]):[0-5][0-9]$", var.rds_preferred_maintenance_window))
     error_message = "rds_preferred_maintenance_window must be ddd:hh24:mi-ddd:hh24:mi in UTC with a three-letter capitalised day, e.g. \"Sun:05:00-Sun:06:00\"."

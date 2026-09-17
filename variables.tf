@@ -1127,6 +1127,10 @@ variable "rds_preferred_backup_window" {
   description = "Backup window for RDS (UTC)"
   type        = string
   default     = "02:00-04:00"
+  validation {
+    condition     = can(regex("^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$", var.rds_preferred_backup_window))
+    error_message = "rds_preferred_backup_window must be hh24:mi-hh24:mi in UTC, e.g. \"02:00-04:00\"."
+  }
 }
 
 variable "rds_preferred_maintenance_window" {
