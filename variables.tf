@@ -1127,6 +1127,22 @@ variable "rds_preferred_backup_window" {
   description = "Backup window for RDS (UTC)"
   type        = string
   default     = "02:00-04:00"
+  validation {
+    condition     = can(regex("^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$", var.rds_preferred_backup_window))
+    error_message = "rds_preferred_backup_window must be hh24:mi-hh24:mi in UTC, e.g. \"02:00-04:00\"."
+  }
+}
+
+variable "rds_preferred_maintenance_window" {
+  description = "Weekly window (UTC) for AWS-applied maintenance, including Aurora minor upgrades when rds_auto_minor_version_upgrade is true. Must not overlap rds_preferred_backup_window, which AWS rejects. Leave null to let AWS assign one."
+  type        = string
+  default     = null
+  validation {
+    # ddd:hh24:mi-ddd:hh24:mi, and AWS requires at least 30 minutes. The duration
+    # is checked in comet_rds, where the backup-window overlap is checked too.
+    condition     = var.rds_preferred_maintenance_window == null || can(regex("^(Mon|Tue|Wed|Thu|Fri|Sat|Sun):([01][0-9]|2[0-3]):[0-5][0-9]-(Mon|Tue|Wed|Thu|Fri|Sat|Sun):([01][0-9]|2[0-3]):[0-5][0-9]$", var.rds_preferred_maintenance_window))
+    error_message = "rds_preferred_maintenance_window must be ddd:hh24:mi-ddd:hh24:mi in UTC with a three-letter capitalised day, e.g. \"Sun:05:00-Sun:06:00\"."
+  }
 }
 
 variable "rds_deletion_protection" {

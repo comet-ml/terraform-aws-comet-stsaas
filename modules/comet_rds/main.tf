@@ -23,6 +23,89 @@ locals {
 # AWS only rejects that when the cluster is associated, after the parameter groups
 # already exist — fail at plan instead. Only reachable when the family is set
 # explicitly; the derived value matches by construction.
+# Cross-field check: AWS rejects a maintenance window that overlaps the backup
+# window, and requires the maintenance window to span at least 30 minutes. Both
+# are only reported once the cluster modification is submitted — fail at plan.
+# Windows are compared as UTC minutes-of-week; the maintenance window may wrap
+# the week boundary (Sun:23:45-Mon:00:15), so it is normalised into one or two
+# non-wrapping spans. The backup window is time-of-day only, so it applies on
+# every day and is compared within each day the maintenance window touches.
+locals {
+  rds_maintenance_window_set = var.rds_preferred_maintenance_window != null
+
+  # "Sun:05:00-Sun:06:00" -> ["Sun","05","00","Sun","06","00"]
+  rds_mw_parts = local.rds_maintenance_window_set ? regex(
+    "^(Mon|Tue|Wed|Thu|Fri|Sat|Sun):([0-9]{2}):([0-9]{2})-(Mon|Tue|Wed|Thu|Fri|Sat|Sun):([0-9]{2}):([0-9]{2})$",
+    var.rds_preferred_maintenance_window
+  ) : []
+
+  rds_day_index = { Mon = 0, Tue = 1, Wed = 2, Thu = 3, Fri = 4, Sat = 5, Sun = 6 }
+
+  rds_mw_start = local.rds_maintenance_window_set ? (
+    local.rds_day_index[local.rds_mw_parts[0]] * 1440 + tonumber(local.rds_mw_parts[1]) * 60 + tonumber(local.rds_mw_parts[2])
+  ) : 0
+  rds_mw_end = local.rds_maintenance_window_set ? (
+    local.rds_day_index[local.rds_mw_parts[3]] * 1440 + tonumber(local.rds_mw_parts[4]) * 60 + tonumber(local.rds_mw_parts[5])
+  ) : 0
+
+  # A window ending at or before its start wraps the week boundary.
+  rds_mw_duration = local.rds_mw_end > local.rds_mw_start ? local.rds_mw_end - local.rds_mw_start : local.rds_mw_end + 10080 - local.rds_mw_start
+
+  # "02:00-04:00" -> minutes after midnight, applied on every day.
+  rds_bw_parts = regex("^([0-9]{2}):([0-9]{2})-([0-9]{2}):([0-9]{2})$", var.rds_preferred_backup_window)
+  rds_bw_start = tonumber(local.rds_bw_parts[0]) * 60 + tonumber(local.rds_bw_parts[1])
+  rds_bw_end   = tonumber(local.rds_bw_parts[2]) * 60 + tonumber(local.rds_bw_parts[3])
+
+  # A window ending at or before its start wraps midnight (23:00-01:00 = 120min);
+  # equal start and end is zero minutes, which is how AWS reads it, not 24 hours.
+  rds_bw_duration = (local.rds_bw_end - local.rds_bw_start + 1440) % 1440
+
+  # Absolute maintenance spans, split at the week boundary when it wraps. Objects,
+  # not tuples: flatten() would splice a [start, end] pair into loose numbers.
+  rds_mw_spans = local.rds_mw_end > local.rds_mw_start ? [
+    { start = local.rds_mw_start, end = local.rds_mw_end }
+    ] : [
+    { start = local.rds_mw_start, end = 10080 },
+    { start = 0, end = local.rds_mw_end },
+  ]
+
+  # Backup spans for every day, since the backup window is time-of-day only. A
+  # backup window that wraps midnight is split the same way.
+  rds_bw_spans = flatten([
+    for day in range(7) : (
+      local.rds_bw_end > local.rds_bw_start
+      ? [{ start = day * 1440 + local.rds_bw_start, end = day * 1440 + local.rds_bw_end }]
+      : [
+        { start = day * 1440 + local.rds_bw_start, end = day * 1440 + 1440 },
+        { start = day * 1440, end = day * 1440 + local.rds_bw_end },
+      ]
+    )
+  ])
+
+  rds_windows_overlap = local.rds_maintenance_window_set && anytrue(flatten([
+    for mw in local.rds_mw_spans : [
+      for bw in local.rds_bw_spans : mw.start < bw.end && bw.start < mw.end
+    ]
+  ]))
+}
+
+resource "terraform_data" "maintenance_window_is_valid" {
+  lifecycle {
+    precondition {
+      condition     = !local.rds_maintenance_window_set || local.rds_mw_duration >= 30
+      error_message = "rds_preferred_maintenance_window (${var.rds_preferred_maintenance_window}) must span at least 30 minutes; it spans ${local.rds_mw_duration}."
+    }
+    precondition {
+      condition     = local.rds_bw_duration >= 30
+      error_message = "rds_preferred_backup_window (${var.rds_preferred_backup_window}) must span at least 30 minutes, which AWS requires; it spans ${local.rds_bw_duration}. A window whose start and end are equal spans zero minutes, not 24 hours."
+    }
+    precondition {
+      condition     = !local.rds_windows_overlap
+      error_message = "rds_preferred_maintenance_window (${var.rds_preferred_maintenance_window}) overlaps rds_preferred_backup_window (${var.rds_preferred_backup_window}), which AWS rejects. The backup window applies every day, so pick a maintenance window clear of it."
+    }
+  }
+}
+
 resource "terraform_data" "parameter_group_family_matches_engine_version" {
   lifecycle {
     precondition {
@@ -148,6 +231,7 @@ resource "aws_rds_cluster" "cometml-db-cluster" {
   backup_retention_period             = var.rds_backup_retention_period
   final_snapshot_identifier           = "cometml-rds-backup-${var.environment}-${formatdate("DD-MMM-YYYY-hh-mm-ss", timestamp())}"
   preferred_backup_window             = var.rds_preferred_backup_window
+  preferred_maintenance_window        = var.rds_preferred_maintenance_window
   vpc_security_group_ids              = [aws_security_group.mysql_sg.id]
   db_cluster_parameter_group_name     = aws_rds_cluster_parameter_group.cometml-cluster-pg.name
   db_instance_parameter_group_name    = aws_db_parameter_group.cometml-db-pg.name

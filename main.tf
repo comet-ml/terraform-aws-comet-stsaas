@@ -482,6 +482,7 @@ module "comet_rds" {
   rds_iam_db_auth                            = var.rds_iam_db_auth
   rds_backup_retention_period                = var.rds_backup_retention_period
   rds_preferred_backup_window                = var.rds_preferred_backup_window
+  rds_preferred_maintenance_window           = var.rds_preferred_maintenance_window
   rds_database_name                          = var.rds_database_name
   rds_master_username                        = var.rds_master_username
   rds_master_password                        = local.rds_master_password
