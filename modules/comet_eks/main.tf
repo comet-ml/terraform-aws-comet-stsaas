@@ -61,6 +61,30 @@ locals {
     topologySpreadConstraints = local.addon_ha_topology_spread
   }))
 
+  # cert-manager is THREE Deployments (controller, webhook, cainjector), and its
+  # chart scopes placement per component: the top-level keys reach the controller
+  # only. Reusing a single-Deployment addon's config here pins the controller and
+  # leaves the other two to schedule anywhere — including nodes being retired.
+  # The webhook sits in the admission path, so a consolidation event on a workload
+  # node can fail certificate and ingress admission.
+  # startupapicheck is deliberately absent: the addon schema does not expose it
+  # (additionalProperties is false, so sending it is rejected).
+  cert_manager_config = jsonencode(merge(local.auto_mode_pin, {
+    replicaCount              = local.addon_ha_replicas
+    podDisruptionBudget       = local.addon_ha_pdb
+    topologySpreadConstraints = local.addon_ha_topology_spread
+    webhook = merge(local.auto_mode_pin, {
+      replicaCount              = local.addon_ha_replicas
+      podDisruptionBudget       = local.addon_ha_pdb
+      topologySpreadConstraints = local.addon_ha_topology_spread
+    })
+    cainjector = merge(local.auto_mode_pin, {
+      replicaCount              = local.addon_ha_replicas
+      podDisruptionBudget       = local.addon_ha_pdb
+      topologySpreadConstraints = local.addon_ha_topology_spread
+    })
+  }))
+
   # EBS CSI nests everything under `controller` (the controller Deployment; the
   # node DaemonSet is unaffected).
   auto_mode_ebs_csi_config = jsonencode({
@@ -304,15 +328,15 @@ module "eks" {
     # cert-manager as a native EKS managed add-on (no IAM required). Replaces the
     # eks_blueprints_addons helm release; installs via the EKS control-plane API
     # (works on private clusters with no data-plane access). Schedulable
-    # Deployment — HA (2 replicas + PDB + soft spread) + Auto Mode pinning, same
-    # shape as coredns (both use replicaCount). See coredns_config local.
+    # Deployment — HA (2 replicas + PDB + soft spread) + Auto Mode pinning, applied
+    # per component. See cert_manager_config local.
     var.eks_cert_manager ? {
       cert-manager = merge(
         var.eks_cert_manager_addon_version != null ? {
           addon_version = var.eks_cert_manager_addon_version
         } : {},
         {
-          configuration_values = local.coredns_config
+          configuration_values = local.cert_manager_config
           # OVERWRITE so the native add-on adopts objects the old eks_blueprints_addons
           # Helm release owns, instead of failing on ConfigurationConflict. DND-1573.
           resolve_conflicts_on_create = "OVERWRITE"
