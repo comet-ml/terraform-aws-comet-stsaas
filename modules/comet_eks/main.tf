@@ -1077,9 +1077,10 @@ module "cloudwatch_exporter_irsa_role" {
 #### Karpenter Prerequisites ####
 #########################################
 
-# By name, so the ARN carries the role's path (comet-admin lives under /system/).
+# By name, so the ARN carries the role's path (comet-admin lives under /system/). Skipped in
+# CONFIG_MAP mode, which has no access entries.
 data "aws_iam_role" "default_admins" {
-  for_each = toset(var.eks_default_admin_role_names)
+  for_each = var.eks_authentication_mode == "CONFIG_MAP" ? toset([]) : toset(var.eks_default_admin_role_names)
   name     = each.value
 }
 
