@@ -159,9 +159,11 @@ locals {
     } : {}
   )
 
-  # Build access entries for admin roles
+  # Build access entries for admin roles: the fleet-wide defaults plus the caller's list,
+  # keyed by ARN so order doesn't matter and a principal listed twice gets one entry.
+  admin_role_arns = toset(concat([for r in data.aws_iam_role.default_admins : r.arn], var.eks_admin_role_arns))
   admin_access_entries = {
-    for arn in var.eks_admin_role_arns : arn => {
+    for arn in local.admin_role_arns : arn => {
       principal_arn = arn
       type          = "STANDARD"
       policy_associations = {
@@ -1074,6 +1076,13 @@ module "cloudwatch_exporter_irsa_role" {
 #########################################
 #### Karpenter Prerequisites ####
 #########################################
+
+# By name, so the ARN carries the role's path (comet-admin lives under /system/). Skipped in
+# CONFIG_MAP mode, which has no access entries.
+data "aws_iam_role" "default_admins" {
+  for_each = var.eks_authentication_mode == "CONFIG_MAP" ? toset([]) : toset(var.eks_default_admin_role_names)
+  name     = each.value
+}
 
 data "aws_caller_identity" "current" {}
 

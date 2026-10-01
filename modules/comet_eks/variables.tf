@@ -81,6 +81,12 @@ variable "eks_admin_role_arns" {
   default     = []
 }
 
+variable "eks_default_admin_role_names" {
+  description = "IAM role names in the cluster's account granted AmazonEKSClusterAdminPolicy on every cluster, in addition to eks_admin_role_arns. Looked up at plan, so a missing role fails the plan; set [] (or a shorter list) to opt out. Ignored when eks_authentication_mode is CONFIG_MAP."
+  type        = list(string)
+  default     = ["admin-dply-terraform", "comet-admin"]
+}
+
 variable "kms_key_administrators" {
   description = "List of IAM ARNs (users/roles) that should have administrator access to the EKS KMS key. These principals can manage the key."
   type        = list(string)
