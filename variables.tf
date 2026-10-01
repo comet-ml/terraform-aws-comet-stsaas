@@ -156,7 +156,7 @@ variable "eks_enable_auto_mode" {
 }
 
 variable "eks_auto_mode_only" {
-  description = "Cluster runs only EKS Auto Mode nodes (no managed node groups). Drops the add-ons Auto Mode provides itself: vpc-cni, kube-proxy, eks-pod-identity-agent and the classic aws-ebs-csi-driver with its IRSA role. Requires eks_enable_auto_mode and all managed node groups disabled."
+  description = "Cluster runs only EKS Auto Mode nodes (no managed node groups). Drops the add-ons Auto Mode provides itself: kube-proxy, eks-pod-identity-agent, the classic aws-ebs-csi-driver with its IRSA role, and vpc-cni unless eks_enable_network_policy is on (its addon owns the ConfigMap that enables Auto Mode's NetworkPolicy controller). Requires eks_enable_auto_mode and all managed node groups disabled. Migrate every PV off the classic ebs.csi.aws.com driver first: nothing can attach those volumes once its controller is gone, and the module cannot see PVs to check."
   type        = bool
   default     = false
 }

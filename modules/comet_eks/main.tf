@@ -266,7 +266,9 @@ module "eks" {
   # depends on this module's OIDC output, so it is a standalone aws_eks_addon
   # below to avoid an eks -> irsa -> eks dependency cycle.
   # Under auto_mode_only, Auto Mode nodes provide pod/service networking and Pod Identity
-  # themselves, so those add-ons are dropped.
+  # themselves, so those add-ons are dropped. vpc-cni stays while NetworkPolicy is enforced:
+  # its addon owns the amazon-vpc-cni ConfigMap whose enable-network-policy-controller key
+  # turns on Auto Mode's policy controller, and removing the addon deletes it.
   addons = { for name, cfg in merge(
     {
       # vpc-cni and kube-proxy are DaemonSets — not pinned to the system pool.
@@ -378,7 +380,7 @@ module "eks" {
         addon_version = var.eks_node_monitoring_agent_addon_version
       } : {}
     } : {}
-  ) : name => cfg if !(var.auto_mode_only && contains(["vpc-cni", "kube-proxy", "eks-pod-identity-agent"], name)) }
+  ) : name => cfg if !(var.auto_mode_only && contains(concat(["kube-proxy", "eks-pod-identity-agent"], var.eks_enable_network_policy ? [] : ["vpc-cni"]), name)) }
 
   eks_managed_node_groups = merge(
     # Karpenter Node Group — created when Karpenter is enabled.
