@@ -155,6 +155,12 @@ variable "eks_enable_auto_mode" {
   default     = false
 }
 
+variable "eks_auto_mode_only" {
+  description = "Cluster runs only EKS Auto Mode nodes (no managed node groups). Drops the add-ons Auto Mode provides itself: vpc-cni, kube-proxy, eks-pod-identity-agent and the classic aws-ebs-csi-driver with its IRSA role. Requires eks_enable_auto_mode and all managed node groups disabled."
+  type        = bool
+  default     = false
+}
+
 variable "eks_disable_auto_mode" {
   description = "Send an explicit Auto Mode disable while keeping eks_enable_auto_mode = true. One apply, to turn Auto Mode off on a cluster that has it. See disable_auto_mode in modules/comet_eks/variables.tf."
   type        = bool

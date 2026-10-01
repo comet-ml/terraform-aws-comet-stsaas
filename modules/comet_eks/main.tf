@@ -265,7 +265,9 @@ module "eks" {
   # aws-ebs-csi-driver is intentionally NOT here — it needs the IRSA role, which
   # depends on this module's OIDC output, so it is a standalone aws_eks_addon
   # below to avoid an eks -> irsa -> eks dependency cycle.
-  addons = merge(
+  # Under auto_mode_only, Auto Mode nodes provide pod/service networking and Pod Identity
+  # themselves, so those add-ons are dropped.
+  addons = { for name, cfg in merge(
     {
       # vpc-cni and kube-proxy are DaemonSets — not pinned to the system pool.
       # vpc-cni must be ready before nodes join, so provision it before compute.
@@ -376,7 +378,7 @@ module "eks" {
         addon_version = var.eks_node_monitoring_agent_addon_version
       } : {}
     } : {}
-  )
+  ) : name => cfg if !(var.auto_mode_only && contains(["vpc-cni", "kube-proxy", "eks-pod-identity-agent"], name)) }
 
   eks_managed_node_groups = merge(
     # Karpenter Node Group — created when Karpenter is enabled.
@@ -578,6 +580,7 @@ module "eks" {
 
 
 module "irsa-ebs-csi" {
+  count   = var.auto_mode_only ? 0 : 1
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
   version = "~> 5.39"
 
@@ -640,9 +643,10 @@ moved {
 # because its IRSA role depends on the eks module's OIDC output — putting it
 # inside the module would create an eks -> irsa-ebs-csi -> eks cycle.
 resource "aws_eks_addon" "ebs_csi" {
+  count                    = var.auto_mode_only ? 0 : 1
   cluster_name             = module.eks.cluster_name
   addon_name               = "aws-ebs-csi-driver"
-  service_account_role_arn = module.irsa-ebs-csi.iam_role_arn
+  service_account_role_arn = module.irsa-ebs-csi[0].iam_role_arn
 
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
@@ -1087,6 +1091,30 @@ data "aws_caller_identity" "current" {}
 # grants would target the wrong region and deny actions. Fail fast at plan time
 # instead. (.region is the aws provider v6 attribute; .name is deprecated.)
 data "aws_region" "current" {}
+
+# The classic EBS CSI driver and its role became counted for auto_mode_only; keep existing
+# clusters' state where it was.
+moved {
+  from = module.irsa-ebs-csi
+  to   = module.irsa-ebs-csi[0]
+}
+
+moved {
+  from = aws_eks_addon.ebs_csi
+  to   = aws_eks_addon.ebs_csi[0]
+}
+
+# Dropping vpc-cni and kube-proxy with managed nodes still present would cut their pod networking.
+resource "terraform_data" "auto_mode_only_guard" {
+  count = var.auto_mode_only ? 1 : 0
+
+  lifecycle {
+    precondition {
+      condition     = var.enable_auto_mode && length(module.eks.eks_managed_node_groups) == 0
+      error_message = "auto_mode_only requires enable_auto_mode = true and no managed node groups (found ${length(module.eks.eks_managed_node_groups)}). Retire the node groups first."
+    }
+  }
+}
 
 resource "terraform_data" "region_consistency" {
   lifecycle {

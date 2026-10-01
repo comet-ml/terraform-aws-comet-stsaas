@@ -754,6 +754,12 @@ variable "enable_auto_mode" {
   default     = false
 }
 
+variable "auto_mode_only" {
+  description = "Cluster runs only EKS Auto Mode nodes (no managed node groups). Drops the add-ons Auto Mode provides itself: vpc-cni, kube-proxy, eks-pod-identity-agent and the classic aws-ebs-csi-driver with its IRSA role. Requires enable_auto_mode and no managed node groups."
+  type        = bool
+  default     = false
+}
+
 variable "auto_mode_node_pools" {
   description = <<-EOT
     Built-in EKS Auto Mode node pools to enable (control-plane managed, no
