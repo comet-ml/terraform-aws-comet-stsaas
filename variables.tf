@@ -168,9 +168,9 @@ variable "eks_disable_auto_mode" {
 }
 
 variable "eks_auto_mode_node_pools" {
-  description = "Built-in EKS Auto Mode node pools to enable when eks_enable_auto_mode = true. Common values: \"system\", \"general-purpose\". Custom NodePool/NodeClass CRDs are managed via GitOps (ArgoCD), not this module."
+  description = "Built-in EKS Auto Mode node pools to enable when eks_enable_auto_mode = true. Defaults to \"system\" only: workloads run on custom NodePools managed via GitOps (comet-infra), and the untainted \"general-purpose\" pool would otherwise catch any pending pod during a hybrid migration."
   type        = list(string)
-  default     = ["system", "general-purpose"]
+  default     = ["system"]
 }
 
 variable "enable_cloudwatch_exporter" {
