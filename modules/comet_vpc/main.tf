@@ -50,6 +50,7 @@ module "vpc" {
 
   name = coalesce(var.vpc_name, "${local.resource_name}-vpc")
   cidr = local.vpc_cidr
+  tags = var.common_tags
 
   azs             = local.azs
   public_subnets  = var.public_subnets != null ? var.public_subnets : [for k, v in local.azs : cidrsubnet(local.vpc_cidr, 8, k)]

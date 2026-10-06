@@ -182,6 +182,15 @@ resource "terraform_data" "rds_proxy_endpoint_validation" {
   }
 }
 
+resource "terraform_data" "tags_validation" {
+  lifecycle {
+    precondition {
+      condition     = alltrue([for k in ["Environment", "Customer"] : contains(keys(local.all_tags), k)])
+      error_message = "common_tags must include Environment and Customer (or set environment_tag). They are applied to every resource the module creates, including the EKS cluster and VPC, and drive cost attribution."
+    }
+  }
+}
+
 module "comet_vpc" {
   source      = "./modules/comet_vpc"
   count       = var.enable_vpc ? 1 : 0

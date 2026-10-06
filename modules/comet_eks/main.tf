@@ -230,6 +230,8 @@ module "eks" {
   endpoint_private_access = var.eks_cluster_endpoint_private_access
   deletion_protection     = var.eks_cluster_deletion_protection
 
+  tags = var.common_tags
+
   security_group_additional_rules = local.cluster_security_group_rules
 
   authentication_mode                      = var.eks_authentication_mode
@@ -590,6 +592,7 @@ module "irsa-ebs-csi" {
 
   role_name             = "AmazonEKSTFEBSCSIRole-${module.eks.cluster_name}"
   attach_ebs_csi_policy = true
+  tags                  = var.common_tags
 
   oidc_providers = {
     ex = {
