@@ -769,14 +769,14 @@ variable "auto_mode_only" {
 variable "auto_mode_node_pools" {
   description = <<-EOT
     Built-in EKS Auto Mode node pools to enable (control-plane managed, no
-    manifests required). Common values: "system", "general-purpose". Only used
+    manifests required). Defaults to "system" only (see the root variable). Only used
     when enable_auto_mode = true. Custom NodePool/NodeClass CRDs (taints, limits,
     instance shaping) are NOT created here — they are cluster-side objects and
     should be managed via GitOps (e.g. ArgoCD), especially for private-endpoint
     clusters the Terraform runner cannot reach.
   EOT
   type        = list(string)
-  default     = ["system", "general-purpose"]
+  default     = ["system"]
 }
 
 # Karpenter Node Group Variables
