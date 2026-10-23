@@ -92,6 +92,11 @@ output "cloudwatch_exporter_irsa_role_arn" {
   value       = var.enable_cloudwatch_exporter ? module.cloudwatch_exporter_irsa_role[0].iam_role_arn : null
 }
 
+output "aws_node_retag_irsa_role_arn" {
+  description = "ARN of the aws-node-retag IRSA role"
+  value       = var.enable_aws_node_retag ? module.aws_node_retag_irsa_role[0].iam_role_arn : null
+}
+
 output "cloudwatch_exporter_irsa_role_name" {
   description = "Name of the CloudWatch Exporter IRSA role"
   value       = var.enable_cloudwatch_exporter ? module.cloudwatch_exporter_irsa_role[0].iam_role_name : null

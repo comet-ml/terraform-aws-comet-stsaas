@@ -179,6 +179,12 @@ variable "enable_cloudwatch_exporter" {
   default     = false
 }
 
+variable "enable_aws_node_retag" {
+  description = "Create the IRSA role for the aws-node-retag controller (comet-infra subchart), which tags nodes' EC2 instances/EBS volumes and PV volumes"
+  type        = bool
+  default     = false
+}
+
 # Monitoring namespace/secret bootstrap moved out of the EKS module in v5.0.0
 # (namespace -> comet-infra chart; Secret -> External Secrets Operator). The
 # enable_monitoring_setup / manage_monitoring_secret / monitoring_namespace vars

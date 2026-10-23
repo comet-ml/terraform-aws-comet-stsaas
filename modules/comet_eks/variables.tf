@@ -405,6 +405,12 @@ variable "enable_cloudwatch_exporter" {
   default     = false
 }
 
+variable "enable_aws_node_retag" {
+  description = "Create the IRSA role for the aws-node-retag controller (comet-infra subchart)"
+  type        = bool
+  default     = false
+}
+
 # IRSA role-name overrides. Default null keeps the computed "${environment}-<role>"
 # name. Set to adopt an existing differently-named role (e.g. a legacy hand-rolled
 # "zoox-loki") by import/state-mv instead of recreating it — recreation would change
