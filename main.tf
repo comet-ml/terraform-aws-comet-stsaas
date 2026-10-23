@@ -394,7 +394,8 @@ module "comet_eks" {
   cloudwatch_exporter_iam_role_name_override = var.cloudwatch_exporter_iam_role_name_override
 
   # aws-node-retag IRSA (comet-infra subchart)
-  enable_aws_node_retag = var.enable_aws_node_retag
+  enable_aws_node_retag   = var.enable_aws_node_retag
+  aws_node_retag_tag_keys = var.aws_node_retag_tag_keys
 
   # EKS Auto Mode (mutually exclusive with Karpenter)
   enable_auto_mode     = var.eks_enable_auto_mode

@@ -1080,14 +1080,34 @@ data "aws_iam_policy_document" "aws_node_retag" {
   statement {
     actions   = ["ec2:DescribeInstances"]
     resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestedRegion"
+      values   = [var.region]
+    }
   }
 
+  # Only this cluster's resources (EKS Auto Mode stamps eks:eks-cluster-name on its nodes and
+  # volumes) and only the listed keys, so ownership tags that other IAM conditions trust stay untouched.
   statement {
     actions = ["ec2:CreateTags"]
     resources = [
       "arn:aws:ec2:*:*:instance/*",
       "arn:aws:ec2:*:*:volume/*",
     ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/eks:eks-cluster-name"
+      values   = [module.eks.cluster_name]
+    }
+
+    condition {
+      test     = "ForAllValues:StringEquals"
+      variable = "aws:TagKeys"
+      values   = var.aws_node_retag_tag_keys
+    }
   }
 }
 
