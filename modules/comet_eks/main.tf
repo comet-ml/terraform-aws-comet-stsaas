@@ -1071,6 +1071,94 @@ module "cloudwatch_exporter_irsa_role" {
   )
 }
 
+#############################################
+#### aws-node-retag IRSA Role and Policy ####
+#############################################
+data "aws_iam_policy_document" "aws_node_retag" {
+  count = var.enable_aws_node_retag ? 1 : 0
+
+  statement {
+    actions   = ["ec2:DescribeInstances"]
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestedRegion"
+      values   = [var.region]
+    }
+  }
+
+  # Only this cluster's resources (EKS Auto Mode stamps eks:eks-cluster-name on its nodes and
+  # volumes) and only the listed keys, so ownership tags that other IAM conditions trust stay untouched.
+  statement {
+    actions = ["ec2:CreateTags"]
+    resources = [
+      "arn:aws:ec2:*:*:instance/*",
+      "arn:aws:ec2:*:*:volume/*",
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/eks:eks-cluster-name"
+      values   = [module.eks.cluster_name]
+    }
+
+    condition {
+      test     = "ForAllValues:StringEquals"
+      variable = "aws:TagKeys"
+      values   = var.aws_node_retag_tag_keys
+    }
+  }
+}
+
+resource "aws_iam_policy" "aws_node_retag" {
+  count = var.enable_aws_node_retag ? 1 : 0
+
+  name_prefix = "${var.environment}-aws-node-retag-"
+  description = "Lets aws-node-retag tag EC2 instances and EBS volumes on ${var.environment} cluster"
+  policy      = data.aws_iam_policy_document.aws_node_retag[0].json
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name = "${var.environment}-aws-node-retag"
+    }
+  )
+}
+
+module "aws_node_retag_irsa_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.39"
+
+  count = var.enable_aws_node_retag ? 1 : 0
+
+  role_name = "${var.environment}-aws-node-retag"
+
+  role_policy_arns = {
+    aws_node_retag = aws_iam_policy.aws_node_retag[0].arn
+  }
+
+  oidc_providers = {
+    ex = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["comet-system:comet-infra-aws-node-retag"]
+    }
+  }
+
+  depends_on = [
+    module.eks,
+    aws_iam_policy.aws_node_retag
+  ]
+
+  tags = merge(
+    var.common_tags,
+    {
+      Name        = "${var.environment}-aws-node-retag"
+      Description = "IRSA role for aws-node-retag to tag EC2 instances and EBS volumes"
+    }
+  )
+}
+
 #########################################
 #### Monitoring Namespace and Secrets ####
 #########################################

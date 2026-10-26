@@ -234,6 +234,11 @@ output "cloudwatch_exporter_irsa_role_arn" {
   value       = var.enable_eks && var.enable_cloudwatch_exporter ? module.comet_eks[0].cloudwatch_exporter_irsa_role_arn : null
 }
 
+output "aws_node_retag_irsa_role_arn" {
+  description = "ARN of the aws-node-retag IRSA role"
+  value       = var.enable_eks && var.enable_aws_node_retag ? module.comet_eks[0].aws_node_retag_irsa_role_arn : null
+}
+
 output "cloudwatch_exporter_irsa_role_name" {
   description = "Name of the CloudWatch Exporter IRSA role"
   value       = var.enable_eks && var.enable_cloudwatch_exporter ? module.comet_eks[0].cloudwatch_exporter_irsa_role_name : null
