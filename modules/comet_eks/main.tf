@@ -1109,6 +1109,28 @@ data "aws_iam_policy_document" "aws_node_retag" {
       values   = var.aws_node_retag_tag_keys
     }
   }
+
+  # Clusters without Auto Mode have no eks:eks-cluster-name tag; their nodes and EBS CSI volumes
+  # carry kubernetes.io/cluster/<name> instead.
+  statement {
+    actions = ["ec2:CreateTags"]
+    resources = [
+      "arn:aws:ec2:*:*:instance/*",
+      "arn:aws:ec2:*:*:volume/*",
+    ]
+
+    condition {
+      test     = "Null"
+      variable = "aws:ResourceTag/kubernetes.io/cluster/${module.eks.cluster_name}"
+      values   = ["false"]
+    }
+
+    condition {
+      test     = "ForAllValues:StringEquals"
+      variable = "aws:TagKeys"
+      values   = var.aws_node_retag_tag_keys
+    }
+  }
 }
 
 resource "aws_iam_policy" "aws_node_retag" {
