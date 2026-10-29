@@ -1078,7 +1078,7 @@ data "aws_iam_policy_document" "aws_node_retag" {
   count = var.enable_aws_node_retag ? 1 : 0
 
   statement {
-    actions   = ["ec2:DescribeInstances"]
+    actions   = ["ec2:DescribeInstances", "ec2:DescribeTags"]
     resources = ["*"]
 
     condition {
