@@ -93,7 +93,7 @@ resource "terraform_data" "maintenance_window_is_valid" {
   lifecycle {
     precondition {
       condition     = !local.rds_maintenance_window_set || local.rds_mw_duration >= 30
-      error_message = "rds_preferred_maintenance_window (${var.rds_preferred_maintenance_window}) must span at least 30 minutes; it spans ${local.rds_mw_duration}."
+      error_message = "rds_preferred_maintenance_window (${coalesce(var.rds_preferred_maintenance_window, "null")}) must span at least 30 minutes; it spans ${local.rds_mw_duration}."
     }
     precondition {
       condition     = local.rds_bw_duration >= 30
@@ -101,7 +101,7 @@ resource "terraform_data" "maintenance_window_is_valid" {
     }
     precondition {
       condition     = !local.rds_windows_overlap
-      error_message = "rds_preferred_maintenance_window (${var.rds_preferred_maintenance_window}) overlaps rds_preferred_backup_window (${var.rds_preferred_backup_window}), which AWS rejects. The backup window applies every day, so pick a maintenance window clear of it."
+      error_message = "rds_preferred_maintenance_window (${coalesce(var.rds_preferred_maintenance_window, "null")}) overlaps rds_preferred_backup_window (${var.rds_preferred_backup_window}), which AWS rejects. The backup window applies every day, so pick a maintenance window clear of it."
     }
   }
 }
