@@ -93,7 +93,7 @@ resource "terraform_data" "maintenance_window_is_valid" {
   lifecycle {
     precondition {
       condition     = !local.rds_maintenance_window_set || local.rds_mw_duration >= 30
-      error_message = "rds_preferred_maintenance_window (${var.rds_preferred_maintenance_window}) must span at least 30 minutes; it spans ${local.rds_mw_duration}."
+      error_message = "rds_preferred_maintenance_window (${coalesce(var.rds_preferred_maintenance_window, "null")}) must span at least 30 minutes; it spans ${local.rds_mw_duration}."
     }
     precondition {
       condition     = local.rds_bw_duration >= 30
@@ -101,7 +101,7 @@ resource "terraform_data" "maintenance_window_is_valid" {
     }
     precondition {
       condition     = !local.rds_windows_overlap
-      error_message = "rds_preferred_maintenance_window (${var.rds_preferred_maintenance_window}) overlaps rds_preferred_backup_window (${var.rds_preferred_backup_window}), which AWS rejects. The backup window applies every day, so pick a maintenance window clear of it."
+      error_message = "rds_preferred_maintenance_window (${coalesce(var.rds_preferred_maintenance_window, "null")}) overlaps rds_preferred_backup_window (${var.rds_preferred_backup_window}), which AWS rejects. The backup window applies every day, so pick a maintenance window clear of it."
     }
   }
 }
@@ -425,9 +425,9 @@ resource "aws_vpc_security_group_ingress_rule" "mysql_port_inbound_ec2" {
 
 # EKS Auto Mode nodes attach the cluster primary SG (not the managed node SG that
 # rds_allow_from_sg references), so they need their own ingress rule to reach MySQL.
-# Only created when the Auto Mode SG is passed in.
+# Only created when Auto Mode is enabled.
 resource "aws_vpc_security_group_ingress_rule" "mysql_port_inbound_auto_mode" {
-  count = var.rds_auto_mode_allow_from_sg != null ? 1 : 0
+  count = var.rds_auto_mode_enabled ? 1 : 0
 
   security_group_id            = aws_security_group.mysql_sg.id
   from_port                    = local.mysql_port

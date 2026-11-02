@@ -68,9 +68,9 @@ resource "aws_vpc_security_group_ingress_rule" "redis_port_inbound_rule" {
 
 # EKS Auto Mode nodes attach the cluster primary SG (not the managed node SG that
 # elasticache_allow_from_sg references), so they need their own ingress rule to reach
-# Redis. Only created when the Auto Mode SG is passed in.
+# Redis. Only created when Auto Mode is enabled.
 resource "aws_vpc_security_group_ingress_rule" "redis_port_inbound_auto_mode" {
-  count = var.elasticache_auto_mode_allow_from_sg != null ? 1 : 0
+  count = var.elasticache_auto_mode_enabled ? 1 : 0
 
   security_group_id            = aws_security_group.redis_inbound_sg.id
   from_port                    = local.redis_port

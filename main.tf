@@ -437,6 +437,7 @@ module "comet_elasticache" {
   var.elasticache_allow_from_sg))
   # EKS Auto Mode nodes attach the cluster primary SG (distinct from the managed node SG
   # above), so grant them Redis access too when Auto Mode is enabled.
+  elasticache_auto_mode_enabled           = var.enable_eks && var.eks_enable_auto_mode
   elasticache_auto_mode_allow_from_sg     = var.enable_eks && var.eks_enable_auto_mode ? module.comet_eks[0].cluster_primary_security_group_id : null
   elasticache_engine                      = var.elasticache_engine
   elasticache_engine_version              = var.elasticache_engine_version
@@ -471,6 +472,7 @@ module "comet_rds" {
 
   # EKS Auto Mode nodes attach the cluster primary SG (distinct from the managed node SG
   # above), so grant them MySQL access too when Auto Mode is enabled.
+  rds_auto_mode_enabled          = var.enable_eks && var.eks_enable_auto_mode
   rds_auto_mode_allow_from_sg    = var.enable_eks && var.eks_enable_auto_mode ? module.comet_eks[0].cluster_primary_security_group_id : null
   rds_engine                     = var.rds_engine
   rds_engine_version             = var.rds_engine_version
