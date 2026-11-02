@@ -18,8 +18,14 @@ variable "elasticache_allow_from_sg" {
   type        = string
 }
 
+variable "elasticache_auto_mode_enabled" {
+  description = "Whether the EKS cluster runs Auto Mode, which creates the elasticache_auto_mode_allow_from_sg ingress rule. A separate flag because that SG id is unknown until the cluster exists, and count must be known at plan time."
+  type        = bool
+  default     = false
+}
+
 variable "elasticache_auto_mode_allow_from_sg" {
-  description = "Additional security group allowed to reach ElastiCache — the EKS Auto Mode cluster primary SG. Auto Mode nodes attach a different SG than managed node groups, so without this a pod on an Auto Mode node cannot reach Redis. Null (default) creates no extra rule."
+  description = "Additional security group allowed to reach ElastiCache — the EKS Auto Mode cluster primary SG. Auto Mode nodes attach a different SG than managed node groups, so without this a pod on an Auto Mode node cannot reach Redis. Used only when elasticache_auto_mode_enabled is true."
   type        = string
   default     = null
 }
