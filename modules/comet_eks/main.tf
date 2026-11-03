@@ -35,11 +35,13 @@ locals {
   # HA is visible in code rather than implicit (and overrides the addon's own
   # PDB rather than creating a conflicting second one).
   #
-  # Spreading uses a hostname topologySpreadConstraint. Under Auto Mode it is hard
-  # (DoNotSchedule): soft spreading lets Auto Mode pack both replicas onto one
-  # `system` node, so losing that node takes out cluster DNS; a hard spread makes
-  # it provision a second node instead. Without Auto Mode nothing provisions for
-  # a Pending pod, so it stays soft (ScheduleAnyway) and never blocks scheduling.
+  # Spreading uses a hostname topologySpreadConstraint. While Auto Mode provisions
+  # nodes it is hard (DoNotSchedule, minDomains = 2): soft spreading lets Auto Mode
+  # pack both replicas onto one `system` node, so losing that node takes out
+  # cluster DNS. minDomains makes the second replica Pending while only one node
+  # exists (maxSkew alone allows 2 vs 1 on a single node), so Auto Mode adds one.
+  # Otherwise nothing provisions for a Pending pod, so it stays soft
+  # (ScheduleAnyway) and never blocks scheduling.
   # A constraint without a labelSelector counts no pods and does nothing, so each
   # add-on's own pod labels are given.
   addon_ha_replicas = 2
@@ -53,12 +55,12 @@ locals {
     cert-manager       = null
     kube-state-metrics = null
   }
+  addon_ha_hard_spread = var.enable_auto_mode && !var.disable_auto_mode
   addon_ha_topology_spread = { for name, labels in local.addon_ha_spread_labels : name => [merge(
-    {
-      maxSkew           = 1
-      topologyKey       = "kubernetes.io/hostname"
-      whenUnsatisfiable = var.enable_auto_mode && labels != null ? "DoNotSchedule" : "ScheduleAnyway"
-    },
+    { maxSkew = 1, topologyKey = "kubernetes.io/hostname" },
+    local.addon_ha_hard_spread && labels != null
+    ? { whenUnsatisfiable = "DoNotSchedule", minDomains = 2 }
+    : { whenUnsatisfiable = "ScheduleAnyway" },
     labels != null ? { labelSelector = { matchLabels = labels } } : {},
   )] }
 
