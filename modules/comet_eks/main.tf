@@ -35,17 +35,34 @@ locals {
   # HA is visible in code rather than implicit (and overrides the addon's own
   # PDB rather than creating a conflicting second one).
   #
-  # Spreading uses topologySpreadConstraints with whenUnsatisfiable=ScheduleAnyway
-  # (soft) so pods still schedule on a single-node pool (e.g. a 1-node Auto Mode
-  # `system` pool) instead of going Pending — HA when nodes exist, no deadlock
-  # when they don't.
+  # Spreading uses a hostname topologySpreadConstraint. While Auto Mode provisions
+  # nodes it is hard (DoNotSchedule, minDomains = 2): soft spreading lets Auto Mode
+  # pack both replicas onto one `system` node, so losing that node takes out
+  # cluster DNS. minDomains makes the second replica Pending while only one node
+  # exists (maxSkew alone allows 2 vs 1 on a single node), so Auto Mode adds one.
+  # Otherwise nothing provisions for a Pending pod, so it stays soft
+  # (ScheduleAnyway) and never blocks scheduling.
+  # A constraint without a labelSelector counts no pods and does nothing, so each
+  # add-on's own pod labels are given.
   addon_ha_replicas = 2
   addon_ha_pdb      = { maxUnavailable = 1 }
-  addon_ha_topology_spread = [{
-    maxSkew           = 1
-    topologyKey       = "kubernetes.io/hostname"
-    whenUnsatisfiable = "ScheduleAnyway"
-  }]
+  addon_ha_spread_labels = {
+    coredns            = { "k8s-app" = "kube-dns" }
+    metrics-server     = { "app.kubernetes.io/name" = "metrics-server" }
+    ebs-csi-controller = { app = "ebs-csi-controller" }
+    # Not deployed on the fleet yet: they keep the soft, selector-less spread until
+    # their pod labels are checked (cert-manager also runs three Deployments).
+    cert-manager       = null
+    kube-state-metrics = null
+  }
+  addon_ha_hard_spread = var.enable_auto_mode && !var.disable_auto_mode
+  addon_ha_topology_spread = { for name, labels in local.addon_ha_spread_labels : name => [merge(
+    { maxSkew = 1, topologyKey = "kubernetes.io/hostname" },
+    local.addon_ha_hard_spread && labels != null
+    ? { whenUnsatisfiable = "DoNotSchedule", minDomains = 2 }
+    : { whenUnsatisfiable = "ScheduleAnyway" },
+    labels != null ? { labelSelector = { matchLabels = labels } } : {},
+  )] }
 
   # coredns/metrics-server accept HA + pinning at the top level. metrics-server
   # uses `replicas`; coredns uses `replicaCount`. Both accept podDisruptionBudget
@@ -53,12 +70,22 @@ locals {
   coredns_config = jsonencode(merge(local.auto_mode_pin, {
     replicaCount              = local.addon_ha_replicas
     podDisruptionBudget       = local.addon_ha_pdb
-    topologySpreadConstraints = local.addon_ha_topology_spread
+    topologySpreadConstraints = local.addon_ha_topology_spread["coredns"]
   }))
   metrics_server_config = jsonencode(merge(local.auto_mode_pin, {
     replicas                  = local.addon_ha_replicas
     podDisruptionBudget       = local.addon_ha_pdb
-    topologySpreadConstraints = local.addon_ha_topology_spread
+    topologySpreadConstraints = local.addon_ha_topology_spread["metrics-server"]
+  }))
+  cert_manager_config = jsonencode(merge(local.auto_mode_pin, {
+    replicaCount              = local.addon_ha_replicas
+    podDisruptionBudget       = local.addon_ha_pdb
+    topologySpreadConstraints = local.addon_ha_topology_spread["cert-manager"]
+  }))
+  kube_state_metrics_config = jsonencode(merge(local.auto_mode_pin, {
+    replicas                  = local.addon_ha_replicas
+    podDisruptionBudget       = local.addon_ha_pdb
+    topologySpreadConstraints = local.addon_ha_topology_spread["kube-state-metrics"]
   }))
 
   # EBS CSI nests everything under `controller` (the controller Deployment; the
@@ -67,7 +94,7 @@ locals {
     controller = merge(local.auto_mode_pin, {
       replicaCount              = local.addon_ha_replicas
       podDisruptionBudget       = local.addon_ha_pdb
-      topologySpreadConstraints = local.addon_ha_topology_spread
+      topologySpreadConstraints = local.addon_ha_topology_spread["ebs-csi-controller"]
     })
   })
 
@@ -286,7 +313,7 @@ module "eks" {
         } : {}
       )
       kube-proxy = {}
-      # coredns is a schedulable Deployment — HA (2 replicas + PDB + soft
+      # coredns is a schedulable Deployment — HA (2 replicas + PDB + hostname
       # topology spread) plus system-pool pinning under Auto Mode. See the
       # coredns_config local.
       coredns = {
@@ -311,14 +338,14 @@ module "eks" {
     # eks_blueprints_addons helm release; installs via the EKS control-plane API
     # (works on private clusters with no data-plane access). Schedulable
     # Deployment — HA (2 replicas + PDB + soft spread) + Auto Mode pinning, same
-    # shape as coredns (both use replicaCount). See coredns_config local.
+    # shape as coredns (both use replicaCount). See cert_manager_config local.
     var.eks_cert_manager ? {
       cert-manager = merge(
         var.eks_cert_manager_addon_version != null ? {
           addon_version = var.eks_cert_manager_addon_version
         } : {},
         {
-          configuration_values = local.coredns_config
+          configuration_values = local.cert_manager_config
           # OVERWRITE so the native add-on adopts objects the old eks_blueprints_addons
           # Helm release owns, instead of failing on ConfigurationConflict. DND-1573.
           resolve_conflicts_on_create = "OVERWRITE"
@@ -366,7 +393,7 @@ module "eks" {
           addon_version = var.eks_kube_state_metrics_addon_version
         } : {},
         {
-          configuration_values = local.metrics_server_config
+          configuration_values = local.kube_state_metrics_config
         }
       )
     } : {},
