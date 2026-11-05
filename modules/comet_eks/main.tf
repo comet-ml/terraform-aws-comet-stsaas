@@ -58,9 +58,10 @@ locals {
   addon_ha_hard_spread = var.enable_auto_mode && !var.disable_auto_mode
   addon_ha_topology_spread = { for name, labels in local.addon_ha_spread_labels : name => [merge(
     { maxSkew = 1, topologyKey = "kubernetes.io/hostname" },
-    local.addon_ha_hard_spread && labels != null
-    ? { whenUnsatisfiable = "DoNotSchedule", minDomains = 2 }
-    : { whenUnsatisfiable = "ScheduleAnyway" },
+    { whenUnsatisfiable = local.addon_ha_hard_spread && labels != null ? "DoNotSchedule" : "ScheduleAnyway" },
+    # Its own conditional: branches with different attributes unify to map(string),
+    # which would render minDomains as "2", a string Kubernetes rejects.
+    local.addon_ha_hard_spread && labels != null ? { minDomains = 2 } : {},
     labels != null ? { labelSelector = { matchLabels = labels } } : {},
   )] }
 
